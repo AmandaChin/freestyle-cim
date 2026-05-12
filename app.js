@@ -98,30 +98,14 @@ function buildComponents(overrides = {}) {
   }));
 }
 
+const CIM_SHARED_CONFIG = window.SKATE_CIM_CONFIG || {};
+const PUBLISHED_SHOE_IDS = new Set(
+  (CIM_SHARED_CONFIG.shoes || [])
+    .filter((item) => item.status === "published")
+    .map((item) => item.shoeId)
+);
+
 const PRODUCT_CATALOG = [
-  {
-    id: "yjs-cim",
-    name: "YJS CIM",
-    code: "YJS",
-    price: "基础鞋定制",
-    homeTag: "Daily Training",
-    homeLabel: "轻量训练款",
-    description: "轻量训练轮滑鞋定制，支持侧面标注裁片、巴扣、鞋底与 CUFF 贴图配置。",
-    note: "YJS 当前接入单视角透明蒙版 MVP；侧面标注裁片已按切图拆层。",
-    homeFeatures: ["轻量鞋身", "日常训练", "可扩展裁片"],
-    accentA: "#8ed8ff",
-    accentB: "#86d9bd",
-    editablePartId: MVP_ACTIVE_PART_ID,
-    assets: SHARED_MVP_ASSETS,
-    components: buildComponents({
-      G: { color: "#8ed8ff", material: "mesh" },
-      C2: { color: "#8ed8ff", material: "smooth" },
-      D: { defaultVariant: "cuff-black" },
-      M: { defaultVariant: "buckle-white" },
-      N: { defaultVariant: "sole-silver" }
-    }),
-    ...SHARED_PRODUCT_DETAILS
-  },
   {
     id: "yjs-pro-cim-upper",
     name: "YJS-pro CIM",
@@ -145,7 +129,7 @@ const PRODUCT_CATALOG = [
     }),
     ...SHARED_PRODUCT_DETAILS
   }
-];
+].filter((item) => PUBLISHED_SHOE_IDS.size === 0 || PUBLISHED_SHOE_IDS.has(item.id));
 
 const PALETTES = {
   leather: [
@@ -579,7 +563,7 @@ function renderHome() {
   els.homeProductTag.textContent = "Skate Studio";
   els.homeProductName.textContent = "Create your own skates";
   els.homeProductDescription.textContent = "选择鞋款后进入定制器，继续配置颜色、皮料和特殊定制。";
-  els.homeProductMeta.innerHTML = ["YJS", "YJS-PRO", "Layered 2.5D MVP"].map((feature) => `<span>${feature}</span>`).join("");
+  els.homeProductMeta.innerHTML = (item.homeFeatures || [item.code, "Layered 2.5D MVP"]).map((feature) => `<span>${feature}</span>`).join("");
   els.homeShoeArt.innerHTML = homeShoeMarkup();
   els.homeProductGrid.innerHTML = PRODUCT_CATALOG.map((catalogItem) => {
     const selected = catalogItem.id === state.productId;

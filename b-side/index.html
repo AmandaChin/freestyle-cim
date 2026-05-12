@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Skate CIM B 端配置平台</title>
+    <link rel="stylesheet" href="./styles.css?v=20260511-bside-host" />
+  </head>
+  <body>
+    <div class="admin-shell" id="adminShell">
+      <aside class="admin-sidebar" aria-label="后台导航">
+        <div class="sidebar-head">
+          <a class="admin-brand" href="./index.html" aria-label="Skate CIM B 端首页">
+            <span class="admin-brand-mark" aria-hidden="true"></span>
+            <span class="admin-brand-copy">
+              <strong>Skate CIM</strong>
+              <span>配置平台</span>
+            </span>
+          </a>
+          <button class="icon-button" id="collapseButton" type="button" title="折叠导航" aria-label="折叠导航">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+          </button>
+        </div>
+        <nav class="admin-nav" id="adminNav" aria-label="模块导航"></nav>
+      </aside>
+
+      <div class="admin-main">
+        <header class="admin-topbar">
+          <div>
+            <p class="admin-eyebrow" id="moduleEyebrow">Admin Console</p>
+            <h1 id="moduleTitle">鞋款管理</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button" id="resetDemoButton" type="button">重置演示数据</button>
+            <button class="icon-label-button" id="themeButton" type="button" aria-label="切换深浅色">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M4.93 19.07l1.41-1.41"></path><path d="M17.66 6.34l1.41-1.41"></path></svg>
+              <span id="themeText">浅色</span>
+            </button>
+          </div>
+        </header>
+
+        <main class="admin-content">
+          <section class="module-view is-active" id="view-shoes" aria-labelledby="shoesTitle">
+            <div class="section-heading">
+              <div>
+                <h2 id="shoesTitle">鞋款草稿</h2>
+                <p>维护鞋款、角度、裁片与素材清单。</p>
+              </div>
+              <button class="primary-button" id="addShoeButton" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                新增鞋款
+              </button>
+            </div>
+
+            <div class="toolbar">
+              <label class="search-field">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.2-3.2"></path></svg>
+                <input id="shoeSearch" type="search" placeholder="搜索鞋款名称、code、裁片" />
+              </label>
+              <label class="select-field">
+                <span>状态</span>
+                <select id="shoeStatusFilter">
+                  <option value="all">全部</option>
+                  <option value="draft">草稿</option>
+                  <option value="testing">测试中</option>
+                  <option value="published">已发布</option>
+                  <option value="archived">已归档</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="metric-grid" id="shoeMetrics"></div>
+            <div class="data-panel" id="shoeList"></div>
+          </section>
+
+          <section class="module-view" id="view-fabrics" aria-labelledby="fabricsTitle">
+            <div class="section-heading">
+              <div>
+                <h2 id="fabricsTitle">布料库</h2>
+                <p>布料独立维护，通过 materialKey 引用。</p>
+              </div>
+              <button class="primary-button" id="addFabricButton" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                新增布料
+              </button>
+            </div>
+
+            <div class="toolbar">
+              <label class="search-field">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.2-3.2"></path></svg>
+                <input id="fabricSearch" type="search" placeholder="搜索布料名称、materialKey" />
+              </label>
+              <label class="select-field">
+                <span>渲染模式</span>
+                <select id="fabricModeFilter">
+                  <option value="all">全部</option>
+                  <option value="solid_mask">solid_mask</option>
+                  <option value="texture_tint">texture_tint</option>
+                  <option value="image_tile">image_tile</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="metric-grid" id="fabricMetrics"></div>
+            <div class="data-panel" id="fabricList"></div>
+          </section>
+
+          <section class="module-view" id="view-release" aria-labelledby="releaseTitle">
+            <div class="section-heading">
+              <div>
+                <h2 id="releaseTitle">发布管理</h2>
+                <p>测试与正式发布分流管理。</p>
+              </div>
+              <button class="primary-button" id="createTestButton" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="M8 7l4-4 4 4"></path><path d="M4 21h16"></path></svg>
+                生成测试版本
+              </button>
+            </div>
+
+            <div class="release-layout">
+              <section class="release-card">
+                <div class="card-title-row">
+                  <h3>测试版本</h3>
+                  <button class="danger-button" id="stopTestButton" type="button">终止测试</button>
+                </div>
+                <div class="release-summary" id="testSummary"></div>
+                <label class="range-field">
+                  <span>灰度比例</span>
+                  <strong id="ratioText">0%</strong>
+                  <input id="ratioSlider" type="range" min="0" max="100" step="1" />
+                </label>
+                <div class="diff-list" id="publishDiff"></div>
+              </section>
+
+              <section class="release-card">
+                <div class="card-title-row">
+                  <h3>正式版本</h3>
+                  <button class="primary-button" id="promoteButton" type="button">发布正式版本</button>
+                </div>
+                <div class="release-summary" id="onlineSummary"></div>
+                <div class="history-list" id="releaseHistory"></div>
+              </section>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="modal-root" id="modalRoot" aria-live="polite"></div>
+    <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+    <script src="./data/cim-config.js?v=20260511-shared"></script>
+    <script src="./app.js?v=20260511-shared-shoes"></script>
+  </body>
+</html>
