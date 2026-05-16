@@ -1,0 +1,504 @@
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
+
+const ROOT_DIR = path.resolve(import.meta.dirname, "..");
+const CHROME_BIN = process.env.CHROME_BIN || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const VISUAL_SELECTION_PARTS = {
+  side: ["A", "A1", "G", "L", "D", "N"],
+  forty_five: ["G", "L", "D", "N"],
+  front: ["G", "L"]
+};
+
+const mimeTypes = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".jpg": "image/jpeg",
+  ".png": "image/png"
+};
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function startStaticServer() {
+  const server = createServer(async (request, response) => {
+    try {
+      const url = new URL(request.url || "/", "http://127.0.0.1");
+      const pathname = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+      const filePath = path.resolve(ROOT_DIR, `.${pathname}`);
+      if (!filePath.startsWith(ROOT_DIR)) {
+        response.writeHead(403);
+        response.end("Forbidden");
+        return;
+      }
+      const body = await readFile(filePath);
+      response.writeHead(200, {
+        "Content-Type": mimeTypes[path.extname(filePath)] || "application/octet-stream",
+        "Cache-Control": "no-store"
+      });
+      response.end(body);
+    } catch {
+      response.writeHead(404);
+      response.end("Not found");
+    }
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  return {
+    origin: `http://127.0.0.1:${port}`,
+    close: () => new Promise((resolve) => server.close(resolve))
+  };
+}
+
+async function startChrome() {
+  assert(existsSync(CHROME_BIN), `Chrome executable not found at ${CHROME_BIN}`);
+  const userDataDir = mkdtempSync(path.join(tmpdir(), "skate-cim-chrome-"));
+  const chrome = spawn(CHROME_BIN, [
+    "--headless=new",
+    "--disable-gpu",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--hide-scrollbars",
+    "--window-size=1440,1000",
+    "--remote-debugging-port=0",
+    `--user-data-dir=${userDataDir}`,
+    "about:blank"
+  ], { stdio: "ignore" });
+
+  const activePortFile = path.join(userDataDir, "DevToolsActivePort");
+  for (let index = 0; index < 80; index += 1) {
+    if (existsSync(activePortFile)) {
+      const [port] = (await readFile(activePortFile, "utf8")).trim().split("\n");
+      return {
+        chrome,
+        debugPort: port,
+        close: async () => {
+          chrome.kill();
+          await wait(100);
+          rmSync(userDataDir, { recursive: true, force: true });
+        }
+      };
+    }
+    await wait(100);
+  }
+
+  chrome.kill();
+  rmSync(userDataDir, { recursive: true, force: true });
+  throw new Error("Chrome did not expose a DevTools port in time");
+}
+
+async function openPage(debugPort, url) {
+  const version = await fetch(`http://127.0.0.1:${debugPort}/json/version`).then((response) => response.json());
+  const ws = new WebSocket(version.webSocketDebuggerUrl);
+  let nextId = 1;
+  const pending = new Map();
+  const sessionEvents = [];
+
+  ws.addEventListener("message", (event) => {
+    const message = JSON.parse(event.data);
+    if (message.id && pending.has(message.id)) {
+      const { resolve, reject } = pending.get(message.id);
+      pending.delete(message.id);
+      if (message.error) reject(new Error(message.error.message));
+      else resolve(message.result || {});
+      return;
+    }
+    sessionEvents.push(message);
+  });
+
+  await new Promise((resolve) => ws.addEventListener("open", resolve, { once: true }));
+
+  const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+    const id = nextId;
+    nextId += 1;
+    pending.set(id, { resolve, reject });
+    ws.send(JSON.stringify({ id, method, params, sessionId }));
+  });
+
+  const { targetId } = await send("Target.createTarget", { url: "about:blank" });
+  const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
+  await send("Page.enable", {}, sessionId);
+  await send("Runtime.enable", {}, sessionId);
+  await send("Page.navigate", { url }, sessionId);
+
+  const evaluate = async (expression) => {
+    const result = await send("Runtime.evaluate", {
+      expression,
+      awaitPromise: true,
+      returnByValue: true
+    }, sessionId);
+    if (result.exceptionDetails) {
+      throw new Error(result.exceptionDetails.text || "Runtime evaluation failed");
+    }
+    return result.result?.value;
+  };
+
+  const waitFor = async (expression, timeoutMs = 5000) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (await evaluate(expression)) return;
+      await wait(50);
+    }
+    throw new Error(`Timed out waiting for: ${expression}`);
+  };
+
+  await waitFor("document.readyState === 'complete' && Boolean(document.querySelector('[data-home-product]'))");
+  return { ws, send, sessionId, evaluate, waitFor, sessionEvents };
+}
+
+async function main() {
+  const server = await startStaticServer();
+  const chrome = await startChrome();
+  let page;
+  try {
+    page = await openPage(chrome.debugPort, `${server.origin}/`);
+    await page.evaluate("document.querySelector('[data-home-product]').click()");
+    await page.waitFor("document.body.dataset.view === 'builder' && Boolean(document.querySelector('.mvp-shoe-frame'))");
+
+    const failures = [];
+    const angles = await page.evaluate("Array.from(document.querySelectorAll('[data-angle]')).map((button) => button.dataset.angle)");
+    for (const angle of angles) {
+      await page.evaluate(`document.querySelector('[data-angle="${angle}"]').click()`);
+      await page.waitFor(`document.querySelector('[data-angle="${angle}"]').getAttribute('aria-selected') === 'true'`);
+
+      const partState = await page.evaluate(`(() => {
+        const buttons = Array.from(document.querySelectorAll('#partRail [data-part]'));
+        const enabledParts = buttons.filter((button) => !button.disabled).map((button) => button.dataset.part);
+        const layerParts = Array.from(document.querySelectorAll('#shoeArt .mvp-part-layer[data-part], #shoeArt .mvp-fixed-image[data-part]'))
+          .map((layer) => layer.dataset.part);
+        return { enabledParts, layerParts };
+      })()`);
+      const missingLayers = partState.enabledParts.filter((part) => !partState.layerParts.includes(part));
+      if (missingLayers.length) {
+        failures.push(`${angle}: enabled parts without rendered layer: ${missingLayers.join(", ")}`);
+      }
+
+      for (const part of partState.enabledParts) {
+        await page.evaluate(`document.querySelector('#partRail [data-part="${part}"]').click()`);
+        await page.waitFor(`document.querySelector('#partRail [data-part="${part}"]').getAttribute('aria-pressed') === 'true'`);
+        await page.waitFor(`document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part="${part}"]') || document.querySelector('#shoeArt .mvp-selection-edge.is-selected[data-part="${part}"]')`);
+        const selectedState = await page.evaluate(`(() => {
+          const legacyEdgeCount = document.querySelectorAll('#shoeArt .mvp-selection-edge.is-selected[data-part="${part}"]').length;
+          const rings = Array.from(document.querySelectorAll('#shoeArt .mvp-selection-ring.is-selected[data-part="${part}"]'));
+          const selectedLayers = Array.from(document.querySelectorAll('#shoeArt .mvp-part-layer.is-selected[data-part="${part}"], #shoeArt .mvp-fixed-image.is-selected[data-part="${part}"]'));
+          const ringState = rings.map((ring) => {
+            const style = getComputedStyle(ring);
+            return {
+              complete: ring.complete,
+              filter: style.filter,
+              naturalHeight: ring.naturalHeight,
+              naturalWidth: ring.naturalWidth,
+              pointerEvents: style.pointerEvents,
+              rect: ring.getBoundingClientRect().toJSON(),
+              source: ring.dataset.source || "",
+              src: ring.currentSrc || ring.src,
+              zIndex: Number(style.zIndex)
+            };
+          });
+          return selectedLayers.map((layer) => {
+            const style = getComputedStyle(layer);
+            return {
+              backgroundColor: style.backgroundColor,
+              className: layer.className,
+              legacyEdgeCount,
+              filter: style.filter,
+              maskImage: style.maskImage || style.webkitMaskImage,
+              pointerEvents: style.pointerEvents,
+              rect: layer.getBoundingClientRect().toJSON(),
+              ringState,
+              zIndex: Number(style.zIndex)
+            };
+          });
+        })()`);
+
+        if (!selectedState.length) {
+          failures.push(`${angle}/${part}: no selected visual layer`);
+          continue;
+        }
+        selectedState.forEach((layer, index) => {
+          if (layer.legacyEdgeCount !== 0) {
+            failures.push(`${angle}/${part}#${index}: selected state still uses the old masked blue layer`);
+          }
+          if (layer.filter !== "none") {
+            failures.push(`${angle}/${part}#${index}: selected part body should not receive a blue filter, got "${layer.filter}"`);
+          }
+          if (!layer.ringState.length) {
+            failures.push(`${angle}/${part}#${index}: no selected outside ring layer`);
+          }
+          layer.ringState.forEach((ring, ringIndex) => {
+            if (!ring.src.startsWith("data:image/png")) {
+              failures.push(`${angle}/${part}#${index}.${ringIndex}: selection ring should be a generated PNG data URL`);
+            }
+            if (!ring.source) {
+              failures.push(`${angle}/${part}#${index}.${ringIndex}: selection ring should keep its source image URL for pixel validation`);
+            }
+            if (ring.filter !== "none") {
+              failures.push(`${angle}/${part}#${index}.${ringIndex}: selection ring should not rely on CSS filter, got "${ring.filter}"`);
+            }
+            if (ring.pointerEvents !== "none") {
+              failures.push(`${angle}/${part}#${index}.${ringIndex}: selection ring should not intercept clicks`);
+            }
+            if (!ring.rect.width || !ring.rect.height || !ring.complete || !ring.naturalWidth || !ring.naturalHeight) {
+              failures.push(`${angle}/${part}#${index}.${ringIndex}: selection ring is not ready or laid out`);
+            }
+            if (!(ring.zIndex > layer.zIndex)) {
+              failures.push(`${angle}/${part}#${index}.${ringIndex}: selection ring should sit above part layers, got ring ${ring.zIndex} body ${layer.zIndex}`);
+            }
+          });
+          if (layer.backgroundColor.includes("0, 113, 227")) {
+            failures.push(`${angle}/${part}#${index}: selected part body should not be blue-filled`);
+          }
+          if (layer.className.includes("mvp-part-layer") && (!layer.maskImage || layer.maskImage === "none")) {
+            failures.push(`${angle}/${part}#${index}: selected layer has no alpha mask`);
+          }
+          if (layer.pointerEvents !== "none") {
+            failures.push(`${angle}/${part}#${index}: selected layer should not intercept clicks`);
+          }
+          if (!layer.rect.width || !layer.rect.height) {
+            failures.push(`${angle}/${part}#${index}: selected layer is not laid out`);
+          }
+        });
+
+        if ((VISUAL_SELECTION_PARTS[angle] || []).includes(part)) {
+          await page.waitFor(`(() => {
+            const ring = document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part="${part}"]');
+            return Boolean(ring && ring.complete && ring.naturalWidth > 0 && ring.naturalHeight > 0);
+          })()`);
+          const ringAnalysis = await page.evaluate(`(async () => {
+            const loadImage = (src) => new Promise((resolve, reject) => {
+              const image = new Image();
+              image.crossOrigin = "anonymous";
+              image.onload = () => resolve(image);
+              image.onerror = () => reject(new Error("Failed to load " + src));
+              image.src = src;
+            });
+            const imageDataFor = async (src) => {
+              const image = await loadImage(src);
+              const canvas = document.createElement("canvas");
+              canvas.width = image.naturalWidth || image.width;
+              canvas.height = image.naturalHeight || image.height;
+              const context = canvas.getContext("2d", { willReadFrequently: true });
+              context.drawImage(image, 0, 0, canvas.width, canvas.height);
+              return { width: canvas.width, height: canvas.height, data: context.getImageData(0, 0, canvas.width, canvas.height).data };
+            };
+            const ring = document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part="${part}"]');
+            if (!ring) return { ok: false, reason: "missing generated ring" };
+            const source = await imageDataFor(ring.dataset.source);
+            const outline = await imageDataFor(ring.currentSrc || ring.src);
+            if (source.width !== outline.width || source.height !== outline.height) {
+              return { ok: false, reason: "ring size differs from source", sourceSize: [source.width, source.height], outlineSize: [outline.width, outline.height] };
+            }
+
+            let sourceBodyPixels = 0;
+            let blueInsideBodyPixels = 0;
+            let blueOutsidePixels = 0;
+            let bluePixels = 0;
+            let maxInsideAlpha = 0;
+            let mediumAlphaOutsidePixels = 0;
+            let lowAlphaOutsidePixels = 0;
+            let minOutsideRed = 255;
+            let maxOutsideRed = 0;
+            let minOutsideGreen = 255;
+            let maxOutsideGreen = 0;
+            const outsideAlphaBuckets = new Set();
+            const outsideColorBuckets = new Set();
+            const step = 4;
+            for (let y = 0; y < source.height; y += step) {
+              for (let x = 0; x < source.width; x += step) {
+                const offset = (y * source.width + x) * 4;
+                const sourceAlpha = source.data[offset + 3];
+                const red = outline.data[offset];
+                const green = outline.data[offset + 1];
+                const blue = outline.data[offset + 2];
+                const alpha = outline.data[offset + 3];
+                const isSelectionBlue = alpha > 20 && red < 170 && green > 70 && blue > 160;
+                if (isSelectionBlue) bluePixels += 1;
+                if (sourceAlpha > 180) {
+                  sourceBodyPixels += 1;
+                  maxInsideAlpha = Math.max(maxInsideAlpha, alpha);
+                  if (isSelectionBlue) blueInsideBodyPixels += 1;
+                } else if (sourceAlpha <= 18 && isSelectionBlue) {
+                  blueOutsidePixels += 1;
+                  minOutsideRed = Math.min(minOutsideRed, red);
+                  maxOutsideRed = Math.max(maxOutsideRed, red);
+                  minOutsideGreen = Math.min(minOutsideGreen, green);
+                  maxOutsideGreen = Math.max(maxOutsideGreen, green);
+                  outsideAlphaBuckets.add(Math.floor(alpha / 24));
+                  outsideColorBuckets.add([Math.floor(red / 24), Math.floor(green / 24), Math.floor(blue / 24)].join(":"));
+                  if (alpha >= 64 && alpha <= 180) mediumAlphaOutsidePixels += 1;
+                  if (alpha >= 21 && alpha < 64) lowAlphaOutsidePixels += 1;
+                }
+              }
+            }
+
+            const insideBlueRatio = sourceBodyPixels ? blueInsideBodyPixels / sourceBodyPixels : 1;
+            const outsideRedRange = maxOutsideRed - minOutsideRed;
+            const outsideGreenRange = maxOutsideGreen - minOutsideGreen;
+            return {
+              ok: sourceBodyPixels > 0
+                && blueOutsidePixels > 30
+                && bluePixels > 30
+                && insideBlueRatio < 0.001
+                && maxInsideAlpha < 18
+                && outsideColorBuckets.size >= 4
+                && (outsideRedRange >= 20 || outsideGreenRange >= 24)
+                && outsideAlphaBuckets.size >= 4
+                && mediumAlphaOutsidePixels > 20
+                && lowAlphaOutsidePixels > 20,
+              sourceBodyPixels,
+              blueInsideBodyPixels,
+              blueOutsidePixels,
+              bluePixels,
+              lowAlphaOutsidePixels,
+              mediumAlphaOutsidePixels,
+              outsideAlphaBucketCount: outsideAlphaBuckets.size,
+              outsideColorBucketCount: outsideColorBuckets.size,
+              outsideGreenRange,
+              outsideRedRange,
+              insideBlueRatio,
+              maxInsideAlpha
+            };
+          })()`);
+          if (!ringAnalysis.ok) {
+            failures.push(`${angle}/${part}: selection ring should be outside-only, got ${JSON.stringify(ringAnalysis)}`);
+          }
+        }
+
+        const clickPoint = await page.evaluate(`(async () => {
+          const frame = document.querySelector('#shoeArt .mvp-shoe-frame');
+          const rect = frame.getBoundingClientRect();
+          for (let y = 0.04; y <= 0.96; y += 0.015) {
+            for (let x = 0.04; x <= 0.96; x += 0.015) {
+              const clientX = Math.round(rect.left + rect.width * x);
+              const clientY = Math.round(rect.top + rect.height * y);
+              const hit = await hitTestShoePart({ clientX, clientY, target: frame });
+              if (hit === "${part}") return { clientX, clientY };
+            }
+          }
+          return null;
+        })()`);
+
+        if (!clickPoint) {
+          failures.push(`${angle}/${part}: no clickable point on shoe art`);
+          continue;
+        }
+
+        const before = await page.evaluate("document.querySelector('#partRail [aria-pressed=\"true\"]')?.dataset.part || ''");
+        await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: clickPoint.clientX, y: clickPoint.clientY }, page.sessionId);
+        await page.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", buttons: 1, clickCount: 1, x: clickPoint.clientX, y: clickPoint.clientY }, page.sessionId);
+        await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", buttons: 0, clickCount: 1, x: clickPoint.clientX, y: clickPoint.clientY }, page.sessionId);
+        const clickResult = await page.evaluate(`(async () => {
+          await new Promise((resolve) => window.setTimeout(resolve, 120));
+          return {
+            after: document.querySelector('#partRail [aria-pressed="true"]')?.dataset.part || "",
+            before: "${before}"
+          };
+        })()`);
+        if (clickResult.after !== part) {
+          failures.push(`${angle}/${part}: real mouse click selected "${clickResult.after}", before "${clickResult.before}", point ${JSON.stringify(clickPoint)}`);
+        }
+      }
+    }
+
+    if (failures.length) {
+      throw new Error(`Selection state is not unified:\n${failures.join("\n")}`);
+    }
+
+    await page.evaluate("document.querySelector('[data-angle=\"side\"]').click()");
+    await page.waitFor("document.querySelector('[data-angle=\"side\"]').getAttribute('aria-selected') === 'true'");
+    await page.evaluate("document.querySelector('#partRail [data-part=\"G\"]').click()");
+    await page.waitFor("document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part=\"G\"]')");
+    const blankPoint = await page.evaluate(`(() => {
+      const scene = document.querySelector('#shoeScene');
+      const rect = scene.getBoundingClientRect();
+      return {
+        x: Math.round(rect.left + 24),
+        y: Math.round(rect.top + 24)
+      };
+    })()`);
+    await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: blankPoint.x, y: blankPoint.y }, page.sessionId);
+    await page.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", buttons: 1, clickCount: 1, x: blankPoint.x, y: blankPoint.y }, page.sessionId);
+    await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", buttons: 0, clickCount: 1, x: blankPoint.x, y: blankPoint.y }, page.sessionId);
+    await page.waitFor(`document.querySelector('#customizerToggleButton').getAttribute('aria-expanded') === 'false'`);
+    const blankCloseState = await page.evaluate(`(() => ({
+      pressedParts: document.querySelectorAll('#partRail [aria-pressed="true"]').length,
+      selectedPartLabel: document.querySelector('#selectedPartLabel')?.textContent.trim() || "",
+      selectedBodyLayers: document.querySelectorAll('#shoeArt .is-selected[data-part]').length,
+      selectedRings: document.querySelectorAll('#shoeArt .mvp-selection-ring.is-selected').length
+    }))()`);
+    if (blankCloseState.pressedParts !== 0 || blankCloseState.selectedPartLabel || blankCloseState.selectedBodyLayers !== 0 || blankCloseState.selectedRings !== 0) {
+      failures.push(`blank click should close sidebar and clear selected visuals, got ${JSON.stringify(blankCloseState)}`);
+    }
+
+    const closedPanelClickPoint = await page.evaluate(`(async () => {
+      const frame = document.querySelector('#shoeArt .mvp-shoe-frame');
+      const rect = frame.getBoundingClientRect();
+      for (let y = 0.04; y <= 0.96; y += 0.015) {
+        for (let x = 0.04; x <= 0.96; x += 0.015) {
+          const clientX = Math.round(rect.left + rect.width * x);
+          const clientY = Math.round(rect.top + rect.height * y);
+          const hit = await hitTestShoePart({ clientX, clientY, target: frame });
+          if (hit === "G") return { clientX, clientY };
+        }
+      }
+      return null;
+    })()`);
+    if (!closedPanelClickPoint) {
+      failures.push("closed panel: no clickable point found for G");
+    } else {
+      await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: closedPanelClickPoint.clientX, y: closedPanelClickPoint.clientY }, page.sessionId);
+      await page.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", buttons: 1, clickCount: 1, x: closedPanelClickPoint.clientX, y: closedPanelClickPoint.clientY }, page.sessionId);
+      await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", buttons: 0, clickCount: 1, x: closedPanelClickPoint.clientX, y: closedPanelClickPoint.clientY }, page.sessionId);
+      await page.waitFor(`document.querySelector('#customizerToggleButton').getAttribute('aria-expanded') === 'true'`);
+      const closedPanelClickState = await page.evaluate(`(() => ({
+        pressedPart: document.querySelector('#partRail [aria-pressed="true"]')?.dataset.part || "",
+        selectedRings: document.querySelectorAll('#shoeArt .mvp-selection-ring.is-selected[data-part="G"]').length
+      }))()`);
+      if (closedPanelClickState.pressedPart !== "G" || closedPanelClickState.selectedRings === 0) {
+        failures.push(`closed panel shoe click should reopen and select G, got ${JSON.stringify(closedPanelClickState)}`);
+      }
+    }
+
+    await page.evaluate("document.querySelector('#partRail [data-part=\"G\"]').click()");
+    await page.waitFor("document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part=\"G\"]')");
+    await page.evaluate(`(() => {
+      const toggle = document.querySelector('#customizerToggleButton');
+      if (toggle?.getAttribute('aria-expanded') === 'true') toggle.click();
+    })()`);
+    await page.waitFor(`document.querySelector('#customizerToggleButton').getAttribute('aria-expanded') === 'false'`);
+    const toggleCloseState = await page.evaluate(`(() => ({
+      pressedParts: document.querySelectorAll('#partRail [aria-pressed="true"]').length,
+      selectedPartLabel: document.querySelector('#selectedPartLabel')?.textContent.trim() || "",
+      selectedBodyLayers: document.querySelectorAll('#shoeArt .is-selected[data-part]').length,
+      selectedRings: document.querySelectorAll('#shoeArt .mvp-selection-ring.is-selected').length
+    }))()`);
+    if (toggleCloseState.pressedParts !== 0 || toggleCloseState.selectedPartLabel || toggleCloseState.selectedBodyLayers !== 0 || toggleCloseState.selectedRings !== 0) {
+      failures.push(`toggle close should clear selected visuals, got ${JSON.stringify(toggleCloseState)}`);
+    }
+
+    const screenshot = await page.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, page.sessionId);
+    const screenshotPath = path.join(tmpdir(), "skate-cim-selection-state.png");
+    await import("node:fs/promises").then(({ writeFile }) => writeFile(screenshotPath, Buffer.from(screenshot.data, "base64")));
+    console.log(`selection-state: ok (${angles.length} angles checked)`);
+    console.log(`screenshot: ${screenshotPath}`);
+  } finally {
+    page?.ws.close();
+    await chrome.close();
+    await server.close();
+  }
+}
+
+main().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});

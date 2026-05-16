@@ -6,6 +6,9 @@ const FULL_ANGLE_ASSET_VERSION = "20260515-fixed-v3";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
 const MATERIAL_ASSET_VERSION = "20260516-leather-v1";
 const HIT_ALPHA_THRESHOLD = 18;
+const SELECTION_RING_RADIUS = 14;
+const SELECTION_RING_STEP = 3;
+const SELECTION_RING_BLUR = 8;
 const APP_VERSION = window.SKATE_CIM_VERSION || "0.0.0";
 
 const SHARED_MVP_ASSETS = {
@@ -229,6 +232,8 @@ PRODUCT_CATALOG.forEach((item) => {
 const DEFAULT_PRODUCT_ID = PRODUCT_CATALOG.find((item) => item.id === "yjs-pro-cim-upper")?.id || PRODUCT_CATALOG[0].id;
 const DEFAULT_PRODUCT = PRODUCT_CATALOG.find((item) => item.id === DEFAULT_PRODUCT_ID);
 const hitCanvasCache = new Map();
+const selectionRingCache = new Map();
+let shoeHitRequestId = 0;
 
 const state = {
   view: "home",
@@ -474,7 +479,7 @@ function svgDefs() {
 }
 
 function selectedClass(id) {
-  return state.selectedPartId === id ? "is-selected" : "";
+  return isPartSelectionVisible() && state.selectedPartId === id ? "is-selected" : "";
 }
 
 function sideSvg() {
@@ -602,6 +607,22 @@ function hitSourcesForComponent(component, item = product(), angle = angleAssets
   return angle.parts?.[component.id] ? [angle.parts[component.id]] : (component.masks || []);
 }
 
+function componentHasLayerInAngle(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
+  return component.editable && hitSourcesForComponent(component, item, angle).length > 0;
+}
+
+function isPartAvailableInCurrentAngle(partId) {
+  const item = product();
+  const angle = angleAssets(currentAngleConfig(item).id);
+  const component = item.components.find((part) => part.id === partId);
+  return Boolean(component && componentHasLayerInAngle(component, item, angle));
+}
+
+function invalidatePendingShoeHit() {
+  shoeHitRequestId += 1;
+  return shoeHitRequestId;
+}
+
 function loadHitCanvas(src) {
   if (hitCanvasCache.has(src)) return hitCanvasCache.get(src);
 
@@ -675,10 +696,12 @@ function defaultCustomizerOpen() {
 function syncCustomizerState() {
   const isBuilder = state.view !== "home";
   const isOpen = isBuilder && state.isCustomizerOpen;
-  const collapsedSidebar = isBuilder && !isOpen;
-  els.workspace.classList.toggle("is-drawer-open", false);
+  const useDrawer = isBuilder && isMobileCustomizer();
+  const isDrawerOpen = useDrawer && isOpen;
+  const collapsedSidebar = isBuilder && (!isOpen || useDrawer);
+  els.workspace.classList.toggle("is-drawer-open", isDrawerOpen);
   els.workspace.classList.toggle("is-customizer-collapsed", collapsedSidebar);
-  document.body.classList.toggle("drawer-open", false);
+  document.body.classList.toggle("drawer-open", isDrawerOpen);
   els.customizerPanel.setAttribute("aria-hidden", isOpen ? "false" : "true");
   els.customizerToggleButton.hidden = !isBuilder;
   els.customizerToggleButton.setAttribute("aria-expanded", String(isOpen));
@@ -686,14 +709,22 @@ function syncCustomizerState() {
   els.customizerToggleButton.title = isOpen ? "收起颜色和布料侧边栏" : "打开颜色和布料侧边栏";
 }
 
+function isPartSelectionVisible() {
+  return state.view !== "home" && state.isCustomizerOpen;
+}
+
 function setCustomizerOpen(open) {
   state.isCustomizerOpen = open;
-  syncCustomizerState();
+  render();
 }
 
 function selectPart(partId, shouldOpenPanel = false) {
   if (!isEditablePart(partId)) {
     toast("该区域暂未配置切图");
+    return false;
+  }
+  if (!isPartAvailableInCurrentAngle(partId)) {
+    toast("当前角度暂未配置该裁片切图");
     return false;
   }
   state.selectedPartId = partId;
@@ -710,16 +741,189 @@ function focusColorPanel(shouldRender = true) {
   });
 }
 
+function normalizeSelectedPartForAngle() {
+  if (isPartAvailableInCurrentAngle(state.selectedPartId)) return;
+  const item = product();
+  const angle = angleAssets(currentAngleConfig(item).id);
+  const nextPart = item.components.find((component) => componentHasLayerInAngle(component, item, angle));
+  state.selectedPartId = nextPart?.id || activePartId(item);
+}
+
+function selectionRingOffsets(radius = SELECTION_RING_RADIUS, step = SELECTION_RING_STEP) {
+  const offsets = [];
+  for (let y = -radius; y <= radius; y += step) {
+    for (let x = -radius; x <= radius; x += step) {
+      const distance = Math.hypot(x, y);
+      if (!distance || distance > radius) continue;
+      offsets.push({
+        dx: x,
+        dy: y,
+        alpha: Math.max(0.36, 0.9 - distance / radius * 0.46)
+      });
+    }
+  }
+  return offsets.sort((left, right) => right.alpha - left.alpha);
+}
+
+function alphaBounds(sourceCanvas, threshold = HIT_ALPHA_THRESHOLD) {
+  const context = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+  const imageData = context.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  const bounds = {
+    minX: sourceCanvas.width,
+    minY: sourceCanvas.height,
+    maxX: 0,
+    maxY: 0
+  };
+  for (let y = 0; y < sourceCanvas.height; y += 1) {
+    for (let x = 0; x < sourceCanvas.width; x += 1) {
+      const alpha = imageData.data[(y * sourceCanvas.width + x) * 4 + 3];
+      if (alpha <= threshold) continue;
+      bounds.minX = Math.min(bounds.minX, x);
+      bounds.minY = Math.min(bounds.minY, y);
+      bounds.maxX = Math.max(bounds.maxX, x);
+      bounds.maxY = Math.max(bounds.maxY, y);
+    }
+  }
+  if (bounds.minX > bounds.maxX || bounds.minY > bounds.maxY) return null;
+  return bounds;
+}
+
+function colorizeAlphaCanvas(sourceCanvas) {
+  const canvas = document.createElement("canvas");
+  canvas.width = sourceCanvas.width;
+  canvas.height = sourceCanvas.height;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.drawImage(sourceCanvas, 0, 0);
+  context.globalCompositeOperation = "source-in";
+  const bounds = alphaBounds(sourceCanvas);
+  const startX = bounds ? bounds.minX : 0;
+  const endX = bounds ? bounds.maxX : canvas.width;
+  const startY = bounds ? bounds.minY : 0;
+  const endY = bounds ? bounds.maxY : canvas.height;
+  const gradient = context.createLinearGradient(startX, startY, endX, endY);
+  gradient.addColorStop(0, "rgba(84, 224, 255, 0.88)");
+  gradient.addColorStop(0.48, "rgba(0, 113, 227, 0.94)");
+  gradient.addColorStop(1, "rgba(126, 91, 255, 0.9)");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function thresholdAlphaCanvas(sourceCanvas, threshold = HIT_ALPHA_THRESHOLD) {
+  const canvas = document.createElement("canvas");
+  canvas.width = sourceCanvas.width;
+  canvas.height = sourceCanvas.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+  context.drawImage(sourceCanvas, 0, 0);
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    const alpha = imageData.data[index + 3] > threshold ? 255 : 0;
+    imageData.data[index] = 0;
+    imageData.data[index + 1] = 0;
+    imageData.data[index + 2] = 0;
+    imageData.data[index + 3] = alpha;
+  }
+  context.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+async function createSelectionRingDataUrl(source) {
+  const hitCanvas = await loadHitCanvas(source);
+  if (!hitCanvas?.canvas) return "";
+
+  const sourceCanvas = hitCanvas.canvas;
+  const blueCanvas = colorizeAlphaCanvas(sourceCanvas);
+  const cutoutCanvas = thresholdAlphaCanvas(sourceCanvas);
+  if (!blueCanvas || !cutoutCanvas) return "";
+
+  const coreCanvas = document.createElement("canvas");
+  coreCanvas.width = sourceCanvas.width;
+  coreCanvas.height = sourceCanvas.height;
+  const coreContext = coreCanvas.getContext("2d");
+  if (!coreContext) return "";
+
+  selectionRingOffsets().forEach((offset) => {
+    coreContext.globalAlpha = offset.alpha;
+    coreContext.drawImage(blueCanvas, offset.dx, offset.dy);
+  });
+
+  const ringCanvas = document.createElement("canvas");
+  ringCanvas.width = sourceCanvas.width;
+  ringCanvas.height = sourceCanvas.height;
+  const ringContext = ringCanvas.getContext("2d");
+  if (!ringContext) return "";
+
+  ringContext.filter = `blur(${SELECTION_RING_BLUR}px)`;
+  ringContext.globalAlpha = 0.68;
+  ringContext.drawImage(coreCanvas, 0, 0);
+  ringContext.filter = "none";
+  ringContext.globalAlpha = 0.92;
+  ringContext.drawImage(coreCanvas, 0, 0);
+
+  // 删除原裁片 alpha，只保留外侧 3-6px 的提示圈，避免改变裁片自身颜色和材质。
+  ringContext.globalAlpha = 1;
+  ringContext.globalCompositeOperation = "destination-out";
+  ringContext.drawImage(cutoutCanvas, 0, 0);
+  return ringCanvas.toDataURL("image/png");
+}
+
+function scheduleSelectionRingRender() {
+  if (scheduleSelectionRingRender.pending) return;
+  scheduleSelectionRingRender.pending = true;
+  window.requestAnimationFrame(() => {
+    scheduleSelectionRingRender.pending = false;
+    render();
+  });
+}
+
+function selectionRingForSource(source) {
+  const cached = selectionRingCache.get(source);
+  if (cached?.status === "ready") return cached.url;
+  if (cached?.status === "pending" || cached?.status === "error") return "";
+
+  const record = { status: "pending", url: "" };
+  record.promise = createSelectionRingDataUrl(source)
+    .then((url) => {
+      record.status = url ? "ready" : "error";
+      record.url = url;
+      scheduleSelectionRingRender();
+      return url;
+    })
+    .catch(() => {
+      record.status = "error";
+      return "";
+    });
+  selectionRingCache.set(source, record);
+  return "";
+}
+
+function selectionRingMarkup(component, sources, layerIndex, isSelected) {
+  if (!isSelected) return "";
+  return sources
+    .map((source) => {
+      const ringSource = selectionRingForSource(source);
+      if (!ringSource) return "";
+      return `<img class="mvp-selection-ring is-selected" src="${escapeHtml(ringSource)}" alt="" aria-hidden="true" draggable="false" style="--layer-index:${layerIndex};" data-part="${component.id}" data-source="${escapeHtml(source)}" />`;
+    })
+    .join("");
+}
+
 function componentLayerMarkup(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
   const config = componentConfigFor(item, component.id);
-  const selected = item.id === state.productId && component.id === state.selectedPartId ? "is-selected" : "";
+  const isSelected = isPartSelectionVisible() && item.id === state.productId && component.id === state.selectedPartId;
+  const selected = isSelected ? "is-selected" : "";
   const layerIndex = component.renderOrder || 1;
   const option = fixedOption(component, config);
 
   if (option) {
     const fixedImage = fixedImageForAngle(component, config, angle);
     if (!fixedImage) return "";
-    return `<img class="mvp-fixed-image ${selected}" src="${escapeHtml(fixedImage)}" alt="" aria-hidden="true" draggable="false" style="--layer-index:${layerIndex};" data-part="${component.id}" />`;
+    return `
+      ${selectionRingMarkup(component, [fixedImage], layerIndex, isSelected)}
+      <img class="mvp-fixed-image ${selected}" src="${escapeHtml(fixedImage)}" alt="" aria-hidden="true" draggable="false" style="--layer-index:${layerIndex};" data-part="${component.id}" />`;
   }
 
   const material = cssTexture(config.color, config.material);
@@ -728,7 +932,9 @@ function componentLayerMarkup(component, item = product(), angle = angleAssets(c
   return masks
     .map((mask) => {
       const layerStyle = `--layer-index:${layerIndex};--part-material:${escapeHtml(material)};mask-image:url('${escapeHtml(mask)}');-webkit-mask-image:url('${escapeHtml(mask)}');`;
-      return `<div class="mvp-upper-fill mvp-part-layer ${selected}" style="${layerStyle}" data-part="${component.id}" aria-hidden="true"></div>`;
+      return `
+        ${selectionRingMarkup(component, [mask], layerIndex, isSelected)}
+        <div class="mvp-upper-fill mvp-part-layer ${selected}" style="${layerStyle}" data-part="${component.id}" aria-hidden="true"></div>`;
     })
     .join("");
 }
@@ -821,16 +1027,19 @@ function renderAngleTabs() {
 
 function renderParts() {
   const item = product();
+  const angle = angleAssets(currentAngleConfig(item).id);
   els.partRail.innerHTML = item.components
     .map((component) => {
       const config = componentConfig(component.id);
-      const disabled = !component.editable;
+      const angleAvailable = componentHasLayerInAngle(component, item, angle);
+      const disabled = !component.editable || !angleAvailable;
+      const disabledReason = !component.editable ? component.lockReason : "当前角度无切图";
       return `
-        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${component.id === state.selectedPartId}" title="${component.cn}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
+        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${isPartSelectionVisible() && component.id === state.selectedPartId}" title="${component.cn}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
           <span class="component-code">${component.code}</span>
           <span>
             <strong>${component.cn}</strong>
-            <span>${disabled ? component.lockReason : component.en}</span>
+            <span>${disabled ? disabledReason : component.en}</span>
           </span>
           <i style="--component-color:${componentPreview(component, config)}"></i>
         </button>`;
@@ -922,7 +1131,7 @@ function renderSummary() {
   els.modelDescription.textContent = item.description;
   els.angleMeta.textContent = currentAngleConfig(item).meta || `${currentAngleConfig(item).label}预览`;
   els.modelMeta.textContent = `${item.code} · 已开放 ${item.components.filter((part) => part.editable).length} 个标注区域`;
-  els.selectedPartLabel.textContent = `${component.code} · ${component.cn}`;
+  els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${component.cn}` : "";
   els.selectedPartTitle.textContent = `正在编辑：${component.cn}`;
   els.selectedColorName.textContent = colorName(config.color);
   els.selectedTextureName.textContent = materialName(config.material);
@@ -931,6 +1140,7 @@ function renderSummary() {
 
 function render() {
   normalizeAngleForProduct();
+  normalizeSelectedPartForAngle();
   const isHome = state.view === "home";
   document.body.dataset.view = state.view;
   els.homeView.classList.toggle("is-hidden", !isHome);
@@ -1299,21 +1509,27 @@ function bindEvents() {
   els.homeProductGrid.addEventListener("click", (event) => {
     const button = event.target.closest("[data-home-product]");
     if (!button) return;
+    invalidatePendingShoeHit();
     setProduct(button.dataset.homeProduct);
     showBuilder();
   });
 
-  els.homeButton.addEventListener("click", showHome);
+  els.homeButton.addEventListener("click", () => {
+    invalidatePendingShoeHit();
+    showHome();
+  });
 
   els.modelStrip.addEventListener("click", (event) => {
     const button = event.target.closest("[data-product]");
     if (!button) return;
+    invalidatePendingShoeHit();
     setProduct(button.dataset.product);
   });
 
   els.angleTabs.addEventListener("click", (event) => {
     const button = event.target.closest("[data-angle]");
     if (!button) return;
+    invalidatePendingShoeHit();
     state.angle = button.dataset.angle;
     render();
   });
@@ -1321,17 +1537,8 @@ function bindEvents() {
   els.partRail.addEventListener("click", (event) => {
     const button = event.target.closest("[data-part]");
     if (!button) return;
+    invalidatePendingShoeHit();
     selectPart(button.dataset.part, true);
-  });
-
-  els.shoeArt.addEventListener("click", async (event) => {
-    if (isShoeDragging) return;
-    const directPart = event.target.closest("[data-part]")?.dataset.part;
-    const partId = directPart || await hitTestShoePart(event);
-    if (!partId || !isEditablePart(partId)) return;
-    selectPart(partId, true);
-    // selectPart 已经刷新 DOM，这里只滚动颜色面板，避免移动端双重 repaint 闪屏。
-    focusColorPanel(false);
   });
 
   els.swatchGrid.addEventListener("click", (event) => {
@@ -1339,6 +1546,7 @@ function bindEvents() {
     if (!button) return;
     const partId = button.dataset.partId || state.selectedPartId;
     const component = product().components.find((item) => item.id === partId) || selectedComponent();
+    invalidatePendingShoeHit();
     state.selectedPartId = component.id;
     if (component.fixedOptions) {
       updatePartConfig(component.id, { color: button.dataset.color, variant: button.dataset.color, material: FIXED_MATERIAL_ID });
@@ -1351,6 +1559,7 @@ function bindEvents() {
     const button = event.target.closest("[data-material]");
     if (!button) return;
     const partId = button.dataset.partId || state.selectedPartId;
+    invalidatePendingShoeHit();
     if (state.config[state.productId]?.components?.[partId]) {
       state.selectedPartId = partId;
     }
@@ -1438,6 +1647,35 @@ function bindEvents() {
 
   let dragStartX = 0;
   let isShoeDragging = false;
+  els.shoeScene.addEventListener("click", async (event) => {
+    if (isShoeDragging) return;
+    const frame = els.shoeArt.querySelector(".mvp-shoe-frame");
+    const rect = frame?.getBoundingClientRect();
+    const isInsideShoeFrame = rect
+      && event.clientX >= rect.left
+      && event.clientX <= rect.right
+      && event.clientY >= rect.top
+      && event.clientY <= rect.bottom;
+    if (!isInsideShoeFrame) {
+      if (state.isCustomizerOpen) setCustomizerOpen(false);
+      return;
+    }
+
+    const requestId = invalidatePendingShoeHit();
+    const directPart = event.target.closest("[data-part]")?.dataset.part;
+    const partId = directPart || await hitTestShoePart(event);
+    // 鞋图命中需要异步读取 alpha；如果期间用户又点了别处，丢弃旧命中结果，避免旧点击覆盖新状态。
+    if (requestId !== shoeHitRequestId) return;
+    if (!partId) {
+      if (state.isCustomizerOpen) setCustomizerOpen(false);
+      return;
+    }
+    if (!isEditablePart(partId)) return;
+    selectPart(partId, true);
+    // selectPart 已经刷新 DOM，这里只滚动颜色面板，避免移动端双重 repaint 闪屏。
+    focusColorPanel(false);
+  });
+
   els.shoeScene.addEventListener("pointerdown", (event) => {
     dragStartX = event.clientX;
     isShoeDragging = false;
