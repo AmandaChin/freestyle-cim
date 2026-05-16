@@ -232,7 +232,6 @@ const state = {
   productId: DEFAULT_PRODUCT_ID,
   selectedPartId: activePartId(DEFAULT_PRODUCT),
   angle: "side",
-  spinning: false,
   customer: {
     name: "",
     date: new Date().toISOString().slice(0, 10),
@@ -253,12 +252,9 @@ const els = {
   homeProductMeta: document.querySelector("#homeProductMeta"),
   homeShoeArt: document.querySelector("#homeShoeArt"),
   homeProductGrid: document.querySelector("#homeProductGrid"),
-  startCustomizeButton: document.querySelector("#startCustomizeButton"),
-  previewCustomizeButton: document.querySelector("#previewCustomizeButton"),
   homeButton: document.querySelector("#homeButton"),
   modelStrip: document.querySelector("#modelStrip"),
   angleTabs: document.querySelector("#angleTabs"),
-  spinButton: document.querySelector("#spinButton"),
   shoeScene: document.querySelector("#shoeScene"),
   shoeArt: document.querySelector("#shoeArt"),
   angleMeta: document.querySelector("#angleMeta"),
@@ -352,7 +348,7 @@ function colorOptions(component) {
 
 function materialsFor(component) {
   if (component.fixedOptions) return MATERIALS.filter((item) => item.id === FIXED_MATERIAL_ID);
-  if (component.id === "A") return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte" || item.id === "chinoiserie-pink" || item.id === "chinoiserie-white");
+  if (["A", "A1", "G"].includes(component.id)) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte" || item.id === "chinoiserie-pink" || item.id === "chinoiserie-white");
   if (component.editable) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte");
   if (component.palette === "carbon") return MATERIALS.filter((item) => item.id === "carbon" || item.id === "matte");
   if (component.palette === "strap") return MATERIALS.filter((item) => item.id === "webbing" || item.id === "smooth");
@@ -630,14 +626,19 @@ function homeShoeMarkup(item = product()) {
 
 function renderHome() {
   const item = product();
-  const editable = item.components.find((component) => component.id === activePartId(item));
   const assets = angleAssets(item.defaultAngle || productAngles(item)[0]?.id || "side");
+  const productCount = Math.max(PRODUCT_CATALOG.length, 1);
+  const productColumns = Math.min(productCount, 4);
+  const productCardWidth = productColumns === 1 ? 420 : productColumns === 2 ? 360 : 320;
+  const productGap = 18;
 
   els.homeProductTag.textContent = "Skate Studio";
   els.homeProductName.textContent = "Create your own skates";
   els.homeProductDescription.textContent = "选择鞋款后进入定制器，继续配置颜色、皮料和特殊定制。";
   els.homeProductMeta.innerHTML = (item.homeFeatures || [item.code, "Layered 2.5D MVP"]).map((feature) => `<span>${feature}</span>`).join("");
   els.homeShoeArt.innerHTML = homeShoeMarkup();
+  els.homeProductGrid.style.setProperty("--product-columns", productColumns);
+  els.homeProductGrid.style.setProperty("--product-grid-width", `${productColumns * productCardWidth + (productColumns - 1) * productGap}px`);
   els.homeProductGrid.innerHTML = PRODUCT_CATALOG.map((catalogItem) => {
     const selected = catalogItem.id === state.productId;
     return `
@@ -655,8 +656,6 @@ function renderHome() {
         <span class="home-card-meta">${selected ? "已选择" : "选择"}</span>
       </button>`;
   }).join("");
-  els.startCustomizeButton.textContent = `定制 ${item.code}`;
-  els.previewCustomizeButton.textContent = `${editable?.cn || "鞋面"} MVP`;
   els.homeView.style.setProperty("--home-accent-a", item.accentA);
   els.homeView.style.setProperty("--home-accent-b", item.accentB);
   els.homeView.style.setProperty("--home-base-image", `url('${assets.base}')`);
@@ -738,7 +737,6 @@ function renderTextures() {
 
 function renderShoe() {
   els.shoeArt.innerHTML = mvpShoeMarkup();
-  els.shoeArt.classList.toggle("is-spinning", state.spinning);
 }
 
 function buildExportData() {
@@ -789,7 +787,6 @@ function renderSummary() {
   els.selectedColorName.textContent = colorName(config.color);
   els.selectedTextureName.textContent = materialName(config.material);
   els.configPreview.textContent = JSON.stringify(output, null, 2);
-  els.spinButton.textContent = state.spinning ? "停止旋转" : "自动旋转";
 }
 
 function render() {
@@ -1060,10 +1057,9 @@ function bindEvents() {
     const button = event.target.closest("[data-home-product]");
     if (!button) return;
     setProduct(button.dataset.homeProduct);
+    showBuilder();
   });
 
-  els.startCustomizeButton.addEventListener("click", showBuilder);
-  els.previewCustomizeButton.addEventListener("click", showBuilder);
   els.homeButton.addEventListener("click", showHome);
 
   els.modelStrip.addEventListener("click", (event) => {
@@ -1119,11 +1115,6 @@ function bindEvents() {
       state.selectedPartId = partId;
     }
     updatePartConfig(state.selectedPartId, { material: button.dataset.material });
-  });
-
-  els.spinButton.addEventListener("click", () => {
-    state.spinning = !state.spinning;
-    render();
   });
 
   els.copyConfigButton?.addEventListener("click", copyConfig);

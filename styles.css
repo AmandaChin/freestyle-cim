@@ -286,9 +286,12 @@ h1 {
 }
 
 .home-product-grid {
+  --product-gap: 18px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(var(--product-columns, 1), minmax(0, 1fr));
+  gap: var(--product-gap);
+  width: min(100%, var(--product-grid-width, 100%));
+  margin: 0 auto;
 }
 
 .home-model-card {
@@ -572,20 +575,6 @@ h1 {
   height: 100%;
   display: block;
   overflow: visible;
-}
-
-.shoe-art.is-spinning {
-  animation: gallery-spin 5.8s ease-in-out infinite;
-}
-
-@keyframes gallery-spin {
-  0%,
-  100% {
-    transform: rotateY(0deg) translateY(0);
-  }
-  50% {
-    transform: rotateY(-16deg) translateY(-6px);
-  }
 }
 
 .hotspot {
@@ -1131,10 +1120,6 @@ pre {
   height: 100%;
   display: block;
   overflow: visible;
-}
-
-.shoe-art.is-spinning {
-  animation: gallery-spin 5.8s ease-in-out infinite;
 }
 
 .part-grid {
