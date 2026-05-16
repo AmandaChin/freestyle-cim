@@ -591,6 +591,7 @@ h1 {
   position: relative;
   width: 100%;
   height: 100%;
+  cursor: pointer;
   isolation: isolate;
 }
 
@@ -1424,17 +1425,28 @@ pre {
 
 @media (max-width: 640px) {
   .app-shell {
-    padding: 14px 12px 18px;
+    gap: 10px;
+    padding: 10px 8px 14px;
   }
 
   .topbar {
     align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .brand-lockup h1 {
+    font-size: 20px;
+  }
+
+  .workspace {
+    gap: 10px;
   }
 
   .brand-mark {
-    width: 36px;
-    height: 36px;
-    flex-basis: 36px;
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
   }
 
   .primary-button {
@@ -1447,36 +1459,157 @@ pre {
   }
 
   .preview-stage {
-    border-radius: 18px;
-    grid-template-rows: auto auto minmax(280px, 48vh) auto;
+    border-radius: 14px;
+    grid-template-rows: auto auto minmax(220px, 38vh) auto;
+  }
+
+  .model-strip {
+    min-height: 48px;
+    padding: 8px 10px 4px;
+  }
+
+  .model-pill {
+    min-width: 150px;
+    padding: 6px 9px 6px 6px;
+  }
+
+  .model-thumb {
+    width: 34px;
+    height: 34px;
   }
 
   .view-tools,
   .scene-footer {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .view-tools {
+    overflow-x: auto;
+  }
+
+  .scene-footer {
+    padding-bottom: 10px;
+    font-size: 11px;
   }
 
   .segment-button {
-    min-width: 64px;
+    min-width: 54px;
+    min-height: 28px;
+    font-size: 12px;
   }
 
   .shoe-scene {
-    min-height: 280px;
-    padding: 12px;
+    min-height: 220px;
+    padding: 4px 8px 0;
+  }
+
+  .shoe-scene::before {
+    inset: 34px 2% 22px;
   }
 
   .shoe-art {
-    width: 112%;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
   }
 
   .customizer {
     grid-template-columns: 1fr;
-    padding: 16px;
-    border-radius: 18px;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .panel-heading,
+  .summary-block {
+    display: none;
+  }
+
+  .control-block {
+    padding-top: 0;
+  }
+
+  .section-title {
+    margin-bottom: 7px;
+  }
+
+  .section-title h3 {
+    font-size: 14px;
+  }
+
+  .section-title span {
+    font-size: 12px;
   }
 
   .part-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .part-button,
+  .component-button {
+    min-height: 44px;
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .component-button {
+    grid-template-columns: 30px minmax(0, 1fr) 26px;
+  }
+
+  .component-code {
+    min-width: 25px;
+    height: 21px;
+    font-size: 11px;
+  }
+
+  .component-button i {
+    height: 18px;
+  }
+
+  .part-button strong {
+    font-size: 12px;
+  }
+
+  .part-button span {
+    margin-top: 2px;
+    font-size: 10px;
+  }
+
+  .swatch-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .swatch-button {
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  .texture-list {
+    gap: 6px;
+  }
+
+  .texture-button {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 8px;
+    min-height: 44px;
+    padding: 6px 8px;
+  }
+
+  .texture-preview {
+    width: 34px;
+    height: 28px;
+  }
+
+  .texture-button strong {
+    font-size: 12px;
+  }
+
+  .texture-button span {
+    font-size: 10px;
   }
 }

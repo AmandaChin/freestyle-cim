@@ -5,6 +5,7 @@ const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
 const FULL_ANGLE_ASSET_VERSION = "20260515-fixed-v3";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
 const MATERIAL_ASSET_VERSION = "20260516-leather-v1";
+const HIT_ALPHA_THRESHOLD = 18;
 
 const SHARED_MVP_ASSETS = {
   base: "./assets/mvp/base-ui.png",
@@ -226,6 +227,7 @@ PRODUCT_CATALOG.forEach((item) => {
 
 const DEFAULT_PRODUCT_ID = PRODUCT_CATALOG.find((item) => item.id === "yjs-pro-cim-upper")?.id || PRODUCT_CATALOG[0].id;
 const DEFAULT_PRODUCT = PRODUCT_CATALOG.find((item) => item.id === DEFAULT_PRODUCT_ID);
+const hitCanvasCache = new Map();
 
 const state = {
   view: "home",
@@ -580,6 +582,83 @@ function fixedImageForAngle(component, config, angle) {
   return angle?.fixed?.[component.id]?.[option.id] || option.image;
 }
 
+function hitSourcesForComponent(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
+  const config = componentConfigFor(item, component.id);
+  const fixedImage = fixedImageForAngle(component, config, angle);
+  if (fixedImage) return [fixedImage];
+  if (angle.parts && !angle.parts[component.id]) return [];
+  return angle.parts?.[component.id] ? [angle.parts[component.id]] : (component.masks || []);
+}
+
+function loadHitCanvas(src) {
+  if (hitCanvasCache.has(src)) return hitCanvasCache.get(src);
+
+  const promise = new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) {
+        resolve(null);
+        return;
+      }
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve({ canvas, context });
+    };
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+
+  hitCanvasCache.set(src, promise);
+  return promise;
+}
+
+async function isHitOnImage(src, normalizedX, normalizedY) {
+  const hitCanvas = await loadHitCanvas(src);
+  if (!hitCanvas) return false;
+  const { canvas, context } = hitCanvas;
+  const x = Math.max(0, Math.min(canvas.width - 1, Math.floor(normalizedX * canvas.width)));
+  const y = Math.max(0, Math.min(canvas.height - 1, Math.floor(normalizedY * canvas.height)));
+  try {
+    return context.getImageData(x, y, 1, 1).data[3] > HIT_ALPHA_THRESHOLD;
+  } catch {
+    return false;
+  }
+}
+
+async function hitTestShoePart(event) {
+  const frame = event.target.closest(".mvp-shoe-frame") || els.shoeArt.querySelector(".mvp-shoe-frame");
+  if (!frame) return "";
+
+  const rect = frame.getBoundingClientRect();
+  const normalizedX = (event.clientX - rect.left) / rect.width;
+  const normalizedY = (event.clientY - rect.top) / rect.height;
+  if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) return "";
+
+  const item = product();
+  const angle = angleAssets(currentAngleConfig(item).id);
+  const components = renderableComponents(item)
+    .slice()
+    .sort((left, right) => (right.renderOrder || 0) - (left.renderOrder || 0));
+
+  for (const component of components) {
+    for (const source of hitSourcesForComponent(component, item, angle)) {
+      if (await isHitOnImage(source, normalizedX, normalizedY)) return component.id;
+    }
+  }
+  return "";
+}
+
+function focusMobileColorPanel() {
+  if (!window.matchMedia("(max-width: 640px)").matches) return;
+  window.requestAnimationFrame(() => {
+    els.swatchGrid.closest(".control-block")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+}
+
 function componentLayerMarkup(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
   const config = componentConfigFor(item, component.id);
   const selected = item.id === state.productId && component.id === state.selectedPartId ? "is-selected" : "";
@@ -589,7 +668,7 @@ function componentLayerMarkup(component, item = product(), angle = angleAssets(c
   if (option) {
     const fixedImage = fixedImageForAngle(component, config, angle);
     if (!fixedImage) return "";
-    return `<img class="mvp-fixed-image ${selected}" src="${escapeHtml(fixedImage)}" alt="" aria-hidden="true" draggable="false" style="--layer-index:${layerIndex};" />`;
+    return `<img class="mvp-fixed-image ${selected}" src="${escapeHtml(fixedImage)}" alt="" aria-hidden="true" draggable="false" style="--layer-index:${layerIndex};" data-part="${component.id}" />`;
   }
 
   const material = cssTexture(config.color, config.material);
@@ -1086,12 +1165,14 @@ function bindEvents() {
     render();
   });
 
-  els.shoeArt.addEventListener("click", (event) => {
-    const part = event.target.closest("[data-part]");
-    if (!part) return;
-    if (!isEditablePart(part.dataset.part)) return;
-    state.selectedPartId = part.dataset.part;
+  els.shoeArt.addEventListener("click", async (event) => {
+    if (isShoeDragging) return;
+    const directPart = event.target.closest("[data-part]")?.dataset.part;
+    const partId = directPart || await hitTestShoePart(event);
+    if (!partId || !isEditablePart(partId)) return;
+    state.selectedPartId = partId;
     render();
+    focusMobileColorPanel();
   });
 
   els.swatchGrid.addEventListener("click", (event) => {
@@ -1170,9 +1251,15 @@ function bindEvents() {
   });
 
   let dragStartX = 0;
+  let isShoeDragging = false;
   els.shoeScene.addEventListener("pointerdown", (event) => {
     dragStartX = event.clientX;
+    isShoeDragging = false;
     els.shoeScene.setPointerCapture(event.pointerId);
+  });
+
+  els.shoeScene.addEventListener("pointermove", (event) => {
+    if (Math.abs(event.clientX - dragStartX) > 12) isShoeDragging = true;
   });
 
   els.shoeScene.addEventListener("pointerup", (event) => {
@@ -1184,6 +1271,9 @@ function bindEvents() {
       state.angle = angles[(index + step + angles.length) % angles.length]?.id || state.angle;
       render();
     }
+    window.setTimeout(() => {
+      isShoeDragging = false;
+    }, 0);
   });
 }
 
