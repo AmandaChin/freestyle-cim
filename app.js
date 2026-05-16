@@ -6,6 +6,7 @@ const FULL_ANGLE_ASSET_VERSION = "20260515-fixed-v3";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
 const MATERIAL_ASSET_VERSION = "20260516-leather-v1";
 const HIT_ALPHA_THRESHOLD = 18;
+const APP_VERSION = window.SKATE_CIM_VERSION || "0.0.0";
 
 const SHARED_MVP_ASSETS = {
   base: "./assets/mvp/base-ui.png",
@@ -234,6 +235,8 @@ const state = {
   productId: DEFAULT_PRODUCT_ID,
   selectedPartId: activePartId(DEFAULT_PRODUCT),
   angle: "side",
+  selectedEffectAngle: "side",
+  isCustomizerOpen: false,
   customer: {
     name: "",
     date: new Date().toISOString().slice(0, 10),
@@ -263,8 +266,13 @@ const els = {
   modelMeta: document.querySelector("#modelMeta"),
   modelName: document.querySelector("#modelName"),
   modelDescription: document.querySelector("#modelDescription"),
-  partGrid: document.querySelector("#partGrid"),
+  customizerPanel: document.querySelector("#customizerPanel"),
+  customizerToggleButton: document.querySelector("#customizerToggleButton"),
+  drawerBackdrop: document.querySelector("#drawerBackdrop"),
+  drawerCloseButton: document.querySelector("#drawerCloseButton"),
+  partRail: document.querySelector("#partRail"),
   selectedPartLabel: document.querySelector("#selectedPartLabel"),
+  selectedPartTitle: document.querySelector("#selectedPartTitle"),
   selectedColorName: document.querySelector("#selectedColorName"),
   selectedTextureName: document.querySelector("#selectedTextureName"),
   swatchGrid: document.querySelector("#swatchGrid"),
@@ -294,6 +302,10 @@ function productAngles(item = product()) {
 
 function currentAngleConfig(item = product(), angleId = state.angle) {
   return productAngles(item).find((angle) => angle.id === angleId) || productAngles(item)[0] || ANGLE_CONFIG[0];
+}
+
+function effectAngleConfig(item = product()) {
+  return currentAngleConfig(item, state.selectedEffectAngle || state.angle);
 }
 
 function normalizeAngleForProduct(item = product()) {
@@ -652,8 +664,47 @@ async function hitTestShoePart(event) {
   return "";
 }
 
-function focusMobileColorPanel() {
-  if (!window.matchMedia("(max-width: 640px)").matches) return;
+function isMobileCustomizer() {
+  return window.matchMedia("(max-width: 760px), (max-width: 900px) and (max-height: 520px)").matches;
+}
+
+function defaultCustomizerOpen() {
+  return !isMobileCustomizer();
+}
+
+function syncCustomizerState() {
+  const isBuilder = state.view !== "home";
+  const isOpen = isBuilder && state.isCustomizerOpen;
+  const collapsedSidebar = isBuilder && !isOpen;
+  els.workspace.classList.toggle("is-drawer-open", false);
+  els.workspace.classList.toggle("is-customizer-collapsed", collapsedSidebar);
+  document.body.classList.toggle("drawer-open", false);
+  els.customizerPanel.setAttribute("aria-hidden", isOpen ? "false" : "true");
+  els.customizerToggleButton.hidden = !isBuilder;
+  els.customizerToggleButton.setAttribute("aria-expanded", String(isOpen));
+  els.customizerToggleButton.textContent = isOpen ? "收起侧栏" : "颜色/布料";
+  els.customizerToggleButton.title = isOpen ? "收起颜色和布料侧边栏" : "打开颜色和布料侧边栏";
+}
+
+function setCustomizerOpen(open) {
+  state.isCustomizerOpen = open;
+  syncCustomizerState();
+}
+
+function selectPart(partId, shouldOpenPanel = false) {
+  if (!isEditablePart(partId)) {
+    toast("该区域暂未配置切图");
+    return false;
+  }
+  state.selectedPartId = partId;
+  if (shouldOpenPanel) state.isCustomizerOpen = true;
+  render();
+  return true;
+}
+
+function focusColorPanel(shouldRender = true) {
+  state.isCustomizerOpen = true;
+  if (shouldRender) render();
   window.requestAnimationFrame(() => {
     els.swatchGrid.closest(".control-block")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
@@ -682,9 +733,11 @@ function componentLayerMarkup(component, item = product(), angle = angleAssets(c
     .join("");
 }
 
-function shoeMarkup(item = product(), alt = `${product().name} 侧面预览`) {
-  const angleId = item.id === state.productId ? currentAngleConfig(item).id : (item.defaultAngle || productAngles(item)[0]?.id || "side");
-  const angle = angleAssets(angleId);
+function shoeMarkup(item = product(), alt = `${product().name} 侧面预览`, angleOverrideId = "") {
+  const selectedAngle = angleOverrideId
+    ? currentAngleConfig(item, angleOverrideId)
+    : currentAngleConfig(item, item.id === state.productId ? state.angle : (item.defaultAngle || productAngles(item)[0]?.id || "side"));
+  const angle = angleAssets(selectedAngle.id);
   const assets = { ...productAssets(item), base: angle.base, stitch: angle.stitch };
   return `
     <div class="mvp-shoe-frame">
@@ -768,12 +821,12 @@ function renderAngleTabs() {
 
 function renderParts() {
   const item = product();
-  els.partGrid.innerHTML = item.components
+  els.partRail.innerHTML = item.components
     .map((component) => {
       const config = componentConfig(component.id);
       const disabled = !component.editable;
       return `
-        <button class="part-button component-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${component.id === state.selectedPartId}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
+        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${component.id === state.selectedPartId}" title="${component.cn}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
           <span class="component-code">${component.code}</span>
           <span>
             <strong>${component.cn}</strong>
@@ -820,9 +873,15 @@ function renderShoe() {
 
 function buildExportData() {
   const item = product();
+  const selectedEffect = effectAngleConfig(item);
   return {
+    version: APP_VERSION,
     product: item.name,
     customer: { ...state.customer },
+    effectPreview: {
+      angle: selectedEffect.label,
+      angleId: selectedEffect.id
+    },
     components: item.components.map((component) => {
       const config = componentConfig(component.id);
       return {
@@ -851,6 +910,7 @@ function renderSummary() {
   const component = selectedComponent();
   const config = componentConfig();
   const output = {
+    version: APP_VERSION,
     product: item.id,
     selectedPart: component.code,
     color: colorName(config.color),
@@ -863,6 +923,7 @@ function renderSummary() {
   els.angleMeta.textContent = currentAngleConfig(item).meta || `${currentAngleConfig(item).label}预览`;
   els.modelMeta.textContent = `${item.code} · 已开放 ${item.components.filter((part) => part.editable).length} 个标注区域`;
   els.selectedPartLabel.textContent = `${component.code} · ${component.cn}`;
+  els.selectedPartTitle.textContent = `正在编辑：${component.cn}`;
   els.selectedColorName.textContent = colorName(config.color);
   els.selectedTextureName.textContent = materialName(config.material);
   els.configPreview.textContent = JSON.stringify(output, null, 2);
@@ -887,12 +948,15 @@ function render() {
   renderTextures();
   renderShoe();
   renderSummary();
+  syncCustomizerState();
 }
 
 function setProduct(id) {
   state.productId = id;
   normalizeAngleForProduct(product());
   state.selectedPartId = activePartId(product());
+  state.selectedEffectAngle = currentAngleConfig(product()).id;
+  state.isCustomizerOpen = defaultCustomizerOpen();
   if (!state.config[id]) state.config[id] = cloneProductConfig(product());
   render();
 }
@@ -913,8 +977,93 @@ function updatePartConfig(partId, patch) {
 function resetProduct() {
   state.config[state.productId] = cloneProductConfig(product());
   state.selectedPartId = activePartId();
+  state.selectedEffectAngle = currentAngleConfig(product()).id;
+  state.isCustomizerOpen = defaultCustomizerOpen();
   render();
   toast("已重置当前鞋款");
+}
+
+function openEffectPickerModal() {
+  // 保存方案先选择最终展示效果图，再进入表格确认，避免确认页视角和用户预期不一致。
+  state.selectedEffectAngle = currentAngleConfig(product(), state.angle).id;
+  let modal = document.querySelector("#effectPickerModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "effectPickerModal";
+    modal.className = "confirm-modal effect-picker-modal";
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = renderEffectPickerModal();
+  modal.classList.add("is-visible");
+}
+
+function closeEffectPickerModal() {
+  document.querySelector("#effectPickerModal")?.classList.remove("is-visible");
+}
+
+function refreshEffectPickerModal() {
+  const modal = document.querySelector("#effectPickerModal");
+  if (!modal?.classList.contains("is-visible")) return;
+  modal.innerHTML = renderEffectPickerModal();
+}
+
+function renderEffectPickerModal() {
+  const item = product();
+  const selectedEffect = effectAngleConfig(item);
+  const angles = productAngles(item);
+
+  return `
+    <div class="confirm-backdrop" data-close-effect></div>
+    <section class="effect-dialog" role="dialog" aria-modal="true" aria-labelledby="effectPickerTitle">
+      <header class="confirm-header effect-header">
+        <div>
+          <p class="eyebrow">Preview</p>
+          <h2 id="effectPickerTitle">选择方案效果图</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-effect title="关闭">×</button>
+      </header>
+
+      <div class="effect-body">
+        <section class="effect-preview-panel">
+          <div class="section-title">
+            <h3>${selectedEffect.label}效果图</h3>
+            <span>${item.name}</span>
+          </div>
+          <div class="effect-preview-frame">
+            ${shoeMarkup(item, `${item.name} ${selectedEffect.label}效果图`, selectedEffect.id)}
+          </div>
+        </section>
+
+        <section class="effect-choice-panel">
+          <div class="section-title">
+            <h3>前序选择</h3>
+            <span>进入确认前选定展示视角</span>
+          </div>
+          <div class="effect-option-grid">
+            ${angles
+              .map(
+                (angle) => `
+                  <button class="effect-option-card" type="button" data-effect-angle="${angle.id}" aria-pressed="${angle.id === selectedEffect.id}">
+                    <span class="effect-option-thumb">
+                      ${shoeMarkup(item, `${item.name} ${angle.label}效果图`, angle.id)}
+                    </span>
+                    <span>
+                      <strong>${angle.label}效果图</strong>
+                      <span>${angle.meta || `${angle.label}预览`}</span>
+                    </span>
+                  </button>`
+              )
+              .join("")}
+          </div>
+        </section>
+      </div>
+
+      <footer class="confirm-actions">
+        <button class="glass-button" type="button" data-close-effect>返回修改</button>
+        <button class="primary-button" type="button" data-continue-confirm>确认效果图，下一步</button>
+      </footer>
+    </section>
+  `;
 }
 
 function openConfirmModal() {
@@ -935,6 +1084,7 @@ function closeConfirmModal() {
 
 function renderConfirmModal() {
   const data = buildExportData();
+  const selectedEffect = effectAngleConfig(product());
   return `
     <div class="confirm-backdrop" data-close-confirm></div>
     <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
@@ -947,7 +1097,17 @@ function renderConfirmModal() {
       </header>
 
       <div class="confirm-body">
-        <section class="confirm-section">
+        <section class="confirm-section confirm-effect-section">
+          <div class="section-title">
+            <h3>效果图</h3>
+            <span>${data.effectPreview.angle}</span>
+          </div>
+          <div class="confirm-effect-preview">
+            ${shoeMarkup(product(), `${data.product} ${selectedEffect.label}效果图`, selectedEffect.id)}
+          </div>
+        </section>
+
+        <section class="confirm-section confirm-info-section">
           <div class="section-title">
             <h3>个人信息</h3>
             <span>生成表格前确认</span>
@@ -960,7 +1120,7 @@ function renderConfirmModal() {
           </div>
         </section>
 
-        <section class="confirm-section">
+        <section class="confirm-section confirm-color-section">
           <div class="section-title">
             <h3>配色选型</h3>
             <span>${data.components.length} 个裁片</span>
@@ -980,7 +1140,7 @@ function renderConfirmModal() {
           </div>
         </section>
 
-        <section class="confirm-section">
+        <section class="confirm-section confirm-special-section">
           <div class="section-title">
             <h3>特殊定制</h3>
             <span>电绣 / 防磨片 / 固定件</span>
@@ -1051,6 +1211,7 @@ function buildExcelXml(data) {
     ["个人信息", "", "", "", ""],
     ["姓名", data.customer.name, "日期", data.customer.date, ""],
     ["脚长", data.customer.footLength, "尺码", data.customer.size, ""],
+    ["效果图", data.effectPreview.angle, "", "", ""],
     ["", "", "", "", ""],
     ["配色选型", "", "", "", ""],
     ["No.", "Component", "裁片名称", "颜色", "皮料"],
@@ -1101,6 +1262,7 @@ function copyConfig() {
 
 function showHome() {
   state.view = "home";
+  state.isCustomizerOpen = false;
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -1108,6 +1270,8 @@ function showHome() {
 function showBuilder() {
   state.view = "builder";
   state.selectedPartId = activePartId();
+  state.selectedEffectAngle = currentAngleConfig(product()).id;
+  state.isCustomizerOpen = defaultCustomizerOpen();
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -1154,15 +1318,10 @@ function bindEvents() {
     render();
   });
 
-  els.partGrid.addEventListener("click", (event) => {
+  els.partRail.addEventListener("click", (event) => {
     const button = event.target.closest("[data-part]");
     if (!button) return;
-    if (!isEditablePart(button.dataset.part)) {
-      toast("该区域暂未配置切图");
-      return;
-    }
-    state.selectedPartId = button.dataset.part;
-    render();
+    selectPart(button.dataset.part, true);
   });
 
   els.shoeArt.addEventListener("click", async (event) => {
@@ -1170,9 +1329,9 @@ function bindEvents() {
     const directPart = event.target.closest("[data-part]")?.dataset.part;
     const partId = directPart || await hitTestShoePart(event);
     if (!partId || !isEditablePart(partId)) return;
-    state.selectedPartId = partId;
-    render();
-    focusMobileColorPanel();
+    selectPart(partId, true);
+    // selectPart 已经刷新 DOM，这里只滚动颜色面板，避免移动端双重 repaint 闪屏。
+    focusColorPanel(false);
   });
 
   els.swatchGrid.addEventListener("click", (event) => {
@@ -1199,10 +1358,28 @@ function bindEvents() {
   });
 
   els.copyConfigButton?.addEventListener("click", copyConfig);
-  els.saveButton.addEventListener("click", openConfirmModal);
+  els.saveButton.addEventListener("click", openEffectPickerModal);
   els.resetButton.addEventListener("click", resetProduct);
 
   document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-close-effect]")) {
+      closeEffectPickerModal();
+      return;
+    }
+
+    const effectButton = event.target.closest("[data-effect-angle]");
+    if (effectButton) {
+      state.selectedEffectAngle = effectButton.dataset.effectAngle;
+      refreshEffectPickerModal();
+      return;
+    }
+
+    if (event.target.closest("[data-continue-confirm]")) {
+      closeEffectPickerModal();
+      openConfirmModal();
+      return;
+    }
+
     if (event.target.closest("[data-close-confirm]")) {
       closeConfirmModal();
       return;
@@ -1210,12 +1387,7 @@ function bindEvents() {
 
     const partButton = event.target.closest("[data-confirm-part]");
     if (partButton) {
-      if (!isEditablePart(partButton.dataset.confirmPart)) {
-        toast("该区域暂未配置切图");
-        return;
-      }
-      state.selectedPartId = partButton.dataset.confirmPart;
-      render();
+      if (!selectPart(partButton.dataset.confirmPart, true)) return;
       closeConfirmModal();
       return;
     }
@@ -1224,6 +1396,10 @@ function bindEvents() {
       downloadSheet();
     }
   });
+
+  els.drawerBackdrop.addEventListener("click", () => setCustomizerOpen(false));
+  els.drawerCloseButton.addEventListener("click", () => setCustomizerOpen(false));
+  els.customizerToggleButton.addEventListener("click", () => setCustomizerOpen(!state.isCustomizerOpen));
 
   document.addEventListener("input", (event) => {
     const customerKey = event.target.dataset.customer;
@@ -1249,6 +1425,16 @@ function bindEvents() {
       state.config[state.productId].padStyle = event.target.value;
     }
   });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.querySelector("#effectPickerModal.is-visible")) {
+      closeEffectPickerModal();
+      return;
+    }
+    if (event.key === "Escape" && state.isCustomizerOpen) setCustomizerOpen(false);
+  });
+
+  window.addEventListener("resize", syncCustomizerState);
 
   let dragStartX = 0;
   let isShoeDragging = false;

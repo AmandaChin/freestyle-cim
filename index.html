@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Skate Studio</title>
-    <link rel="stylesheet" href="./styles.css?v=20260516-mobile-v2" />
+    <link rel="stylesheet" href="./styles.css?v=0.0.2" />
   </head>
   <body>
     <main class="app-shell">
@@ -49,11 +49,15 @@
       </section>
 
       <section class="workspace is-hidden" id="workspace">
-        <section class="preview-stage" aria-label="Shoe preview">
+        <section class="workspace-topbar" aria-label="定制控制区">
           <div class="model-strip" id="modelStrip" aria-label="鞋款选择"></div>
           <div class="view-tools">
             <div class="segmented" id="angleTabs" role="tablist" aria-label="角度切换"></div>
+            <button class="glass-button customizer-toggle" id="customizerToggleButton" type="button" aria-controls="customizerPanel" aria-expanded="true">收起侧栏</button>
           </div>
+        </section>
+
+        <section class="preview-stage" aria-label="Shoe preview">
           <div class="shoe-scene" id="shoeScene">
             <div class="shoe-shadow" aria-hidden="true"></div>
             <div class="shoe-art" id="shoeArt" role="img" aria-label="定制轮滑鞋预览"></div>
@@ -64,50 +68,65 @@
           </div>
         </section>
 
-        <aside class="customizer" aria-label="Customization panel">
-          <div class="panel-heading">
-            <p class="eyebrow">Customize</p>
-            <h2 id="modelName">YJS-pro CIM</h2>
-            <p id="modelDescription"></p>
+        <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
+
+        <aside class="customizer" id="customizerPanel" aria-label="Customization panel">
+          <div class="panel-top">
+            <div class="panel-heading">
+              <p class="eyebrow">Customize</p>
+              <h2 id="modelName">YJS-pro CIM</h2>
+              <p id="modelDescription"></p>
+            </div>
+            <button class="icon-button drawer-close" id="drawerCloseButton" type="button" title="关闭颜色和布料面板">
+              <span aria-hidden="true">×</span>
+            </button>
           </div>
 
-          <section class="control-block">
-            <div class="section-title">
-              <h3>裁片</h3>
-              <span id="selectedPartLabel"></span>
-            </div>
-            <div class="part-grid" id="partGrid"></div>
+          <section class="selected-part-card" aria-live="polite">
+            <p class="eyebrow">Selected Part</p>
+            <h3 id="selectedPartTitle">正在编辑：上身鞋片</h3>
           </section>
 
-          <section class="control-block">
-            <div class="section-title">
-              <h3>颜色</h3>
-              <span id="selectedColorName"></span>
-            </div>
-            <div class="swatch-grid" id="swatchGrid"></div>
-          </section>
+          <div class="customizer-scroll">
+            <section class="control-block color-block">
+              <div class="section-title">
+                <h3>颜色</h3>
+                <span id="selectedColorName"></span>
+              </div>
+              <div class="swatch-grid" id="swatchGrid"></div>
+            </section>
 
-          <section class="control-block">
-            <div class="section-title">
-              <h3>材质 / 选项</h3>
-              <span id="selectedTextureName"></span>
-            </div>
-            <div class="texture-list" id="textureList"></div>
-          </section>
+            <section class="control-block texture-block">
+              <div class="section-title">
+                <h3>材质 / 选项</h3>
+                <span id="selectedTextureName"></span>
+              </div>
+              <div class="texture-list" id="textureList"></div>
+            </section>
 
-          <section class="summary-block">
-            <div class="section-title">
-              <h3>配置</h3>
-              <button class="text-button" id="copyConfigButton" type="button">复制 JSON</button>
-            </div>
-            <pre id="configPreview"></pre>
-          </section>
+            <section class="summary-block">
+              <div class="section-title">
+                <h3>配置</h3>
+                <button class="text-button" id="copyConfigButton" type="button">复制 JSON</button>
+              </div>
+              <pre id="configPreview"></pre>
+            </section>
+          </div>
         </aside>
+
+        <section class="part-rail-block" aria-label="裁片选择">
+          <div class="section-title">
+            <h3>裁片</h3>
+            <span id="selectedPartLabel"></span>
+          </div>
+          <div class="part-rail" id="partRail"></div>
+        </section>
       </section>
     </main>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="./b-side/data/cim-config.js?v=20260511-shared"></script>
-    <script src="./app.js?v=20260516-mobile-v2"></script>
+    <script src="./version.js?v=0.0.2"></script>
+    <script src="./app.js?v=0.0.2"></script>
   </body>
 </html>

@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  --bg: #f5f5f7;
+  --bg: #ffffff;
   --surface: rgba(255, 255, 255, 0.76);
   --surface-strong: rgba(255, 255, 255, 0.94);
   --text: #1d1d1f;
@@ -28,14 +28,20 @@ body {
   min-width: 320px;
   margin: 0;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.95), transparent 32%),
-    linear-gradient(145deg, #fbfbfd 0%, #f5f5f7 44%, #ededf0 100%);
+  background: #fff;
   color: var(--text);
 }
 
 button {
   font: inherit;
+}
+
+button,
+[role="button"],
+.shoe-scene,
+.shoe-art,
+.mvp-shoe-frame {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app-shell {
@@ -109,7 +115,23 @@ h1 {
 .top-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: clamp(6px, 1vw, 10px);
+  flex: 0 0 auto;
+}
+
+.top-actions .glass-button,
+.top-actions .primary-button {
+  min-height: clamp(34px, 3vw, 40px);
+  padding: 0 clamp(12px, 1.25vw, 18px);
+  font-size: clamp(12px, 1.05vw, 15px);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.top-actions .icon-button {
+  width: clamp(34px, 3vw, 40px);
+  height: clamp(34px, 3vw, 40px);
+  font-size: clamp(16px, 1.5vw, 20px);
 }
 
 .icon-button,
@@ -126,6 +148,7 @@ h1 {
 .glass-button:active,
 .text-button:active,
 .home-model-card:active,
+.effect-option-card:active,
 .model-pill:active,
 .part-button:active,
 .swatch-button:active,
@@ -406,6 +429,7 @@ h1 {
   white-space: nowrap;
 }
 
+.workspace-topbar,
 .preview-stage,
 .customizer {
   min-height: calc(100vh - 122px);
@@ -733,12 +757,6 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   text-align: right;
-}
-
-.part-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
 }
 
 .part-button {
@@ -1123,10 +1141,6 @@ pre {
   overflow: visible;
 }
 
-.part-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .component-button {
   min-height: 62px;
 }
@@ -1169,6 +1183,21 @@ pre {
   overflow: hidden;
 }
 
+.effect-dialog {
+  position: absolute;
+  inset: clamp(14px, 4vh, 42px) clamp(12px, 5vw, 64px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(1120px, calc(100vw - clamp(24px, 10vw, 128px)));
+  max-height: calc(100dvh - clamp(28px, 8vh, 84px));
+  margin: auto;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+}
+
 .confirm-header,
 .confirm-actions {
   display: flex;
@@ -1199,6 +1228,15 @@ pre {
   overflow: auto;
 }
 
+.effect-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 14px;
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+}
+
 .confirm-section {
   min-width: 0;
   padding: 14px;
@@ -1207,8 +1245,132 @@ pre {
   background: rgba(255, 255, 255, 0.68);
 }
 
-.confirm-section:nth-child(2) {
-  grid-row: span 2;
+.effect-preview-panel,
+.effect-choice-panel {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.effect-preview-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.effect-preview-frame,
+.confirm-effect-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.96), rgba(245, 245, 247, 0.62) 58%, rgba(232, 234, 238, 0.78) 100%),
+    #f5f5f7;
+}
+
+.effect-preview-frame {
+  min-height: 360px;
+  aspect-ratio: 2401 / 1601;
+}
+
+.effect-preview-frame .mvp-shoe-frame {
+  width: min(100%, 860px);
+  height: auto;
+  aspect-ratio: 2401 / 1601;
+}
+
+.effect-choice-panel {
+  align-self: stretch;
+}
+
+.effect-option-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.effect-option-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 88px;
+  padding: 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.effect-option-card[aria-pressed="true"] {
+  border-color: rgba(0, 113, 227, 0.52);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(0, 113, 227, 0.11);
+}
+
+.effect-option-thumb {
+  display: grid;
+  width: 112px;
+  aspect-ratio: 1.35;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(238, 240, 244, 0.74)),
+    #f5f5f7;
+}
+
+.effect-option-thumb .mvp-shoe-frame {
+  width: 116%;
+  height: auto;
+  aspect-ratio: 2401 / 1601;
+}
+
+.effect-option-card strong,
+.effect-option-card span span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.effect-option-card strong {
+  font-size: 14px;
+}
+
+.effect-option-card span span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.confirm-effect-section,
+.confirm-info-section,
+.confirm-special-section {
+  grid-column: 1;
+}
+
+.confirm-color-section {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+}
+
+.confirm-effect-preview {
+  min-height: 190px;
+  aspect-ratio: 2401 / 1601;
+}
+
+.confirm-effect-preview .mvp-shoe-frame {
+  width: 106%;
+  height: auto;
+  aspect-ratio: 2401 / 1601;
 }
 
 .confirm-table {
@@ -1286,7 +1448,23 @@ pre {
     grid-template-columns: 1fr;
   }
 
-  .confirm-section:nth-child(2) {
+  .effect-dialog {
+    width: auto;
+  }
+
+  .effect-body {
+    grid-template-columns: 1fr;
+  }
+
+  .effect-preview-frame {
+    min-height: 260px;
+  }
+
+  .confirm-effect-section,
+  .confirm-info-section,
+  .confirm-special-section,
+  .confirm-color-section {
+    grid-column: auto;
     grid-row: auto;
   }
 }
@@ -1352,16 +1530,41 @@ pre {
     padding: 7px 11px;
   }
 
-  .part-grid {
-    grid-template-columns: 1fr;
-  }
-
   .confirm-dialog {
     inset: 8px;
   }
 
+  .effect-dialog {
+    inset: 8px;
+    max-height: calc(100dvh - 16px);
+  }
+
   .confirm-body {
     padding: 10px;
+  }
+
+  .effect-body {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .effect-preview-panel,
+  .effect-choice-panel {
+    padding: 10px;
+  }
+
+  .effect-preview-frame {
+    min-height: 190px;
+  }
+
+  .effect-option-card {
+    grid-template-columns: 92px minmax(0, 1fr);
+    min-height: 76px;
+    padding: 8px;
+  }
+
+  .effect-option-thumb {
+    width: 92px;
   }
 
   .confirm-header,
@@ -1397,167 +1600,449 @@ pre {
   }
 }
 
-@media (max-width: 980px) {
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .preview-stage,
-  .customizer {
-    min-height: auto;
-  }
-
-  .preview-stage {
-    grid-template-rows: auto auto minmax(360px, 54vh) auto;
-  }
-
-  .customizer {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-
-  .panel-heading,
-  .summary-block {
-    grid-column: 1 / -1;
-  }
+/* Responsive customizer workspace: keep the shoe complete while controls scroll inside their own regions. */
+body.drawer-open {
+  overflow: hidden;
 }
 
-@media (max-width: 640px) {
+.workspace {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+  max-width: none;
+  height: clamp(560px, calc(100dvh - 112px), 860px);
+  max-height: calc(100dvh - 112px);
+  overflow: hidden;
+  background-color: #fff;
+}
+
+.workspace.is-customizer-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace.is-customizer-collapsed .customizer {
+  display: none;
+}
+
+.workspace-topbar,
+.preview-stage,
+.part-rail-block,
+.customizer {
+  min-width: 0;
+  min-height: 0;
+  background: #fff;
+}
+
+.workspace-topbar {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  overflow: hidden;
+}
+
+.preview-stage {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: stretch;
+  height: 100%;
+  max-height: 100%;
+}
+
+.customizer {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: stretch;
+  height: 100%;
+  max-height: 100%;
+}
+
+.preview-stage {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.model-strip {
+  min-height: 0;
+  padding: clamp(8px, 1.4vh, 16px) 18px 8px;
+}
+
+.model-pill {
+  min-width: clamp(156px, 15vw, 192px);
+}
+
+.view-tools {
+  min-height: 38px;
+  padding: 0 18px;
+}
+
+.customizer-toggle {
+  min-height: 32px;
+  white-space: nowrap;
+}
+
+.shoe-scene {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(6px, 2vh, 18px);
+}
+
+.shoe-scene::before {
+  inset: clamp(28px, 7vh, 56px) 5% clamp(18px, 5vh, 40px);
+}
+
+.shoe-shadow {
+  bottom: clamp(8%, 11vh, 16%);
+}
+
+.shoe-art {
+  width: min(96%, 920px);
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.mvp-base-image {
+  object-fit: contain;
+}
+
+.scene-footer {
+  min-height: 30px;
+  padding: 0 18px 8px;
+  flex-wrap: wrap;
+}
+
+.part-rail-block {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  min-width: 0;
+  min-height: clamp(96px, 14vh, 126px);
+  max-height: clamp(96px, 14vh, 126px);
+  overflow: hidden;
+  padding: 10px 18px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(26px) saturate(140%);
+  -webkit-backdrop-filter: blur(26px) saturate(140%);
+}
+
+.part-rail-block .section-title {
+  margin-bottom: 8px;
+}
+
+.part-rail {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 2px 4px;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.rail-part-button {
+  flex: 0 0 clamp(142px, 13vw, 178px);
+  min-width: 0;
+  min-height: 58px;
+}
+
+.rail-part-button strong,
+.rail-part-button span span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer-backdrop {
+  display: none;
+}
+
+.customizer {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  container: customizer-panel / inline-size;
+  gap: 12px;
+  padding: clamp(14px, 2vw, 20px);
+  overflow: hidden;
+}
+
+.panel-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.drawer-close {
+  display: grid;
+}
+
+.panel-heading h2 {
+  margin-bottom: 6px;
+  font-size: clamp(24px, 2.1vw, 30px);
+}
+
+.selected-part-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid rgba(0, 113, 227, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.58)),
+    rgba(0, 113, 227, 0.06);
+}
+
+.selected-part-card h3 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.customizer .section-title h3,
+.customizer .section-title span,
+.texture-button strong,
+.texture-button span {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.customizer-scroll {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 4px 4px 0;
+  overscroll-behavior: contain;
+}
+
+.control-block {
+  min-height: 0;
+  padding-top: 0;
+}
+
+.swatch-grid {
+  grid-template-columns: repeat(auto-fit, minmax(38px, 1fr));
+  max-height: min(24dvh, 184px);
+  overflow-y: auto;
+  padding: 5px clamp(10px, 1.2vw, 14px);
+}
+
+.texture-list {
+  max-height: min(34dvh, 290px);
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.summary-block {
+  margin-top: 0;
+}
+
+@media (max-height: 760px) and (min-width: 761px) {
+  .workspace {
+    height: calc(100dvh - 92px);
+    max-height: calc(100dvh - 92px);
+  }
+
   .app-shell {
-    gap: 10px;
-    padding: 10px 8px 14px;
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 
   .topbar {
-    align-items: flex-start;
-    gap: 10px;
     margin-bottom: 10px;
   }
 
-  .brand-lockup h1 {
-    font-size: 20px;
-  }
-
-  .workspace {
-    gap: 10px;
-  }
-
-  .brand-mark {
-    width: 32px;
-    height: 32px;
-    flex-basis: 32px;
-  }
-
-  .primary-button {
-    padding: 0 13px;
-  }
-
-  .icon-button {
-    width: 38px;
-    height: 38px;
-  }
-
-  .preview-stage {
-    border-radius: 14px;
-    grid-template-rows: auto auto minmax(220px, 38vh) auto;
-  }
-
   .model-strip {
-    min-height: 48px;
-    padding: 8px 10px 4px;
-  }
-
-  .model-pill {
-    min-width: 150px;
-    padding: 6px 9px 6px 6px;
+    padding-top: 8px;
+    padding-bottom: 4px;
   }
 
   .model-thumb {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
   }
 
-  .view-tools,
-  .scene-footer {
-    align-items: center;
-    flex-direction: row;
-    padding-right: 10px;
-    padding-left: 10px;
+  .model-pill {
+    padding: 6px 10px 6px 6px;
   }
 
-  .view-tools {
-    overflow-x: auto;
+  .part-rail-block {
+    min-height: 88px;
+    max-height: 88px;
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
 
-  .scene-footer {
-    padding-bottom: 10px;
-    font-size: 11px;
+  .rail-part-button {
+    min-height: 48px;
   }
 
-  .segment-button {
-    min-width: 54px;
-    min-height: 28px;
-    font-size: 12px;
+  .panel-heading p:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) and (min-width: 761px) {
+  .workspace {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+    gap: 12px;
   }
 
-  .shoe-scene {
-    min-height: 220px;
-    padding: 4px 8px 0;
-  }
-
-  .shoe-scene::before {
-    inset: 34px 2% 22px;
-  }
-
-  .shoe-art {
-    width: 100%;
-    max-width: 100%;
-    max-height: 100%;
+  .workspace.is-customizer-collapsed {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .customizer {
-    grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 10px;
-    border-radius: 14px;
+    grid-template-columns: none;
+    padding: 12px;
   }
 
-  .panel-heading,
-  .summary-block {
-    display: none;
+  .panel-heading h2 {
+    font-size: 20px;
   }
 
-  .control-block {
-    padding-top: 0;
+  .selected-part-card {
+    padding: 9px;
   }
 
-  .section-title {
-    margin-bottom: 7px;
+  .swatch-grid {
+    grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
   }
 
-  .section-title h3 {
-    font-size: 14px;
+  .swatch-button {
+    min-width: 30px;
+    min-height: 30px;
   }
 
-  .section-title span {
+  .texture-button {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 7px;
+  }
+
+  .texture-preview {
+    width: 30px;
+    height: 26px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    min-height: 100dvh;
+    padding: 8px;
+  }
+
+  .topbar {
+    margin-bottom: 8px;
+  }
+
+  .top-actions {
+    gap: 6px;
+  }
+
+  .top-actions .glass-button,
+  .top-actions .primary-button {
+    min-height: 34px;
+    padding: 0 11px;
     font-size: 12px;
   }
 
-  .part-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+  .top-actions .icon-button {
+    width: 34px;
+    height: 34px;
+    font-size: 16px;
   }
 
-  .part-button,
-  .component-button {
-    min-height: 44px;
-    padding: 6px;
-    gap: 6px;
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    height: calc(100dvh - 91px);
+    max-height: calc(100dvh - 91px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace.is-customizer-collapsed {
+    display: block;
+  }
+
+  .preview-stage {
+    height: 100%;
+    border-radius: 14px;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .model-strip {
+    min-height: 45px;
+    padding: 7px 10px 4px;
+  }
+
+  .model-pill {
+    min-width: 142px;
+    padding: 5px 8px 5px 5px;
+  }
+
+  .model-thumb {
+    width: 32px;
+    height: 32px;
+  }
+
+  .view-tools {
+    min-height: 34px;
+    padding: 0 10px;
+    overflow-x: auto;
+  }
+
+  .shoe-scene {
+    min-height: 0;
+    padding: 2px 8px;
+  }
+
+  .shoe-art {
+    width: min(100%, 720px);
+    max-height: 100%;
+  }
+
+  .shoe-shadow {
+    bottom: 10%;
+    height: 30px;
+  }
+
+  .scene-footer {
+    min-height: 24px;
+    padding: 0 10px 6px;
+    font-size: 11px;
+  }
+
+  .part-rail-block {
+    min-height: 104px;
+    max-height: 104px;
+    padding: 8px 10px 10px;
+  }
+
+  .part-rail {
+    gap: 7px;
+  }
+
+  .rail-part-button {
+    flex-basis: 136px;
+    min-height: 52px;
+    padding: 7px;
   }
 
   .component-button {
-    grid-template-columns: 30px minmax(0, 1fr) 26px;
+    grid-template-columns: 30px minmax(0, 1fr) 28px;
   }
 
   .component-code {
@@ -1570,46 +2055,431 @@ pre {
     height: 18px;
   }
 
-  .part-button strong {
-    font-size: 12px;
+  .drawer-backdrop {
+    display: none;
   }
 
-  .part-button span {
-    margin-top: 2px;
-    font-size: 10px;
+  .customizer {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    display: grid;
+    width: auto;
+    height: 100%;
+    max-height: 100%;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 7px;
+    padding: 8px 5px;
+    overflow: hidden;
+    border-radius: 14px;
+    transform: none;
+    transition: none;
+  }
+
+  .drawer-close {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    justify-self: end;
+  }
+
+  .panel-top {
+    display: block;
+  }
+
+  .panel-heading {
+    display: none;
+  }
+
+  .summary-block {
+    display: none;
+  }
+
+  .panel-heading h2 {
+    font-size: 22px;
+  }
+
+  .panel-heading p:last-child {
+    display: none;
+  }
+
+  .selected-part-card {
+    padding: 7px 5px;
+  }
+
+  .selected-part-card .eyebrow {
+    display: none;
+  }
+
+  .selected-part-card h3 {
+    font-size: clamp(9px, 2.35vw, 11px);
+    line-height: 1.16;
+  }
+
+  .customizer-scroll {
+    gap: 8px;
+    padding-right: 0;
+  }
+
+  .customizer .section-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    align-items: start;
+    justify-content: start;
+    margin-bottom: 6px;
+  }
+
+  .customizer .section-title h3 {
+    width: 100%;
+    font-size: clamp(10px, 2.55vw, 12px);
+    line-height: 1.15;
+    text-align: left;
+    text-wrap: balance;
+    white-space: normal;
+  }
+
+  .customizer .section-title span {
+    width: 100%;
+    font-size: clamp(9px, 2.35vw, 11px);
+    line-height: 1.15;
+    text-align: left;
+    white-space: normal;
   }
 
   .swatch-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 7px;
+    grid-template-columns: repeat(2, minmax(26px, 1fr));
+    max-height: 170px;
+    gap: 6px;
+    padding: 4px 9px;
   }
 
   .swatch-button {
-    min-width: 30px;
-    min-height: 30px;
+    min-width: 26px;
+    min-height: 26px;
   }
 
   .texture-list {
-    gap: 6px;
+    max-height: calc(100dvh - 360px);
+    min-height: 118px;
   }
 
   .texture-button {
-    grid-template-columns: 34px minmax(0, 1fr) auto;
-    gap: 8px;
-    min-height: 44px;
-    padding: 6px 8px;
+    position: relative;
+    justify-items: center;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    min-height: 56px;
+    padding: 5px 4px;
+    text-align: center;
   }
 
   .texture-preview {
-    width: 34px;
-    height: 28px;
+    width: 32px;
+    height: 24px;
   }
 
   .texture-button strong {
-    font-size: 12px;
+    font-size: clamp(9px, 2.35vw, 10px);
+    line-height: 1.12;
+    text-wrap: balance;
   }
 
-  .texture-button span {
+  .texture-button span span {
+    display: none;
+  }
+
+  .texture-check {
+    position: absolute;
+    right: 4px;
+    top: 4px;
     font-size: 10px;
+  }
+}
+
+@container customizer-panel (max-width: 92px) {
+  .selected-part-card h3 {
+    font-size: 9px;
+    line-height: 1.14;
+  }
+
+  .customizer .section-title h3 {
+    font-size: 10px;
+  }
+
+  .customizer .section-title span {
+    font-size: 9px;
+  }
+
+  .texture-button strong {
+    font-size: 9px;
+    line-height: 1.1;
+  }
+}
+
+@media (max-width: 760px) and (max-height: 520px) {
+  .workspace {
+    height: calc(100dvh - 58px);
+    max-height: calc(100dvh - 58px);
+  }
+
+  .brand-mark,
+  .eyebrow {
+    display: none;
+  }
+
+  .topbar {
+    align-items: center;
+  }
+
+  .brand-lockup h1 {
+    font-size: 18px;
+  }
+
+  .model-strip,
+  .scene-footer {
+    display: none;
+  }
+
+  .preview-stage {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .part-rail-block {
+    min-height: 86px;
+    max-height: 86px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .rail-part-button {
+    flex-basis: 126px;
+    min-height: 46px;
+  }
+
+  .texture-list {
+    max-height: 130px;
+  }
+}
+
+/* Landscape phone final override: short screens use the mobile drawer model even when width is wider than 760px. */
+@media (max-width: 900px) and (max-height: 520px) {
+  .app-shell {
+    min-height: 100dvh;
+    padding: 8px;
+  }
+
+  .topbar {
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .brand-lockup h1 {
+    font-size: 18px;
+  }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    height: calc(100dvh - 66px);
+    max-height: calc(100dvh - 66px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace.is-customizer-collapsed {
+    display: block;
+  }
+
+  .preview-stage {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .model-strip,
+  .scene-footer {
+    display: none;
+  }
+
+  .shoe-scene {
+    min-height: 0;
+    overflow: hidden;
+    padding: 2px 8px;
+  }
+
+  .shoe-art {
+    width: min(100%, 720px);
+    max-height: 100%;
+  }
+
+  .part-rail-block {
+    min-height: 64px;
+    max-height: 64px;
+    padding: 7px 10px;
+  }
+
+  .part-rail-block .section-title {
+    display: none;
+  }
+
+  .part-rail {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0;
+  }
+
+  .rail-part-button {
+    flex: 0 0 126px;
+    min-height: 46px;
+  }
+
+  .drawer-backdrop {
+    display: none;
+  }
+
+  .customizer {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    display: grid;
+    width: auto;
+    height: 100%;
+    max-height: 100%;
+    grid-template-columns: none;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 7px;
+    padding: 8px 6px;
+    overflow: hidden;
+    border-radius: 14px;
+    transform: none;
+    transition: none;
+  }
+
+  .drawer-close {
+    display: grid;
+  }
+
+  .panel-heading {
+    display: none;
+  }
+
+  .summary-block {
+    display: none;
+  }
+
+  .panel-heading p:last-child {
+    display: none;
+  }
+
+  .selected-part-card {
+    padding: 9px;
+  }
+
+  .selected-part-card h3 {
+    font-size: 15px;
+  }
+
+  .customizer-scroll {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .texture-list {
+    max-height: 130px;
+    min-height: 88px;
+  }
+}
+
+/* Final shoe containment: keep the full boot visible before maximizing size. */
+@media (min-width: 981px) and (min-height: 761px) {
+  .workspace {
+    height: clamp(560px, calc(100dvh - 124px), 860px);
+    max-height: calc(100dvh - 124px);
+  }
+
+  .shoe-art {
+    width: min(90%, 820px);
+  }
+}
+
+@media (max-height: 760px) and (min-width: 761px) {
+  .shoe-art {
+    width: min(84%, 700px);
+  }
+}
+
+@media (max-width: 900px) and (max-height: 520px) {
+  .shoe-art {
+    width: min(58%, 460px);
+  }
+}
+
+/* Compact drawer controls for landscape phones. */
+@media (max-width: 900px) and (max-height: 520px) {
+  .panel-heading h2 {
+    margin-bottom: 0;
+    font-size: 20px;
+  }
+
+  .selected-part-card {
+    padding: 8px;
+  }
+
+  .customizer-scroll {
+    gap: 8px;
+  }
+
+  .customizer .section-title {
+    margin-bottom: 5px;
+  }
+
+  .customizer .section-title h3 {
+    font-size: 14px;
+  }
+
+  .swatch-grid {
+    grid-template-columns: repeat(6, minmax(32px, 1fr));
+    max-height: 86px;
+    gap: 6px;
+    padding: 3px;
+  }
+
+  .swatch-button {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .texture-list {
+    max-height: 118px;
+    min-height: 0;
+  }
+
+  .texture-button {
+    min-height: 42px;
+    padding: 5px 8px;
+  }
+
+  .summary-block {
+    display: none;
+  }
+}
+
+/* Landscape drawer color row: keep colors and material header separated. */
+@media (max-width: 900px) and (max-height: 520px) {
+  .swatch-grid {
+    grid-template-columns: repeat(8, minmax(28px, 1fr));
+    max-height: 52px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .swatch-button {
+    min-width: 28px;
+    min-height: 28px;
   }
 }
