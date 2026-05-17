@@ -696,12 +696,10 @@ function defaultCustomizerOpen() {
 function syncCustomizerState() {
   const isBuilder = state.view !== "home";
   const isOpen = isBuilder && state.isCustomizerOpen;
-  const useDrawer = isBuilder && isMobileCustomizer();
-  const isDrawerOpen = useDrawer && isOpen;
-  const collapsedSidebar = isBuilder && (!isOpen || useDrawer);
-  els.workspace.classList.toggle("is-drawer-open", isDrawerOpen);
+  const collapsedSidebar = isBuilder && !isOpen;
+  els.workspace.classList.toggle("is-drawer-open", false);
   els.workspace.classList.toggle("is-customizer-collapsed", collapsedSidebar);
-  document.body.classList.toggle("drawer-open", isDrawerOpen);
+  document.body.classList.toggle("drawer-open", false);
   els.customizerPanel.setAttribute("aria-hidden", isOpen ? "false" : "true");
   els.customizerToggleButton.hidden = !isBuilder;
   els.customizerToggleButton.setAttribute("aria-expanded", String(isOpen));
