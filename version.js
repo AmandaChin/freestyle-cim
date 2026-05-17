@@ -1,13 +1,12 @@
-window.SKATE_CIM_VERSION = "0.0.4";
+window.SKATE_CIM_VERSION = "0.0.5";
 
 window.SKATE_CIM_RELEASE = {
-  version: "0.0.4",
-  previousVersion: "0.0.3",
+  version: "0.0.5",
+  previousVersion: "0.0.4",
   releasedAt: "2026-05-17",
   notes: [
-    "移动端颜色侧栏保持 30% 宽度，不再覆盖主 UI 区",
-    "修复 30% 侧栏内颜色区与材质区重叠的问题",
-    "修复 PC 端防磨片颜色选项过大并压住材质标题的问题",
-    "侧栏内容改为在自身滚动区内滚动，避免压到底部裁片栏"
+    "C 端确认页改为先填写定制表单，再确认鞋子效果 UI",
+    "特殊定制的电绣/Logo 项支持上传图片并显示缩略图",
+    "确认表导出补充特殊定制图片文件名和大小"
   ]
 };

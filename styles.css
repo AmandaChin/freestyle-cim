@@ -1062,6 +1062,16 @@ pre {
   gap: 8px;
 }
 
+.embroidery-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
 .embroidery-row {
   display: grid;
   grid-template-columns: 18px 38px minmax(76px, 0.8fr) minmax(0, 1.2fr);
@@ -1077,6 +1087,75 @@ pre {
   white-space: nowrap;
   font-size: 13px;
   font-weight: 700;
+}
+
+.embroidery-upload-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding-left: 64px;
+}
+
+.embroidery-upload {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 52px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.embroidery-upload.has-image {
+  border-style: solid;
+  background: #fff;
+}
+
+.embroidery-upload img,
+.embroidery-thumb-placeholder {
+  width: 58px;
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #f5f5f7;
+}
+
+.embroidery-thumb-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.embroidery-upload strong,
+.embroidery-upload em {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.embroidery-upload strong {
+  font-size: 13px;
+}
+
+.embroidery-upload em {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.embroidery-remove {
+  min-height: 36px;
 }
 
 .fixed-list div {
@@ -1364,7 +1443,7 @@ pre {
 
 .confirm-color-section {
   grid-column: 2;
-  grid-row: 1 / span 3;
+  grid-row: 1 / span 2;
 }
 
 .confirm-effect-preview {
@@ -1602,6 +1681,15 @@ pre {
   .embroidery-row input:not([type]),
   .embroidery-row input[type="text"] {
     grid-column: 3;
+  }
+
+  .embroidery-upload-row {
+    grid-template-columns: 1fr;
+    padding-left: 0;
+  }
+
+  .embroidery-remove {
+    justify-self: start;
   }
 }
 

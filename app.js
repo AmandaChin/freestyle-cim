@@ -340,7 +340,8 @@ function cloneProductConfig(item) {
         slot.id,
         {
           enabled: slot.enabled,
-          text: ""
+          text: "",
+          image: null
         }
       ])
     )
@@ -909,9 +910,9 @@ function selectionRingMarkup(component, sources, layerIndex, isSelected) {
     .join("");
 }
 
-function componentLayerMarkup(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
+function componentLayerMarkup(component, item = product(), angle = angleAssets(currentAngleConfig(item).id), options = {}) {
   const config = componentConfigFor(item, component.id);
-  const isSelected = isPartSelectionVisible() && item.id === state.productId && component.id === state.selectedPartId;
+  const isSelected = options.showSelection !== false && isPartSelectionVisible() && item.id === state.productId && component.id === state.selectedPartId;
   const selected = isSelected ? "is-selected" : "";
   const layerIndex = component.renderOrder || 1;
   const option = fixedOption(component, config);
@@ -937,7 +938,7 @@ function componentLayerMarkup(component, item = product(), angle = angleAssets(c
     .join("");
 }
 
-function shoeMarkup(item = product(), alt = `${product().name} 侧面预览`, angleOverrideId = "") {
+function shoeMarkup(item = product(), alt = `${product().name} 侧面预览`, angleOverrideId = "", options = {}) {
   const selectedAngle = angleOverrideId
     ? currentAngleConfig(item, angleOverrideId)
     : currentAngleConfig(item, item.id === state.productId ? state.angle : (item.defaultAngle || productAngles(item)[0]?.id || "side"));
@@ -946,7 +947,7 @@ function shoeMarkup(item = product(), alt = `${product().name} 侧面预览`, an
   return `
     <div class="mvp-shoe-frame">
       <img class="mvp-base-image" src="${escapeHtml(assets.base)}" alt="${escapeHtml(alt)}" draggable="false" />
-      ${renderableComponents(item).map((component) => componentLayerMarkup(component, item, angle)).join("")}
+      ${renderableComponents(item).map((component) => componentLayerMarkup(component, item, angle, options)).join("")}
       <img class="mvp-stitch-image" src="${escapeHtml(assets.stitch)}" alt="" aria-hidden="true" draggable="false" />
     </div>`;
 }
@@ -1106,7 +1107,14 @@ function buildExportData() {
       code: slot.code,
       name: slot.cn,
       enabled: state.config[state.productId].embroidery[slot.id].enabled,
-      text: state.config[state.productId].embroidery[slot.id].text
+      text: state.config[state.productId].embroidery[slot.id].text,
+      image: state.config[state.productId].embroidery[slot.id].image
+        ? {
+            name: state.config[state.productId].embroidery[slot.id].image.name,
+            size: state.config[state.productId].embroidery[slot.id].image.size,
+            type: state.config[state.productId].embroidery[slot.id].image.type
+          }
+        : null
     })),
     note: item.note
   };
@@ -1192,7 +1200,7 @@ function resetProduct() {
 }
 
 function openEffectPickerModal() {
-  // 保存方案先选择最终展示效果图，再进入表格确认，避免确认页视角和用户预期不一致。
+  // 表单信息先完成，再进入最终效果图确认，确保下载表格使用的是最终选择视角。
   state.selectedEffectAngle = currentAngleConfig(product(), state.angle).id;
   let modal = document.querySelector("#effectPickerModal");
   if (!modal) {
@@ -1226,7 +1234,7 @@ function renderEffectPickerModal() {
       <header class="confirm-header effect-header">
         <div>
           <p class="eyebrow">Preview</p>
-          <h2 id="effectPickerTitle">选择方案效果图</h2>
+          <h2 id="effectPickerTitle">确认鞋子效果</h2>
         </div>
         <button class="icon-button" type="button" data-close-effect title="关闭">×</button>
       </header>
@@ -1238,14 +1246,14 @@ function renderEffectPickerModal() {
             <span>${item.name}</span>
           </div>
           <div class="effect-preview-frame">
-            ${shoeMarkup(item, `${item.name} ${selectedEffect.label}效果图`, selectedEffect.id)}
+            ${shoeMarkup(item, `${item.name} ${selectedEffect.label}效果图`, selectedEffect.id, { showSelection: false })}
           </div>
         </section>
 
         <section class="effect-choice-panel">
           <div class="section-title">
-            <h3>前序选择</h3>
-            <span>进入确认前选定展示视角</span>
+            <h3>效果图视角</h3>
+            <span>下载表格前确认最终鞋子效果 UI</span>
           </div>
           <div class="effect-option-grid">
             ${angles
@@ -1253,7 +1261,7 @@ function renderEffectPickerModal() {
                 (angle) => `
                   <button class="effect-option-card" type="button" data-effect-angle="${angle.id}" aria-pressed="${angle.id === selectedEffect.id}">
                     <span class="effect-option-thumb">
-                      ${shoeMarkup(item, `${item.name} ${angle.label}效果图`, angle.id)}
+                      ${shoeMarkup(item, `${item.name} ${angle.label}效果图`, angle.id, { showSelection: false })}
                     </span>
                     <span>
                       <strong>${angle.label}效果图</strong>
@@ -1267,8 +1275,8 @@ function renderEffectPickerModal() {
       </div>
 
       <footer class="confirm-actions">
-        <button class="glass-button" type="button" data-close-effect>返回修改</button>
-        <button class="primary-button" type="button" data-continue-confirm>确认效果图，下一步</button>
+        <button class="glass-button" type="button" data-back-confirm>返回表单</button>
+        <button class="primary-button" type="button" data-download-sheet>确认并下载表格</button>
       </footer>
     </section>
   `;
@@ -1290,35 +1298,30 @@ function closeConfirmModal() {
   document.querySelector("#confirmModal")?.classList.remove("is-visible");
 }
 
+function refreshConfirmModal() {
+  const modal = document.querySelector("#confirmModal");
+  if (!modal?.classList.contains("is-visible")) return;
+  modal.innerHTML = renderConfirmModal();
+}
+
 function renderConfirmModal() {
   const data = buildExportData();
-  const selectedEffect = effectAngleConfig(product());
   return `
     <div class="confirm-backdrop" data-close-confirm></div>
     <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
       <header class="confirm-header">
         <div>
-          <p class="eyebrow">Confirm</p>
-          <h2 id="confirmTitle">确认定制方案</h2>
+          <p class="eyebrow">Form</p>
+          <h2 id="confirmTitle">填写定制信息</h2>
         </div>
         <button class="icon-button" type="button" data-close-confirm title="关闭">×</button>
       </header>
 
       <div class="confirm-body">
-        <section class="confirm-section confirm-effect-section">
-          <div class="section-title">
-            <h3>效果图</h3>
-            <span>${data.effectPreview.angle}</span>
-          </div>
-          <div class="confirm-effect-preview">
-            ${shoeMarkup(product(), `${data.product} ${selectedEffect.label}效果图`, selectedEffect.id)}
-          </div>
-        </section>
-
         <section class="confirm-section confirm-info-section">
           <div class="section-title">
             <h3>个人信息</h3>
-            <span>生成表格前确认</span>
+            <span>先填写表单，再确认鞋子效果</span>
           </div>
           <div class="field-grid">
             <label>姓名<input data-customer="name" value="${escapeHtml(state.customer.name)}" placeholder="name" /></label>
@@ -1366,12 +1369,29 @@ function renderConfirmModal() {
               .map((slot) => {
                 const slotConfig = state.config[state.productId].embroidery[slot.id];
                 return `
-                  <label class="embroidery-row">
-                    <input type="checkbox" data-embroidery-toggle="${slot.id}" ${slotConfig.enabled ? "checked" : ""} />
-                    <span class="component-code">${slot.code}</span>
-                    <span>${slot.cn}</span>
-                    <input data-embroidery-text="${slot.id}" value="${escapeHtml(slotConfig.text)}" placeholder="文字/Logo 备注" />
-                  </label>`;
+                  <div class="embroidery-card">
+                    <label class="embroidery-row">
+                      <input type="checkbox" data-embroidery-toggle="${slot.id}" ${slotConfig.enabled ? "checked" : ""} />
+                      <span class="component-code">${slot.code}</span>
+                      <span>${slot.cn}</span>
+                      <input type="text" data-embroidery-text="${slot.id}" value="${escapeHtml(slotConfig.text)}" placeholder="文字/Logo 备注" />
+                    </label>
+                    <div class="embroidery-upload-row">
+                      <label class="embroidery-upload ${slotConfig.image ? "has-image" : ""}">
+                        <input type="file" accept="image/*" hidden data-embroidery-image="${slot.id}" />
+                        ${
+                          slotConfig.image?.dataUrl
+                            ? `<img src="${escapeHtml(slotConfig.image.dataUrl)}" alt="${escapeHtml(slot.cn)}参考图" />`
+                            : `<span class="embroidery-thumb-placeholder">图片</span>`
+                        }
+                        <span>
+                          <strong>${escapeHtml(slotConfig.image?.name || "上传图片")}</strong>
+                          <em>${escapeHtml(slotConfig.image?.size || "支持 Logo / 参考图")}</em>
+                        </span>
+                      </label>
+                      ${slotConfig.image ? `<button class="text-button embroidery-remove" type="button" data-remove-embroidery-image="${slot.id}">移除</button>` : ""}
+                    </div>
+                  </div>`;
               })
               .join("")}
           </div>
@@ -1392,10 +1412,63 @@ function renderConfirmModal() {
 
       <footer class="confirm-actions">
         <button class="glass-button" type="button" data-close-confirm>继续修改</button>
-        <button class="primary-button" type="button" data-download-sheet>确认并下载表格</button>
+        <button class="primary-button" type="button" data-review-effect>下一步确认鞋子效果</button>
       </footer>
     </section>
   `;
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+  const units = ["B", "KB", "MB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleEmbroideryImageInput(input) {
+  const slotId = input.dataset.embroideryImage;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!slotId || !file) return;
+  if (!file.type.startsWith("image/")) {
+    toast("请上传图片文件");
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    toast("图片过大，请控制在 10MB 内");
+    return;
+  }
+
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    const slotConfig = state.config[state.productId].embroidery[slotId];
+    if (!slotConfig) return;
+    slotConfig.enabled = true;
+    slotConfig.image = {
+      name: file.name,
+      size: formatBytes(file.size),
+      type: file.type,
+      dataUrl
+    };
+    refreshConfirmModal();
+    toast("图片已添加");
+  } catch {
+    toast("图片读取失败，请重试");
+  }
 }
 
 function downloadSheet() {
@@ -1410,6 +1483,7 @@ function downloadSheet() {
   link.click();
   URL.revokeObjectURL(url);
   closeConfirmModal();
+  closeEffectPickerModal();
   toast("确认表格已生成");
 }
 
@@ -1427,8 +1501,8 @@ function buildExcelXml(data) {
     ["", "", "", "", ""],
     ["特殊定制", "", "", "", ""],
     ["L1 防磨片款式", data.padStyle, "", "", ""],
-    ["电绣位置", "是否启用", "内容", "", ""],
-    ...data.embroidery.map((item) => [item.name, item.enabled ? "是" : "否", item.text, "", ""]),
+    ["电绣位置", "是否启用", "内容", "图片", ""],
+    ...data.embroidery.map((item) => [item.name, item.enabled ? "是" : "否", item.text, item.image ? `${item.image.name} (${item.image.size})` : "", ""]),
     ["", "", "", "", ""],
     ["固定件", "", "", "", ""],
     ...data.fixedItems.map((item) => [item.cn, item.en, item.value, "", ""]),
@@ -1565,7 +1639,7 @@ function bindEvents() {
   });
 
   els.copyConfigButton?.addEventListener("click", copyConfig);
-  els.saveButton.addEventListener("click", openEffectPickerModal);
+  els.saveButton.addEventListener("click", openConfirmModal);
   els.resetButton.addEventListener("click", resetProduct);
 
   document.addEventListener("click", (event) => {
@@ -1581,7 +1655,7 @@ function bindEvents() {
       return;
     }
 
-    if (event.target.closest("[data-continue-confirm]")) {
+    if (event.target.closest("[data-back-confirm]")) {
       closeEffectPickerModal();
       openConfirmModal();
       return;
@@ -1596,6 +1670,22 @@ function bindEvents() {
     if (partButton) {
       if (!selectPart(partButton.dataset.confirmPart, true)) return;
       closeConfirmModal();
+      return;
+    }
+
+    const removeEmbroideryImageButton = event.target.closest("[data-remove-embroidery-image]");
+    if (removeEmbroideryImageButton) {
+      const slotConfig = state.config[state.productId].embroidery[removeEmbroideryImageButton.dataset.removeEmbroideryImage];
+      if (!slotConfig) return;
+      slotConfig.image = null;
+      refreshConfirmModal();
+      toast("图片已移除");
+      return;
+    }
+
+    if (event.target.closest("[data-review-effect]")) {
+      closeConfirmModal();
+      openEffectPickerModal();
       return;
     }
 
@@ -1622,6 +1712,11 @@ function bindEvents() {
   });
 
   document.addEventListener("change", (event) => {
+    if (event.target.dataset.embroideryImage) {
+      void handleEmbroideryImageInput(event.target);
+      return;
+    }
+
     const embroideryKey = event.target.dataset.embroideryToggle;
     if (embroideryKey) {
       state.config[state.productId].embroidery[embroideryKey].enabled = event.target.checked;
