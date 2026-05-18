@@ -309,6 +309,13 @@ async function main() {
           `${viewport.name}: effect confirmation should render shoe previews without part selection state`
         );
         await assertEffectModalLayout(page, viewport);
+        const confirmationHtml = await page.evaluate("window.buildConfirmationSheetHtml(window.buildExportData({ includeImageData: true }))");
+        assert(confirmationHtml.includes("定制确认单"), `${viewport.name}: confirmation sheet should be human-readable HTML`);
+        assert(confirmationHtml.includes("最终效果图"), `${viewport.name}: confirmation sheet should include the selected UI preview`);
+        assert(confirmationHtml.includes("mvp-shoe-frame"), `${viewport.name}: confirmation sheet should embed the shoe UI preview markup`);
+        assert(confirmationHtml.includes("测试用户"), `${viewport.name}: confirmation sheet should include customer data`);
+        assert(confirmationHtml.includes("配色选型"), `${viewport.name}: confirmation sheet should keep the original confirmation table data`);
+        assert(confirmationHtml.includes("logo.png") && confirmationHtml.includes("data:image/png;base64,"), `${viewport.name}: confirmation sheet should include uploaded reference images`);
 
         await page.click("[data-back-confirm]");
         await page.waitFor("document.querySelector('#confirmModal.is-visible #confirmTitle')?.textContent === '填写定制信息'");
@@ -319,6 +326,25 @@ async function main() {
         await page.click("[data-review-effect]");
         await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
         await assertEffectModalLayout(page, viewport);
+        await page.evaluate(`(() => {
+          window.__confirmationSheetWrites = [];
+          const fakeDocument = {
+            open() {},
+            write(html) {
+              window.__confirmationSheetWrites.push(html);
+            },
+            close() {}
+          };
+          window.open = () => ({
+            document: fakeDocument,
+            closed: false,
+            focus() {}
+          });
+        })()`);
+        await page.click("[data-download-sheet]");
+        await page.waitFor("window.__confirmationSheetWrites?.length === 1");
+        assert(await page.evaluate("window.__confirmationSheetWrites[0].includes('最终效果图')"), `${viewport.name}: final action should open the HTML confirmation sheet`);
+        assert(await page.evaluate("document.body.dataset.view === 'builder'"), `${viewport.name}: generating the confirmation sheet should keep the customization page state`);
       } finally {
         page?.ws?.close();
       }

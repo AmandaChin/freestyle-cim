@@ -158,7 +158,7 @@ const PRODUCT_CATALOG = [
     homeLabel: "专业支撑款",
     description: "高帮轮滑鞋上鞋定制，面向进阶训练与比赛配置，支持按标注裁片扩展颜色和皮料。",
     note: "巴扣、鞋底、CUFF 使用切图指定固定色值；其余标注裁片支持颜色与皮料选择。",
-    homeFeatures: ["高帮支撑", "碳纤鞋壳", "CIM 表格导出"],
+    homeFeatures: ["高帮支撑", "碳纤鞋壳", "确认单导出"],
     accentA: "#f0b7c8",
     accentB: "#ad94ff",
     angles: ANGLE_CONFIG,
@@ -1066,8 +1066,7 @@ function renderParts() {
       const disabled = !component.editable || !angleAvailable;
       const disabledReason = !component.editable ? component.lockReason : "当前角度无切图";
       return `
-        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${isPartSelectionVisible() && component.id === state.selectedPartId}" title="${component.cn}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
-          <span class="component-code">${component.code}</span>
+        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${isPartSelectionVisible() && component.id === state.selectedPartId}" title="${component.code} · ${component.cn}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
           <span>
             <strong>${component.cn}</strong>
             <span>${disabled ? disabledReason : component.en}</span>
@@ -1112,9 +1111,10 @@ function renderShoe() {
   window.requestAnimationFrame(syncShoeFit);
 }
 
-function buildExportData() {
+function buildExportData(options = {}) {
   const item = product();
   const selectedEffect = effectAngleConfig(item);
+  const includeImageData = options.includeImageData === true;
   return {
     version: APP_VERSION,
     product: item.name,
@@ -1136,19 +1136,23 @@ function buildExportData() {
     }),
     fixedItems: item.fixedItems,
     padStyle: item.padStyles.find((style) => style.id === state.config[state.productId].padStyle)?.name || "",
-    embroidery: item.embroiderySlots.map((slot) => ({
-      code: slot.code,
-      name: slot.cn,
-      enabled: state.config[state.productId].embroidery[slot.id].enabled,
-      text: state.config[state.productId].embroidery[slot.id].text,
-      image: state.config[state.productId].embroidery[slot.id].image
-        ? {
-            name: state.config[state.productId].embroidery[slot.id].image.name,
-            size: state.config[state.productId].embroidery[slot.id].image.size,
-            type: state.config[state.productId].embroidery[slot.id].image.type
-          }
-        : null
-    })),
+    embroidery: item.embroiderySlots.map((slot) => {
+      const image = state.config[state.productId].embroidery[slot.id].image;
+      return {
+        code: slot.code,
+        name: slot.cn,
+        enabled: state.config[state.productId].embroidery[slot.id].enabled,
+        text: state.config[state.productId].embroidery[slot.id].text,
+        image: image
+          ? {
+              name: image.name,
+              size: image.size,
+              type: image.type,
+              ...(includeImageData ? { dataUrl: image.dataUrl } : {})
+            }
+          : null
+      };
+    }),
     note: item.note
   };
 }
@@ -1321,7 +1325,7 @@ function renderEffectPickerModal() {
 
       <footer class="confirm-actions">
         <button class="glass-button" type="button" data-back-confirm>返回表单</button>
-        <button class="primary-button" type="button" data-download-sheet>确认并下载表格</button>
+        <button class="primary-button" type="button" data-download-sheet>生成确认单</button>
       </footer>
     </section>
   `;
@@ -1516,68 +1520,430 @@ async function handleEmbroideryImageInput(input) {
   }
 }
 
-function downloadSheet() {
-  const data = buildExportData();
-  const xml = buildExcelXml(data);
-  const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  const customer = data.customer.name || "customer";
-  link.href = url;
-  link.download = `${data.product}-${customer}-custom.xls`;
-  link.click();
-  URL.revokeObjectURL(url);
-  closeConfirmModal();
-  closeEffectPickerModal();
-  toast("确认表格已生成");
+function confirmationSheetStyles() {
+  return `
+    :root {
+      color-scheme: light;
+      --ink: #1d1d1f;
+      --muted: #6e6e73;
+      --line: #d8dce2;
+      --paper: #ffffff;
+      --soft: #f5f7fa;
+      --blue: #0071e3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef1f5;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+    .sheet-shell {
+      width: min(1080px, calc(100vw - 24px));
+      margin: 18px auto 40px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: 0 20px 60px rgba(16, 24, 40, 0.12);
+    }
+    .sheet-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin: -28px -28px 22px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(16px);
+    }
+    .sheet-toolbar button {
+      min-height: 36px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .sheet-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: end;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .sheet-kicker {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      margin-bottom: 4px;
+      font-size: clamp(28px, 5vw, 44px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+    h2 {
+      margin-bottom: 12px;
+      font-size: 22px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .sheet-meta {
+      display: grid;
+      gap: 5px;
+      min-width: 190px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }
+    .sheet-section {
+      margin-top: 24px;
+      break-inside: avoid;
+    }
+    .sheet-preview-card {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, #fbfcff, #f4f7fb);
+    }
+    .sheet-shoe-art {
+      width: min(100%, 860px);
+      aspect-ratio: 2401 / 1601;
+      margin: 0 auto;
+    }
+    .mvp-shoe-frame {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      isolation: isolate;
+    }
+    .mvp-base-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      user-select: none;
+    }
+    .mvp-fixed-image,
+    .mvp-stitch-image,
+    .mvp-upper-fill,
+    .mvp-selection-ring {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .mvp-fixed-image,
+    .mvp-stitch-image,
+    .mvp-selection-ring {
+      object-fit: fill;
+      user-select: none;
+    }
+    .mvp-fixed-image { z-index: var(--layer-index, 3); }
+    .mvp-stitch-image {
+      z-index: 200;
+      mix-blend-mode: multiply;
+    }
+    .mvp-selection-ring { display: none; }
+    .mvp-upper-fill {
+      z-index: var(--layer-index, 2);
+      background: var(--part-material);
+      opacity: .9;
+      mix-blend-mode: multiply;
+      mask-size: 100% 100%;
+      mask-repeat: no-repeat;
+      -webkit-mask-size: 100% 100%;
+      -webkit-mask-repeat: no-repeat;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .info-item,
+    .fixed-card,
+    .image-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--soft);
+      padding: 12px;
+    }
+    .info-item span,
+    .fixed-card span,
+    .image-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .info-item strong,
+    .fixed-card strong,
+    .image-card strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 15px;
+      overflow-wrap: anywhere;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 10px 9px;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    th {
+      background: #eaf2ff;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    tr:last-child td { border-bottom: 0; }
+    th:last-child, td:last-child { border-right: 0; }
+    .fixed-grid,
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .image-card img {
+      display: block;
+      width: 100%;
+      max-height: 220px;
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      object-fit: contain;
+      background: #fff;
+    }
+    .sheet-note {
+      padding: 14px;
+      border-left: 4px solid var(--blue);
+      background: #f3f8ff;
+      color: #303034;
+    }
+    @media (max-width: 720px) {
+      .sheet-shell {
+        width: 100%;
+        margin: 0;
+        padding: 18px;
+        border: 0;
+        border-radius: 0;
+      }
+      .sheet-toolbar { margin: -18px -18px 18px; }
+      .sheet-header {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+      .sheet-meta { text-align: left; }
+      .info-grid,
+      .fixed-grid,
+      .image-grid {
+        grid-template-columns: 1fr;
+      }
+      table { font-size: 12px; }
+      th, td { padding: 8px 6px; }
+    }
+    @media print {
+      body { background: #fff; }
+      .sheet-shell {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .sheet-toolbar { display: none; }
+      .sheet-section { break-inside: avoid; }
+      .sheet-preview-card,
+      .info-item,
+      .fixed-card,
+      .image-card {
+        background: #fff;
+      }
+    }
+  `;
 }
 
-function buildExcelXml(data) {
-  const rows = [
-    [`${data.product} 定制确认表`, "", "", "", ""],
-    ["个人信息", "", "", "", ""],
-    ["姓名", data.customer.name, "日期", data.customer.date, ""],
-    ["脚长", data.customer.footLength, "尺码", data.customer.size, ""],
-    ["效果图", data.effectPreview.angle, "", "", ""],
-    ["", "", "", "", ""],
-    ["配色选型", "", "", "", ""],
-    ["No.", "Component", "裁片名称", "颜色", "皮料"],
-    ...data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]),
-    ["", "", "", "", ""],
-    ["特殊定制", "", "", "", ""],
-    ["L1 防磨片款式", data.padStyle, "", "", ""],
-    ["电绣位置", "是否启用", "内容", "图片", ""],
-    ...data.embroidery.map((item) => [item.name, item.enabled ? "是" : "否", item.text, item.image ? `${item.image.name} (${item.image.size})` : "", ""]),
-    ["", "", "", "", ""],
-    ["固定件", "", "", "", ""],
-    ...data.fixedItems.map((item) => [item.cn, item.en, item.value, "", ""]),
-    ["", "", "", "", ""],
-    ["备注", data.note, "", "", ""]
-  ];
+function tableRows(rows) {
+  return rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell || "-")}</td>`).join("")}</tr>`)
+    .join("");
+}
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Styles>
-  <Style ss:ID="Title"><Font ss:Bold="1" ss:Size="16"/><Interior ss:Color="#F5F5F7" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#E8F1FF" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="Text"><Alignment ss:Vertical="Center"/><Font ss:FontName="Arial"/></Style>
- </Styles>
- <Worksheet ss:Name="定制确认">
-  <Table>
-   <Column ss:Width="120"/><Column ss:Width="180"/><Column ss:Width="160"/><Column ss:Width="140"/><Column ss:Width="120"/>
-   ${rows
-     .map((row, index) => {
-       const style = index === 0 ? "Title" : row[0] && row.slice(1).every((cell) => !cell) ? "Header" : "Text";
-       return `<Row>${row.map((cell) => `<Cell ss:StyleID="${style}"><Data ss:Type="String">${escapeXml(cell)}</Data></Cell>`).join("")}</Row>`;
-     })
-     .join("")}
-  </Table>
- </Worksheet>
-</Workbook>`;
+function buildConfirmationSheetHtml(data) {
+  const item = product();
+  const generatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
+  const baseHref = document.baseURI || window.location.href;
+  const effectPreview = shoeMarkup(item, `${data.product} ${data.effectPreview.angle}最终效果图`, data.effectPreview.angleId, { showSelection: false });
+  const embroideryImages = data.embroidery.filter((entry) => entry.image?.dataUrl);
+  const customerRows = [
+    ["姓名", data.customer.name || "-"],
+    ["日期", data.customer.date || "-"],
+    ["脚长", data.customer.footLength || "-"],
+    ["尺码", data.customer.size || "-"]
+  ];
+  const componentRows = data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]);
+  const embroideryRows = data.embroidery.map((entry) => [
+    entry.code,
+    entry.name,
+    entry.enabled ? "是" : "否",
+    entry.text || "-",
+    entry.image ? `${entry.image.name} (${entry.image.size})` : "-"
+  ]);
+
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="${escapeHtml(baseHref)}" />
+    <title>${escapeHtml(data.product)} 定制确认单</title>
+    <style>${confirmationSheetStyles()}</style>
+  </head>
+  <body>
+    <main class="sheet-shell">
+      <div class="sheet-toolbar">
+        <button type="button" onclick="window.print()">打印 / 另存 PDF</button>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <p class="sheet-kicker">Skate Studio</p>
+          <h1>定制确认单</h1>
+          <p>${escapeHtml(data.product)} · ${escapeHtml(data.effectPreview.angle)}最终效果图</p>
+        </div>
+        <div class="sheet-meta">
+          <span>版本：${escapeHtml(data.version)}</span>
+          <span>生成时间：${escapeHtml(generatedAt)}</span>
+          <span>客户：${escapeHtml(data.customer.name || "-")}</span>
+        </div>
+      </header>
+
+      <section class="sheet-section">
+        <h2>最终效果图</h2>
+        <div class="sheet-preview-card">
+          <div class="sheet-shoe-art">${effectPreview}</div>
+        </div>
+      </section>
+
+      <section class="sheet-section">
+        <h2>个人信息</h2>
+        <div class="info-grid">
+          ${customerRows.map(([label, value]) => `<div class="info-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
+        </div>
+      </section>
+
+      <section class="sheet-section">
+        <h2>配色选型</h2>
+        <table aria-label="配色选型">
+          <thead>
+            <tr><th>No.</th><th>Component</th><th>裁片名称</th><th>颜色</th><th>皮料</th></tr>
+          </thead>
+          <tbody>${tableRows(componentRows)}</tbody>
+        </table>
+      </section>
+
+      <section class="sheet-section">
+        <h2>特殊定制</h2>
+        <div class="info-grid">
+          <div class="info-item"><span>L1 防磨片款式</span><strong>${escapeHtml(data.padStyle || "-")}</strong></div>
+        </div>
+        <table aria-label="电绣定制">
+          <thead>
+            <tr><th>位置</th><th>名称</th><th>启用</th><th>内容</th><th>图片</th></tr>
+          </thead>
+          <tbody>${tableRows(embroideryRows)}</tbody>
+        </table>
+      </section>
+
+      ${
+        embroideryImages.length
+          ? `<section class="sheet-section">
+              <h2>上传图片</h2>
+              <div class="image-grid">
+                ${embroideryImages
+                  .map(
+                    (entry) => `<div class="image-card">
+                      <span>${escapeHtml(entry.code)} · ${escapeHtml(entry.name)}</span>
+                      <strong>${escapeHtml(entry.image.name)} (${escapeHtml(entry.image.size)})</strong>
+                      <img src="${escapeHtml(entry.image.dataUrl)}" alt="${escapeHtml(entry.name)}参考图" />
+                    </div>`
+                  )
+                  .join("")}
+              </div>
+            </section>`
+          : ""
+      }
+
+      <section class="sheet-section">
+        <h2>固定件</h2>
+        <div class="fixed-grid">
+          ${data.fixedItems.map((entry) => `<div class="fixed-card"><span>${escapeHtml(entry.en)}</span><strong>${escapeHtml(entry.cn)}：${escapeHtml(entry.value)}</strong></div>`).join("")}
+        </div>
+      </section>
+
+      <section class="sheet-section">
+        <h2>备注</h2>
+        <div class="sheet-note">${escapeHtml(data.note || "-")}</div>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+function confirmationSheetFileName(data) {
+  const customer = data.customer.name || "customer";
+  return `${data.product}-${customer}-confirmation.html`.replace(/[\\/:*?"<>|]/g, "-");
+}
+
+function downloadConfirmationSheetFallback(html, fileName) {
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function downloadSheet() {
+  const sheetWindow = window.open("", "_blank");
+  const data = buildExportData({ includeImageData: true });
+  const html = buildConfirmationSheetHtml(data);
+  if (sheetWindow && !sheetWindow.closed) {
+    sheetWindow.document.open();
+    sheetWindow.document.write(html);
+    sheetWindow.document.close();
+    sheetWindow.focus();
+  } else {
+    downloadConfirmationSheetFallback(html, confirmationSheetFileName(data));
+    toast("浏览器拦截新窗口，已下载 HTML 确认单");
+  }
+  closeConfirmModal();
+  closeEffectPickerModal();
+  toast("确认单已生成");
 }
 
 function copyConfig() {
@@ -1616,10 +1982,6 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-function escapeXml(value) {
-  return escapeHtml(value).replaceAll("'", "&apos;");
 }
 
 function bindEvents() {

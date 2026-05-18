@@ -556,6 +556,7 @@ h1 {
   display: grid;
   min-height: 420px;
   place-items: center;
+  container: shoe-scene / size;
   padding: 20px;
   --shoe-fit-scale: 0.94;
   --shoe-max-width: 920px;
@@ -592,6 +593,7 @@ h1 {
   position: relative;
   z-index: 1;
   width: min(var(--shoe-fit-width, 94%), var(--shoe-max-width, 920px));
+  width: min(var(--shoe-fit-width, 94%), var(--shoe-max-width, 920px), 94cqw, calc(94cqh * 1.499 - 108px));
   max-width: 100%;
   max-height: 100%;
   aspect-ratio: 2401 / 1601;
@@ -996,7 +998,7 @@ pre {
 
 .component-button {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) 42px;
+  grid-template-columns: minmax(0, 1fr) 42px;
   align-items: center;
   gap: 10px;
 }
@@ -1810,6 +1812,7 @@ body.drawer-open {
 
 .shoe-art {
   width: min(var(--shoe-fit-width, 96%), var(--shoe-max-width, 920px));
+  width: min(var(--shoe-fit-width, 96%), var(--shoe-max-width, 920px), 96cqw, calc(96cqh * 1.499 - 114px));
   max-width: 100%;
   max-height: 100%;
 }
@@ -1858,7 +1861,7 @@ body.drawer-open {
 }
 
 .rail-part-button {
-  flex: 0 0 clamp(142px, 13vw, 178px);
+  flex: 0 0 clamp(128px, 11vw, 158px);
   min-width: 0;
   min-height: 58px;
 }
@@ -2132,6 +2135,7 @@ body.drawer-open {
 
   .shoe-art {
     width: min(var(--shoe-fit-width, 100%), var(--shoe-max-width, 720px));
+    width: min(var(--shoe-fit-width, 100%), var(--shoe-max-width, 720px), 100cqw, calc(100cqh * 1.499 - 114px));
     max-height: 100%;
   }
 
@@ -2163,7 +2167,7 @@ body.drawer-open {
   }
 
   .component-button {
-    grid-template-columns: 30px minmax(0, 1fr) 28px;
+    grid-template-columns: minmax(0, 1fr) 28px;
   }
 
   .component-code {

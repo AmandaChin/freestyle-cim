@@ -1,0 +1,1420 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Skate Studio C 端功能介绍</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f5f7;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-strong: #ffffff;
+        --text: #1d1d1f;
+        --muted: #6e6e73;
+        --muted-strong: #424245;
+        --line: rgba(0, 0, 0, 0.1);
+        --line-soft: rgba(0, 0, 0, 0.06);
+        --blue: #0071e3;
+        --blue-soft: #e8f2ff;
+        --green: #12805c;
+        --pink: #f0b7c8;
+        --violet: #9e8cff;
+        --shadow: 0 28px 90px rgba(0, 0, 0, 0.12);
+        --radius: 28px;
+        --card-radius: 18px;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-width: 320px;
+        margin: 0;
+        overflow-x: hidden;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .page {
+        overflow: hidden;
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        border-bottom: 1px solid var(--line-soft);
+        background: rgba(245, 245, 247, 0.76);
+        backdrop-filter: blur(24px) saturate(160%);
+        -webkit-backdrop-filter: blur(24px) saturate(160%);
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        width: min(1160px, calc(100% - 40px));
+        margin: 0 auto;
+        min-height: 64px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        position: relative;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        border-radius: 9px;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.9), transparent 45%),
+          linear-gradient(145deg, #111114, #6d6d72);
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
+      }
+
+      .brand-mark::after {
+        content: "";
+        position: absolute;
+        left: 8px;
+        bottom: 8px;
+        width: 18px;
+        height: 5px;
+        border: 2px solid rgba(255, 255, 255, 0.84);
+        border-top: 0;
+        border-radius: 999px;
+      }
+
+      .brand strong {
+        display: block;
+        font-size: 15px;
+        line-height: 1.1;
+      }
+
+      .brand span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.1;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        color: var(--muted-strong);
+        font-size: 14px;
+        white-space: nowrap;
+      }
+
+      .nav-links a {
+        transition: color 180ms ease;
+      }
+
+      .nav-links a:hover {
+        color: var(--text);
+      }
+
+      .lang-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 48px;
+        height: 34px;
+        padding: 0 13px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--muted-strong);
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+      }
+
+      .lang-toggle:hover {
+        background: #fff;
+        color: var(--text);
+      }
+
+      .lang-toggle:active {
+        transform: scale(0.98);
+      }
+
+      .nav-cta,
+      .hero-cta,
+      .secondary-cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 40px;
+        border-radius: 999px;
+        font-weight: 700;
+        transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+      }
+
+      .nav-cta,
+      .hero-cta {
+        background: var(--blue);
+        color: #fff;
+        box-shadow: 0 12px 28px rgba(0, 113, 227, 0.24);
+      }
+
+      .nav-cta {
+        padding: 0 16px;
+        font-size: 14px;
+      }
+
+      .hero-cta {
+        padding: 0 22px;
+        min-height: 48px;
+      }
+
+      .secondary-cta {
+        padding: 0 20px;
+        min-height: 48px;
+        background: rgba(255, 255, 255, 0.88);
+        color: var(--text);
+        border: 1px solid var(--line);
+      }
+
+      .nav-cta:hover,
+      .hero-cta:hover {
+        background: #0066cc;
+      }
+
+      .nav-cta:active,
+      .hero-cta:active,
+      .secondary-cta:active,
+      .feature-card:active,
+      .step-card:active {
+        transform: scale(0.98);
+      }
+
+      .hero {
+        position: relative;
+        width: min(1240px, calc(100% - 40px));
+        margin: 48px auto 0;
+        padding: clamp(34px, 5vw, 72px);
+        overflow: hidden;
+        border: 1px solid var(--line-soft);
+        border-radius: 38px;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.7)),
+          linear-gradient(180deg, #ffffff 0%, #eef2f7 100%);
+        box-shadow: var(--shadow);
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.88fr) minmax(460px, 1.12fr);
+        align-items: center;
+        gap: clamp(28px, 5vw, 70px);
+        min-width: 0;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 700px;
+        margin-bottom: 20px;
+        font-size: clamp(42px, 7vw, 88px);
+        line-height: 0.98;
+        letter-spacing: 0;
+      }
+
+      h1 span {
+        display: block;
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 2;
+        min-width: 0;
+      }
+
+      .hero-copy > p:not(.eyebrow) {
+        max-width: 590px;
+        margin-bottom: 28px;
+        color: var(--muted-strong);
+        font-size: clamp(17px, 2vw, 22px);
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 32px;
+      }
+
+      .hero-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        max-width: 590px;
+      }
+
+      .stat {
+        min-height: 92px;
+        padding: 18px;
+        border: 1px solid var(--line-soft);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.74);
+      }
+
+      .stat strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: clamp(24px, 3vw, 34px);
+        line-height: 1;
+      }
+
+      .stat span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .product-stage {
+        position: relative;
+        min-height: 540px;
+        border-radius: 34px;
+      }
+
+      .product-stage::before {
+        content: "";
+        position: absolute;
+        left: 10%;
+        right: 6%;
+        bottom: 10%;
+        height: 22%;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at center, rgba(36, 39, 46, 0.18), rgba(36, 39, 46, 0));
+        filter: blur(6px);
+      }
+
+      .shoe-composite {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        transform: rotate(-3deg) translateY(8px);
+      }
+
+      .shoe-frame {
+        position: relative;
+        width: min(100%, 760px);
+        aspect-ratio: 2401 / 1601;
+      }
+
+      .shoe-frame img,
+      .shoe-frame .part-layer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .shoe-base {
+        z-index: 1;
+        filter: drop-shadow(0 36px 46px rgba(0, 0, 0, 0.18));
+      }
+
+      .part-layer {
+        z-index: 2;
+        opacity: 0.86;
+        background: var(--part-color);
+        mix-blend-mode: multiply;
+        mask: var(--part-mask) center / contain no-repeat;
+        -webkit-mask: var(--part-mask) center / contain no-repeat;
+      }
+
+      .shoe-fixed,
+      .shoe-stitch {
+        z-index: 3;
+      }
+
+      .floating-panel {
+        position: absolute;
+        z-index: 4;
+        width: min(260px, 42%);
+        padding: 16px;
+        border: 1px solid var(--line-soft);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.78);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+      }
+
+      .floating-panel strong {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 15px;
+      }
+
+      .floating-panel span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .panel-one {
+        top: 8%;
+        right: 2%;
+      }
+
+      .panel-two {
+        left: 0;
+        bottom: 15%;
+      }
+
+      .swatches {
+        display: flex;
+        gap: 7px;
+        margin-top: 12px;
+      }
+
+      .swatch {
+        width: 22px;
+        height: 22px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 50%;
+      }
+
+      .section {
+        width: min(1160px, calc(100% - 40px));
+        margin: 92px auto 0;
+      }
+
+      .section-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 0.82fr) minmax(260px, 0.38fr);
+        align-items: end;
+        gap: 24px;
+        margin-bottom: 28px;
+      }
+
+      .section-heading h2 {
+        margin-bottom: 0;
+        font-size: clamp(34px, 4.5vw, 60px);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+
+      .section-heading p {
+        margin-bottom: 4px;
+        color: var(--muted-strong);
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .feature-card {
+        min-height: 230px;
+        padding: 24px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--card-radius);
+        background: var(--surface-strong);
+        transition: transform 180ms ease, box-shadow 180ms ease;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.1);
+      }
+
+      .icon {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        margin-bottom: 18px;
+        place-items: center;
+        border-radius: 12px;
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-size: 22px;
+        font-weight: 800;
+      }
+
+      .feature-card h3,
+      .step-card h3,
+      .timeline-card h3 {
+        margin-bottom: 10px;
+        font-size: 22px;
+        line-height: 1.15;
+      }
+
+      .feature-card p,
+      .step-card p,
+      .timeline-card p {
+        margin-bottom: 0;
+        color: var(--muted-strong);
+        font-size: 15px;
+        line-height: 1.58;
+      }
+
+      .workflow-band {
+        padding: clamp(28px, 4vw, 42px);
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius);
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.72)),
+          linear-gradient(180deg, #ffffff, #edf4ff);
+        box-shadow: 0 22px 70px rgba(0, 0, 0, 0.08);
+      }
+
+      .workflow-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .step-card {
+        position: relative;
+        min-height: 210px;
+        padding: 22px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--card-radius);
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        margin-bottom: 18px;
+        border-radius: 50%;
+        background: var(--text);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .capabilities {
+        display: grid;
+        grid-template-columns: minmax(0, 0.96fr) minmax(300px, 0.54fr);
+        gap: 18px;
+      }
+
+      .capability-panel {
+        padding: clamp(26px, 4vw, 42px);
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius);
+        background: var(--surface-strong);
+      }
+
+      .capability-panel h2 {
+        margin-bottom: 18px;
+        font-size: clamp(30px, 4vw, 52px);
+        line-height: 1.08;
+      }
+
+      .capability-list {
+        display: grid;
+        gap: 14px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .capability-list li {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr);
+        gap: 12px;
+        color: var(--muted-strong);
+        font-size: 16px;
+        line-height: 1.52;
+      }
+
+      .capability-list li::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        margin-top: 8px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 0 6px rgba(18, 128, 92, 0.1);
+      }
+
+      .release-panel {
+        display: grid;
+        align-content: space-between;
+        gap: 22px;
+        padding: clamp(24px, 4vw, 34px);
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius);
+        background:
+          linear-gradient(180deg, rgba(29, 29, 31, 0.96), rgba(43, 45, 50, 0.96)),
+          #1d1d1f;
+        color: #fff;
+        min-height: 100%;
+      }
+
+      .release-panel p {
+        margin-bottom: 0;
+        color: rgba(255, 255, 255, 0.72);
+        line-height: 1.55;
+      }
+
+      .release-number {
+        font-size: clamp(54px, 8vw, 86px);
+        font-weight: 800;
+        line-height: 0.95;
+        letter-spacing: 0;
+      }
+
+      .release-label {
+        margin-bottom: 8px;
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 14px;
+      }
+
+      .timeline-card {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr);
+        gap: 20px;
+        padding: 22px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--card-radius);
+        background: var(--surface-strong);
+      }
+
+      .version-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        min-width: 82px;
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        background: var(--text);
+        color: #fff;
+        font-weight: 800;
+      }
+
+      .timeline-meta {
+        display: block;
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .closing {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 24px;
+        width: min(1160px, calc(100% - 40px));
+        margin: 92px auto 48px;
+        padding: clamp(30px, 5vw, 52px);
+        border-radius: 34px;
+        background: #1d1d1f;
+        color: #fff;
+      }
+
+      .closing h2 {
+        margin-bottom: 12px;
+        font-size: clamp(30px, 4.5vw, 56px);
+        line-height: 1.05;
+      }
+
+      .closing p {
+        max-width: 680px;
+        margin-bottom: 0;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      .closing .hero-cta {
+        background: #fff;
+        color: var(--text);
+        box-shadow: none;
+      }
+
+      .closing .hero-cta:hover {
+        background: #f5f5f7;
+      }
+
+      @media (max-width: 980px) {
+        .hero-grid,
+        .section-heading,
+        .capabilities,
+        .closing {
+          grid-template-columns: 1fr;
+        }
+
+        .product-stage {
+          min-height: 430px;
+        }
+
+        .feature-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .workflow-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .closing {
+          align-items: start;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .nav-inner {
+          width: auto;
+          margin: 0 14px;
+          min-height: 58px;
+        }
+
+        .brand > span:not(.brand-mark),
+        .nav-links a:not(.nav-cta) {
+          display: none;
+        }
+
+        .hero,
+        .section,
+        .closing {
+          width: auto;
+          max-width: none;
+          margin-left: 14px;
+          margin-right: 14px;
+        }
+
+        .hero {
+          margin-top: 28px;
+          border-radius: 28px;
+          padding: 28px 20px;
+        }
+
+        h1 {
+          font-size: clamp(34px, 10.4vw, 44px);
+          line-height: 1.04;
+        }
+
+        .hero-copy > p:not(.eyebrow) {
+          max-width: 100%;
+          font-size: 16px;
+          line-height: 1.55;
+          word-break: break-all;
+        }
+
+        .hero-stats,
+        .feature-grid,
+        .workflow-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .product-stage {
+          min-height: 330px;
+        }
+
+        .shoe-composite {
+          transform: rotate(-3deg) translateY(24px) scale(1.12);
+        }
+
+        .floating-panel {
+          position: relative;
+          width: 100%;
+          inset: auto;
+          margin-top: 12px;
+        }
+
+        .panel-one,
+        .panel-two {
+          top: auto;
+          right: auto;
+          bottom: auto;
+          left: auto;
+        }
+
+        .timeline-card {
+          grid-template-columns: 1fr;
+          gap: 14px;
+        }
+
+        .closing {
+          margin-bottom: 28px;
+          border-radius: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="nav">
+        <div class="nav-inner">
+          <a class="brand" href="./index.html" aria-label="Skate Studio 首页">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>
+              <strong>Skate Studio</strong>
+              <span>C 端定制网站介绍</span>
+            </span>
+          </a>
+          <nav class="nav-links" aria-label="页面导航">
+            <a href="#features">功能</a>
+            <a href="#workflow">流程</a>
+            <a href="#versions">版本</a>
+            <button class="lang-toggle" id="languageToggle" type="button" aria-label="切换为英文版">EN</button>
+            <a class="nav-cta" href="./index.html">进入定制</a>
+          </nav>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="heroTitle">
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <p class="eyebrow">Customer Experience</p>
+              <h1 id="heroTitle"><span>让客户直观</span><span>看见自己的</span><span>轮滑鞋方案。</span></h1>
+              <p>
+                C 端网站把鞋款选择、裁片定制、颜色材质预览、特殊电绣和确认单生成放在同一条清晰链路里，客户可以先看效果，再提交可执行的定制信息。
+              </p>
+              <div class="hero-actions">
+                <a class="hero-cta" href="./index.html">打开 C 端网站</a>
+                <a class="secondary-cta" href="#versions">查看版本优化</a>
+              </div>
+              <div class="hero-stats" aria-label="核心能力数据">
+                <div class="stat">
+                  <strong>17</strong>
+                  <span>个可选裁片与固定部件，覆盖鞋面、绑带、扣具和鞋底。</span>
+                </div>
+                <div class="stat">
+                  <strong>3</strong>
+                  <span>种效果视角，支持侧面、45 度和正面预览。</span>
+                </div>
+                <div class="stat">
+                  <strong id="currentVersion">0.0.9</strong>
+                  <span>当前 C 端版本，持续优化手机和桌面端体验。</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="product-stage" aria-label="YJS-pro CIM 定制鞋效果展示">
+              <div class="shoe-composite" aria-hidden="true">
+                <div class="shoe-frame">
+                  <img class="shoe-base" src="./assets/skates/yjs-pro-cim/forty_five/base.png" alt="" />
+                  <span class="part-layer" style="--part-color: #f0b7c8; --part-mask: url('./assets/skates/yjs-pro-cim/forty_five/parts/G.png')"></span>
+                  <span class="part-layer" style="--part-color: #f8d8e3; --part-mask: url('./assets/skates/yjs-pro-cim/forty_five/parts/C2.png')"></span>
+                  <span class="part-layer" style="--part-color: #f6f3ec; --part-mask: url('./assets/skates/yjs-pro-cim/forty_five/parts/F.png')"></span>
+                  <span class="part-layer" style="--part-color: #17171a; --part-mask: url('./assets/skates/yjs-pro-cim/forty_five/parts/L.png')"></span>
+                  <img class="shoe-fixed" src="./assets/skates/yjs-pro-cim/forty_five/fixed/D/cuff-silver.png" alt="" />
+                  <img class="shoe-fixed" src="./assets/skates/yjs-pro-cim/forty_five/fixed/M/buckle-black.png" alt="" />
+                  <img class="shoe-fixed" src="./assets/skates/yjs-pro-cim/forty_five/fixed/N/sole-silver.png" alt="" />
+                  <img class="shoe-stitch" src="./assets/skates/yjs-pro-cim/forty_five/stitch.png" alt="" />
+                </div>
+              </div>
+              <div class="floating-panel panel-one">
+                <strong>实时视觉预览</strong>
+                <span>选择裁片后即可看到颜色、材质和固定部件效果。</span>
+                <div class="swatches" aria-hidden="true">
+                  <span class="swatch" style="background: #f6f3ec"></span>
+                  <span class="swatch" style="background: #f0b7c8"></span>
+                  <span class="swatch" style="background: #17171a"></span>
+                  <span class="swatch" style="background: #cfd2d5"></span>
+                </div>
+              </div>
+              <div class="floating-panel panel-two">
+                <strong>面向客户确认</strong>
+                <span>填写姓名、脚长、尺码和特殊定制后生成确认单。</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="features" aria-labelledby="featuresTitle">
+          <div class="section-heading">
+            <h2 id="featuresTitle">客户能完成什么。</h2>
+            <p>页面重点是降低沟通成本：客户自己选，销售或设计团队拿到结构化结果。</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <span class="icon" aria-hidden="true">1</span>
+              <h3>选择发布鞋款</h3>
+              <p>首页展示已发布的 YJS-pro CIM 鞋款，客户先理解产品定位，再进入具体定制。</p>
+            </article>
+            <article class="feature-card">
+              <span class="icon" aria-hidden="true">2</span>
+              <h3>多角度预览</h3>
+              <p>定制区支持侧面、45 度和正面效果图，客户可以从关键视角确认整体搭配。</p>
+            </article>
+            <article class="feature-card">
+              <span class="icon" aria-hidden="true">3</span>
+              <h3>裁片级编辑</h3>
+              <p>客户可以点击鞋图或底部裁片栏选择部件，逐个调整鞋帮、鞋片、鞋头、鞋舌、扣带和防磨片。</p>
+            </article>
+            <article class="feature-card">
+              <span class="icon" aria-hidden="true">4</span>
+              <h3>颜色与材质选择</h3>
+              <p>内置奶油白、樱花粉、银灰、黑色等颜色，并支持光面皮、网布、珍珠皮、哑光皮和中国风布料。</p>
+            </article>
+            <article class="feature-card">
+              <span class="icon" aria-hidden="true">5</span>
+              <h3>固定部件选项</h3>
+              <p>CUFF、巴扣、鞋底等使用真实切图选项，避免用纯色块替代关键五金和鞋底效果。</p>
+            </article>
+            <article class="feature-card">
+              <span class="icon" aria-hidden="true">6</span>
+              <h3>确认单生成</h3>
+              <p>保存方案后填写客户信息、上传 Logo 或参考图，并生成包含最终效果图和配置明细的确认单。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="workflow" aria-labelledby="workflowTitle">
+          <div class="section-heading">
+            <h2 id="workflowTitle">从浏览到确认，四步完成。</h2>
+            <p>流程按真实客户沟通顺序设计，不要求客户理解后台配置或生产字段。</p>
+          </div>
+          <div class="workflow-band">
+            <div class="workflow-grid">
+              <article class="step-card">
+                <span class="step-number">01</span>
+                <h3>选择鞋款</h3>
+                <p>从 C 端首页进入发布态鞋款，确认产品类型、支撑定位和基础说明。</p>
+              </article>
+              <article class="step-card">
+                <span class="step-number">02</span>
+                <h3>定制裁片</h3>
+                <p>通过点选鞋图或裁片栏切换编辑对象，逐步完成颜色、材质和固定部件选择。</p>
+              </article>
+              <article class="step-card">
+                <span class="step-number">03</span>
+                <h3>填写信息</h3>
+                <p>补充姓名、日期、脚长、尺码，以及后提带、鞋舌和魔术贴位置的电绣备注。</p>
+              </article>
+              <article class="step-card">
+                <span class="step-number">04</span>
+                <h3>确认效果</h3>
+                <p>最后选择确认单使用的鞋子视角，生成可交付给销售、设计和生产沟通的确认页。</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="detailTitle">
+          <div class="capabilities">
+            <div class="capability-panel">
+              <p class="eyebrow">Why It Matters</p>
+              <h2 id="detailTitle">把客户的选择变成清楚、可复核、可交付的方案。</h2>
+              <ul class="capability-list">
+                <li>客户看到的是直观鞋图，不是表格字段，降低首次定制门槛。</li>
+                <li>每个裁片都保留编号、中文名称、颜色和材质，方便后续复核。</li>
+                <li>电绣和 Logo 支持图片上传，确认单中会保留文件名、大小和缩略图。</li>
+                <li>页面读取发布态配置，后续可以继续和 B 端配置管理能力衔接。</li>
+              </ul>
+            </div>
+            <aside class="release-panel" aria-label="当前版本">
+              <div>
+                <div class="release-label">Current Release</div>
+                <div class="release-number" id="releaseNumber">0.0.9</div>
+              </div>
+              <p id="releaseNote">
+                当前版本把导出链路改为 HTML 确认单，便于客户直接打印或另存为 PDF。
+              </p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="section" id="versions" aria-labelledby="versionsTitle">
+          <div class="section-heading">
+            <h2 id="versionsTitle">版本优化记录。</h2>
+            <p>以下记录聚焦客户能感知到的 C 端体验变化，便于对外介绍和内部复盘。</p>
+          </div>
+          <div class="timeline">
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.0.9</span>
+                <span class="timeline-meta">2026-05-18</span>
+              </div>
+              <div>
+                <h3>确认单更适合交付</h3>
+                <p>导出改为 HTML 确认单，内嵌最终鞋子效果 UI、配色表格、特殊定制信息和上传参考图，并支持浏览器打印或另存 PDF。</p>
+              </div>
+            </article>
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.0.8</span>
+                <span class="timeline-meta">2026-05-18</span>
+              </div>
+              <div>
+                <h3>裁片选择栏更清爽</h3>
+                <p>移除裁片缩略图，仅保留名称和颜色预览，编号保留在按钮提示中，同时收紧按钮宽度，让横向列表可以展示更多裁片。</p>
+              </div>
+            </article>
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.0.7</span>
+                <span class="timeline-meta">2026-05-18</span>
+              </div>
+              <div>
+                <h3>预览尺寸和确认流程更稳定</h3>
+                <p>主定制页鞋图会按预览容器宽高动态缩放，确认效果页收紧预览图边界，返回表单时固定回到确认流程上一层。</p>
+              </div>
+            </article>
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.0.5</span>
+                <span class="timeline-meta">2026-05-17</span>
+              </div>
+              <div>
+                <h3>确认单链路升级</h3>
+                <p>保存方案后先填写定制信息，再确认鞋子效果；特殊定制支持上传电绣和 Logo 图片，确认单补充图片文件名和大小。</p>
+              </div>
+            </article>
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.0.4</span>
+                <span class="timeline-meta">2026-05-17</span>
+              </div>
+              <div>
+                <h3>移动端侧栏体验修复</h3>
+                <p>移动端颜色侧栏保持 30% 宽度，不再覆盖主 UI 区，同时修复侧栏内容重叠和 PC 端防磨片选项过大的问题。</p>
+              </div>
+            </article>
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.0.3</span>
+                <span class="timeline-meta">2026-05-17</span>
+              </div>
+              <div>
+                <h3>裁片点选更准确</h3>
+                <p>裁片选中态改为外侧渐变描边，不遮挡原本颜色和材质；修复 PC 端鞋图点击命中、空白区域关闭侧栏和清除选中态。</p>
+              </div>
+            </article>
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.0.2</span>
+                <span class="timeline-meta">2026-05-16</span>
+              </div>
+              <div>
+                <h3>响应式定制页重设计</h3>
+                <p>升级为三层横向布局、30% 侧栏、底部裁片栏和可扩展主图区域，颜色与布料区域支持内部滚动。</p>
+              </div>
+            </article>
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.0.1</span>
+                <span class="timeline-meta">2026-05-11</span>
+              </div>
+              <div>
+                <h3>初始静态版本</h3>
+                <p>提供 C 端轮滑鞋定制预览、B 端配置管理基础能力、发布态配置读取和定制确认表导出流程。</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="closing" aria-labelledby="closingTitle">
+          <div>
+            <h2 id="closingTitle">现在可以直接给客户演示。</h2>
+            <p>打开 C 端网站，客户可以从选择鞋款开始，完成一套带视觉预览和确认单的定制流程。</p>
+          </div>
+          <a class="hero-cta" href="./index.html">进入 C 端网站</a>
+        </section>
+      </main>
+    </div>
+
+    <script src="./version.js?v=0.0.9"></script>
+    <script>
+      const release = window.SKATE_CIM_RELEASE || {};
+      const version = window.SKATE_CIM_VERSION || release.version || "0.0.9";
+      const languageStorageKey = "skate-cim-intro-language";
+
+      const versionNotes = {
+        zh: {
+          "0.0.9": "确认流程改为生成 HTML 确认单，规避移动端 Excel 下载兼容性问题；确认单内嵌最终鞋子效果 UI、配色表格、特殊定制信息和上传参考图；确认单支持浏览器直接打印或另存为 PDF。",
+          default: "当前版本持续优化 C 端定制、确认和交付体验。"
+        },
+        en: {
+          "0.0.9": "The confirmation flow now exports an HTML confirmation sheet, avoiding mobile Excel download issues. The sheet includes the final shoe preview, color table, special customization details, uploaded references, and can be printed or saved as PDF from the browser.",
+          default: "The current release continues to improve the customer customization, confirmation, and handoff experience."
+        }
+      };
+
+      const copy = {
+        zh: {
+          title: "Skate Studio C 端功能介绍",
+          brandAria: "Skate Studio 首页",
+          brandSub: "C 端定制网站介绍",
+          navAria: "页面导航",
+          navLinks: ["功能", "流程", "版本"],
+          navCta: "进入定制",
+          langButton: "EN",
+          langAria: "切换为英文版",
+          hero: {
+            eyebrow: "Customer Experience",
+            titleLines: ["让客户直观", "看见自己的", "轮滑鞋方案。"],
+            body: "C 端网站把鞋款选择、裁片定制、颜色材质预览、特殊电绣和确认单生成放在同一条清晰链路里，客户可以先看效果，再提交可执行的定制信息。",
+            primaryCta: "打开 C 端网站",
+            secondaryCta: "查看版本优化",
+            statsAria: "核心能力数据",
+            stats: [
+              "个可选裁片与固定部件，覆盖鞋面、绑带、扣具和鞋底。",
+              "种效果视角，支持侧面、45 度和正面预览。",
+              "当前 C 端版本，持续优化手机和桌面端体验。"
+            ]
+          },
+          stageAria: "YJS-pro CIM 定制鞋效果展示",
+          floatingPanels: [
+            {
+              title: "实时视觉预览",
+              body: "选择裁片后即可看到颜色、材质和固定部件效果。"
+            },
+            {
+              title: "面向客户确认",
+              body: "填写姓名、脚长、尺码和特殊定制后生成确认单。"
+            }
+          ],
+          features: {
+            title: "客户能完成什么。",
+            body: "页面重点是降低沟通成本：客户自己选，销售或设计团队拿到结构化结果。",
+            cards: [
+              ["选择发布鞋款", "首页展示已发布的 YJS-pro CIM 鞋款，客户先理解产品定位，再进入具体定制。"],
+              ["多角度预览", "定制区支持侧面、45 度和正面效果图，客户可以从关键视角确认整体搭配。"],
+              ["裁片级编辑", "客户可以点击鞋图或底部裁片栏选择部件，逐个调整鞋帮、鞋片、鞋头、鞋舌、扣带和防磨片。"],
+              ["颜色与材质选择", "内置奶油白、樱花粉、银灰、黑色等颜色，并支持光面皮、网布、珍珠皮、哑光皮和中国风布料。"],
+              ["固定部件选项", "CUFF、巴扣、鞋底等使用真实切图选项，避免用纯色块替代关键五金和鞋底效果。"],
+              ["确认单生成", "保存方案后填写客户信息、上传 Logo 或参考图，并生成包含最终效果图和配置明细的确认单。"]
+            ]
+          },
+          workflow: {
+            title: "从浏览到确认，四步完成。",
+            body: "流程按真实客户沟通顺序设计，不要求客户理解后台配置或生产字段。",
+            cards: [
+              ["选择鞋款", "从 C 端首页进入发布态鞋款，确认产品类型、支撑定位和基础说明。"],
+              ["定制裁片", "通过点选鞋图或裁片栏切换编辑对象，逐步完成颜色、材质和固定部件选择。"],
+              ["填写信息", "补充姓名、日期、脚长、尺码，以及后提带、鞋舌和魔术贴位置的电绣备注。"],
+              ["确认效果", "最后选择确认单使用的鞋子视角，生成可交付给销售、设计和生产沟通的确认页。"]
+            ]
+          },
+          detail: {
+            eyebrow: "Why It Matters",
+            title: "把客户的选择变成清楚、可复核、可交付的方案。",
+            bullets: [
+              "客户看到的是直观鞋图，不是表格字段，降低首次定制门槛。",
+              "每个裁片都保留编号、中文名称、颜色和材质，方便后续复核。",
+              "电绣和 Logo 支持图片上传，确认单中会保留文件名、大小和缩略图。",
+              "页面读取发布态配置，后续可以继续和 B 端配置管理能力衔接。"
+            ]
+          },
+          release: {
+            aria: "当前版本",
+            label: "Current Release"
+          },
+          versions: {
+            title: "版本优化记录。",
+            body: "以下记录聚焦客户能感知到的 C 端体验变化，便于对外介绍和内部复盘。",
+            cards: [
+              ["确认单更适合交付", "导出改为 HTML 确认单，内嵌最终鞋子效果 UI、配色表格、特殊定制信息和上传参考图，并支持浏览器打印或另存 PDF。"],
+              ["裁片选择栏更清爽", "移除裁片缩略图，仅保留名称和颜色预览，编号保留在按钮提示中，同时收紧按钮宽度，让横向列表可以展示更多裁片。"],
+              ["预览尺寸和确认流程更稳定", "主定制页鞋图会按预览容器宽高动态缩放，确认效果页收紧预览图边界，返回表单时固定回到确认流程上一层。"],
+              ["确认单链路升级", "保存方案后先填写定制信息，再确认鞋子效果；特殊定制支持上传电绣和 Logo 图片，确认单补充图片文件名和大小。"],
+              ["移动端侧栏体验修复", "移动端颜色侧栏保持 30% 宽度，不再覆盖主 UI 区，同时修复侧栏内容重叠和 PC 端防磨片选项过大的问题。"],
+              ["裁片点选更准确", "裁片选中态改为外侧渐变描边，不遮挡原本颜色和材质；修复 PC 端鞋图点击命中、空白区域关闭侧栏和清除选中态。"],
+              ["响应式定制页重设计", "升级为三层横向布局、30% 侧栏、底部裁片栏和可扩展主图区域，颜色与布料区域支持内部滚动。"],
+              ["初始静态版本", "提供 C 端轮滑鞋定制预览、B 端配置管理基础能力、发布态配置读取和定制确认表导出流程。"]
+            ]
+          },
+          closing: {
+            title: "现在可以直接给客户演示。",
+            body: "打开 C 端网站，客户可以从选择鞋款开始，完成一套带视觉预览和确认单的定制流程。",
+            cta: "进入 C 端网站"
+          }
+        },
+        en: {
+          title: "Skate Studio Customer Site Overview",
+          brandAria: "Skate Studio home",
+          brandSub: "Customer customization site overview",
+          navAria: "Page navigation",
+          navLinks: ["Features", "Flow", "Versions"],
+          navCta: "Start Customizing",
+          langButton: "中文",
+          langAria: "Switch to Chinese",
+          hero: {
+            eyebrow: "Customer Experience",
+            titleLines: ["Preview.", "Customize.", "Confirm."],
+            body: "The customer site brings model selection, part-level customization, color and material preview, embroidery details, and confirmation sheet generation into one clear flow. Customers can review the result first, then submit actionable customization details.",
+            primaryCta: "Open Customer Site",
+            secondaryCta: "View Version Updates",
+            statsAria: "Key capability metrics",
+            stats: [
+              "customizable parts and fixed components across the upper, straps, buckles, and outsole.",
+              "preview angles: side, 45-degree, and front view.",
+              "current customer-site version, with ongoing mobile and desktop improvements."
+            ]
+          },
+          stageAria: "YJS-pro CIM customized skate preview",
+          floatingPanels: [
+            {
+              title: "Real-time visual preview",
+              body: "Customers can see color, material, and fixed-component results as soon as they select a part."
+            },
+            {
+              title: "Ready for customer approval",
+              body: "Customer name, foot length, size, and special customization details are captured before generating the confirmation sheet."
+            }
+          ],
+          features: {
+            title: "What customers can do.",
+            body: "The page is designed to reduce back-and-forth: customers choose directly, while sales and design teams receive structured results.",
+            cards: [
+              ["Choose a published skate model", "The home page presents the published YJS-pro CIM model so customers understand the product positioning before customization."],
+              ["Preview multiple angles", "The customization area supports side, 45-degree, and front previews, helping customers confirm the full visual match from key angles."],
+              ["Edit individual parts", "Customers can select parts from the shoe image or bottom rail, then adjust the collar, upper panels, toe, tongue, straps, and abrasive pad."],
+              ["Choose colors and materials", "Built-in options include cream white, sakura pink, silver gray, black, smooth leather, mesh texture, pearl leather, matte leather, and chinoiserie fabrics."],
+              ["Select fixed components", "CUFF, buckle, and outsole options use real image assets instead of flat color blocks, making hardware and outsole results clearer."],
+              ["Generate a confirmation sheet", "After saving a design, customers add information, upload logo or reference images, and generate a confirmation sheet with final preview and configuration details."]
+            ]
+          },
+          workflow: {
+            title: "From browsing to approval in four steps.",
+            body: "The flow follows real customer communication patterns and does not require customers to understand backend configuration or production fields.",
+            cards: [
+              ["Choose a model", "Enter the published model from the customer-site home page and confirm product type, support positioning, and basic notes."],
+              ["Customize parts", "Select parts from the shoe image or rail, then complete color, material, and fixed-component selections step by step."],
+              ["Fill in details", "Add name, date, foot length, size, plus embroidery notes for the rear pull tab, tongue, and toe strap positions."],
+              ["Confirm the result", "Choose the shoe angle used in the confirmation sheet and generate a page that sales, design, and production teams can review."]
+            ]
+          },
+          detail: {
+            eyebrow: "Why It Matters",
+            title: "Turn customer choices into a clear, reviewable, handoff-ready design.",
+            bullets: [
+              "Customers see an intuitive shoe preview instead of production fields, lowering the barrier to first-time customization.",
+              "Each part keeps its code, display name, color, and material so the final design can be reviewed later.",
+              "Embroidery and logo references support image uploads; the confirmation sheet keeps file name, size, and thumbnail.",
+              "The page reads published configuration and can continue to connect with the B-side configuration management workflow."
+            ]
+          },
+          release: {
+            aria: "Current release",
+            label: "Current Release"
+          },
+          versions: {
+            title: "Version update history.",
+            body: "These notes focus on customer-visible improvements in the C-end experience, useful for external introduction and internal review.",
+            cards: [
+              ["Confirmation sheets are easier to hand off", "Export now generates an HTML confirmation sheet with final shoe preview, color table, special customization details, and uploaded references. It can be printed or saved as PDF from the browser."],
+              ["Cleaner part selection rail", "Part thumbnails were removed. The rail keeps names and color previews, keeps codes in button hints, and narrows button width so more parts fit horizontally."],
+              ["More stable preview sizing and confirmation flow", "The main shoe preview now scales with its container. The effect confirmation view has tighter preview boundaries, and returning to the form always goes back one step in the confirmation flow."],
+              ["Upgraded confirmation flow", "After saving a design, customers fill in the customization form before confirming the final shoe effect. Special embroidery and logo items support uploaded image thumbnails, file names, and file sizes."],
+              ["Mobile sidebar experience fixes", "The mobile color sidebar stays at 30% width and no longer covers the main UI. Content overlap and oversized PC abrasive-pad options were also fixed."],
+              ["More accurate part selection", "Selected parts now use an outer gradient ring that keeps the part color and material visible. PC hit testing, blank-area close behavior, and selection clearing were fixed."],
+              ["Responsive customization page redesign", "The page moved to a three-layer horizontal layout with a 30% sidebar, bottom part rail, expandable main preview, and internally scrollable color and material areas."],
+              ["Initial static release", "The first version introduced C-end skate customization preview, basic B-side configuration management, published configuration reading, and confirmation table export."]
+            ]
+          },
+          closing: {
+            title: "Ready to show customers.",
+            body: "Open the customer site and customers can start from model selection, complete a visual customization flow, and generate a confirmation sheet.",
+            cta: "Enter Customer Site"
+          }
+        }
+      };
+
+      function text(selector, value) {
+        const node = document.querySelector(selector);
+        if (node) node.textContent = value;
+      }
+
+      function attr(selector, name, value) {
+        const node = document.querySelector(selector);
+        if (node) node.setAttribute(name, value);
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function setCardCopy(selector, cards) {
+        document.querySelectorAll(selector).forEach((card, index) => {
+          const item = cards[index];
+          if (!item) return;
+          const title = card.querySelector("h3");
+          const body = card.querySelector("p");
+          if (title) title.textContent = item[0];
+          if (body) body.textContent = item[1];
+        });
+      }
+
+      function releaseNoteFor(lang) {
+        if (lang === "zh" && Array.isArray(release.notes) && release.notes.length > 0) {
+          return release.notes.join("；") + "。";
+        }
+        const notes = versionNotes[lang] || versionNotes.zh;
+        return notes[version] || notes.default;
+      }
+
+      function applyLanguage(lang) {
+        const activeLang = copy[lang] ? lang : "zh";
+        const current = copy[activeLang];
+
+        document.documentElement.lang = activeLang === "en" ? "en" : "zh-CN";
+        document.title = current.title;
+
+        attr(".brand", "aria-label", current.brandAria);
+        text(".brand > span > span", current.brandSub);
+        attr(".nav-links", "aria-label", current.navAria);
+        document.querySelectorAll(".nav-links > a:not(.nav-cta)").forEach((node, index) => {
+          node.textContent = current.navLinks[index] || node.textContent;
+        });
+        text(".nav-cta", current.navCta);
+
+        const languageToggle = document.querySelector("#languageToggle");
+        if (languageToggle) {
+          languageToggle.textContent = current.langButton;
+          languageToggle.setAttribute("aria-label", current.langAria);
+          languageToggle.setAttribute("aria-pressed", activeLang === "en" ? "true" : "false");
+        }
+
+        text(".hero-copy .eyebrow", current.hero.eyebrow);
+        const heroTitle = document.querySelector("#heroTitle");
+        if (heroTitle) {
+          heroTitle.innerHTML = current.hero.titleLines.map((line) => `<span>${escapeHtml(line)}</span>`).join("");
+        }
+        text(".hero-copy > p:not(.eyebrow)", current.hero.body);
+        text(".hero .hero-cta", current.hero.primaryCta);
+        text(".secondary-cta", current.hero.secondaryCta);
+        attr(".hero-stats", "aria-label", current.hero.statsAria);
+        document.querySelectorAll(".stat span").forEach((node, index) => {
+          node.textContent = current.hero.stats[index] || node.textContent;
+        });
+
+        attr(".product-stage", "aria-label", current.stageAria);
+        document.querySelectorAll(".floating-panel").forEach((panel, index) => {
+          const item = current.floatingPanels[index];
+          if (!item) return;
+          const title = panel.querySelector("strong");
+          const body = panel.querySelector("span");
+          if (title) title.textContent = item.title;
+          if (body) body.textContent = item.body;
+        });
+
+        text("#featuresTitle", current.features.title);
+        text("#features .section-heading p", current.features.body);
+        setCardCopy("#features .feature-card", current.features.cards);
+
+        text("#workflowTitle", current.workflow.title);
+        text("#workflow .section-heading p", current.workflow.body);
+        setCardCopy("#workflow .step-card", current.workflow.cards);
+
+        text(".capability-panel .eyebrow", current.detail.eyebrow);
+        text("#detailTitle", current.detail.title);
+        document.querySelectorAll(".capability-list li").forEach((node, index) => {
+          node.textContent = current.detail.bullets[index] || node.textContent;
+        });
+
+        attr(".release-panel", "aria-label", current.release.aria);
+        text(".release-label", current.release.label);
+        text("#releaseNote", releaseNoteFor(activeLang));
+
+        text("#versionsTitle", current.versions.title);
+        text("#versions .section-heading p", current.versions.body);
+        setCardCopy("#versions .timeline-card", current.versions.cards);
+
+        text("#closingTitle", current.closing.title);
+        text(".closing p", current.closing.body);
+        text(".closing .hero-cta", current.closing.cta);
+
+        document.querySelectorAll("#currentVersion, #releaseNumber").forEach((node) => {
+          node.textContent = version;
+        });
+
+        try {
+          localStorage.setItem(languageStorageKey, activeLang);
+        } catch (error) {
+          // Local file previews can block storage in some browsers; switching still works for the session.
+        }
+      }
+
+      function initialLanguage() {
+        const requested = new URLSearchParams(window.location.search).get("lang");
+        if (requested === "en" || requested === "zh") return requested;
+        try {
+          const saved = localStorage.getItem(languageStorageKey);
+          if (saved === "en" || saved === "zh") return saved;
+        } catch (error) {
+          return "zh";
+        }
+        return "zh";
+      }
+
+      document.querySelector("#languageToggle")?.addEventListener("click", () => {
+        const nextLang = document.documentElement.lang === "en" ? "zh" : "en";
+        applyLanguage(nextLang);
+      });
+
+      applyLanguage(initialLanguage());
+    </script>
+  </body>
+</html>
