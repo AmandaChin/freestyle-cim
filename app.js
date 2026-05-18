@@ -2,7 +2,7 @@ const MVP_ACTIVE_PART_ID = "G";
 const FIXED_MATERIAL_ID = "fixed-image";
 const LAYER_ASSET_DIR = "./assets/mvp/layers/";
 const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
-const FULL_ANGLE_ASSET_VERSION = "20260515-fixed-v3";
+const FULL_ANGLE_ASSET_VERSION = "20260518-front-v4";
 const REAL_PRODUCT_ASSET_DIR = "./assets/skates/yjs-pro-cim/real-products/";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
 const MATERIAL_ASSET_VERSION = "20260516-leather-v1";
@@ -28,12 +28,12 @@ const YJS_PRO_REAL_PRODUCT_IMAGES = [
   { file: "black-purple-2.jpg", alt: "YJS-pro CIM 黑紫真实鞋款" }
 ];
 
-const FULL_ANGLE_PARTS = ["A", "A1", "F", "G", "H", "C", "C2", "I", "I1", "B", "J", "K1", "K2", "L"];
+const FULL_ANGLE_PARTS = ["A", "A1", "F", "G", "H", "C", "C2", "I", "B", "J", "K1", "K2", "L"];
 
 const ANGLE_CONFIG = [
   { id: "side", label: "侧面", meta: "侧面全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M: ["buckle-white", "buckle-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black"] } },
   { id: "forty_five", label: "45度", meta: "45度全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M: ["buckle-white", "buckle-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black", "sole-black-gold"] } },
-  { id: "front", label: "正面", meta: "正面全角度 UI", parts: ["F", "G", "H", "C", "C2", "I", "I1", "J", "K1", "K2", "L"], fixed: { M: ["buckle-white", "buckle-black"] } }
+  { id: "front", label: "正面", meta: "正面全角度 UI", parts: ["F", "G", "H", "C", "C2", "I", "J", "K1", "K2", "L"], fixed: { M: ["buckle-white", "buckle-black"] } }
 ];
 
 function fullAngleAsset(path) {
@@ -74,7 +74,6 @@ const COMPONENT_TEMPLATE = [
   { id: "C", code: "C", en: "Tongue", cn: "鞋舌", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}tongue.png`], renderOrder: 55 },
   { id: "C2", code: "C2", en: "Tongue panel", cn: "鞋舌裁片", palette: "leather", color: "#f0b7c8", material: "pearl", masks: [`${LAYER_ASSET_DIR}tongue-panel.png`], renderOrder: 60 },
   { id: "I", code: "I", en: "Eyelet panel", cn: "鞋眼片", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}eyelet-panel.png`], renderOrder: 65 },
-  { id: "I1", code: "I1", en: "Eyelets", cn: "鞋眼", palette: "hardware", color: "#f7f7f8", material: "hardware", masks: [`${LAYER_ASSET_DIR}eyelets.png`], renderOrder: 70 },
   { id: "B", code: "B", en: "Back handle strap", cn: "后提带", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}back-strap.png`], renderOrder: 75 },
   { id: "J", code: "J", en: "Lace", cn: "鞋带", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}lace.png`], renderOrder: 80 },
   { id: "K1", code: "K1", en: "Toe strap 1", cn: "扣带1", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-1.png`], renderOrder: 85 },
