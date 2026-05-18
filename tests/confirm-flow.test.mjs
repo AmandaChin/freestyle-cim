@@ -147,6 +147,7 @@ async function openPage(debugPort, url, viewport) {
     positionX: 0,
     positionY: 0
   }, sessionId);
+  await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 }, sessionId);
   await send("Page.navigate", { url }, sessionId);
 
   const evaluate = async (expression) => {
@@ -194,8 +195,35 @@ async function openPage(debugPort, url, viewport) {
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: target.x, y: target.y, button: "left", clickCount: 1 }, sessionId);
   };
 
+  const tap = async (selector) => {
+    const target = await evaluate(`(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) return null;
+      element.scrollIntoView({ block: 'center', inline: 'center' });
+      const rect = element.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      return {
+        x,
+        y,
+        width: rect.width,
+        height: rect.height,
+        isHitTarget: Boolean(hit?.closest(${JSON.stringify(selector)}))
+      };
+    })()`);
+    assert(target, `Missing tap target: ${selector}`);
+    assert(target.width > 0 && target.height > 0, `Tap target has no size: ${selector}`);
+    assert(target.isHitTarget, `Tap target is covered or outside viewport: ${selector}`);
+    await send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: target.x, y: target.y, radiusX: 2, radiusY: 2, force: 1, id: 1 }]
+    }, sessionId);
+    await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }, sessionId);
+  };
+
   await waitFor("document.readyState === 'complete' && Boolean(document.querySelector('[data-home-product]'))");
-  return { ws, evaluate, waitFor, click };
+  return { ws, evaluate, waitFor, click, tap };
 }
 
 async function assertEffectModalLayout(page, viewport) {
@@ -207,7 +235,7 @@ async function assertEffectModalLayout(page, viewport) {
       footer: '#effectPickerModal .confirm-actions',
       previewPanel: '#effectPickerModal .effect-preview-panel',
       frame: '#effectPickerModal .effect-preview-frame',
-      shoe: '#effectPickerModal .effect-preview-frame .mvp-shoe-frame',
+      shoe: '#effectPickerModal .effect-preview-frame .effect-preview-snapshot',
       choices: '#effectPickerModal .effect-choice-panel'
     };
     const rect = (selector) => {
@@ -300,19 +328,25 @@ async function main() {
         assert(formData.customer.name === "测试用户", `${viewport.name}: customer form input should update export data`);
         assert(formData.embroidery.some((item) => item.image?.name === "logo.png"), `${viewport.name}: uploaded special customization image should be exported as file metadata`);
 
-        await page.click("[data-review-effect]");
+        await page.tap("[data-review-effect]");
         await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
+        await page.waitFor("document.querySelector('#effectPickerModal .effect-preview-snapshot')?.src.startsWith('data:image/png')", 10000);
         assert(await page.evaluate("!document.querySelector('#confirmModal.is-visible')"), `${viewport.name}: form modal should close before effect confirmation`);
         assert(await page.evaluate("Boolean(document.querySelector('#effectPickerModal [data-download-sheet]'))"), `${viewport.name}: effect modal should expose final download action`);
         assert(
           await page.evaluate("!document.querySelector('#effectPickerModal .mvp-selection-ring, #effectPickerModal .mvp-part-layer.is-selected, #effectPickerModal .mvp-fixed-image.is-selected')"),
           `${viewport.name}: effect confirmation should render shoe previews without part selection state`
         );
+        assert(
+          await page.evaluate("document.querySelectorAll('#effectPickerModal .mvp-shoe-frame').length === 0 && document.querySelector('#effectPickerModal .effect-preview-snapshot')?.src.startsWith('data:image/png')"),
+          `${viewport.name}: effect confirmation should render a static PNG snapshot instead of live layered shoe markup`
+        );
         await assertEffectModalLayout(page, viewport);
-        const confirmationHtml = await page.evaluate("window.buildConfirmationSheetHtml(window.buildExportData({ includeImageData: true }))");
+        const firstSnapshotCount = await page.evaluate("window.__shoeSnapshotBuildCount || 0");
+        const confirmationHtml = await page.evaluate("window.buildConfirmationSheetHtml(window.buildExportData({ includeImageData: true, includeEffectSnapshots: true }))");
         assert(confirmationHtml.includes("定制确认单"), `${viewport.name}: confirmation sheet should be human-readable HTML`);
         assert(confirmationHtml.includes("最终效果图"), `${viewport.name}: confirmation sheet should include the selected UI preview`);
-        assert(confirmationHtml.includes("mvp-shoe-frame"), `${viewport.name}: confirmation sheet should embed the shoe UI preview markup`);
+        assert(confirmationHtml.includes("data:image/png") && !confirmationHtml.includes("mvp-shoe-frame"), `${viewport.name}: confirmation sheet should embed static PNG previews instead of live shoe markup`);
         assert(confirmationHtml.includes("测试用户"), `${viewport.name}: confirmation sheet should include customer data`);
         assert(confirmationHtml.includes("配色选型"), `${viewport.name}: confirmation sheet should keep the original confirmation table data`);
         assert(confirmationHtml.includes("logo.png") && confirmationHtml.includes("data:image/png;base64,"), `${viewport.name}: confirmation sheet should include uploaded reference images`);
@@ -323,8 +357,13 @@ async function main() {
         assert(await page.evaluate("!document.querySelector('#effectPickerModal.is-visible')"), `${viewport.name}: returning to form should close effect confirmation`);
         assert(await page.evaluate("document.querySelector('[data-customer=\"name\"]')?.value === '测试用户'"), `${viewport.name}: returning to form should preserve customer input`);
 
-        await page.click("[data-review-effect]");
+        await page.tap("[data-review-effect]");
         await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
+        await page.waitFor(`(window.__shoeSnapshotBuildCount || 0) > ${firstSnapshotCount}`);
+        assert(
+          await page.evaluate("document.querySelector('#effectPickerModal .effect-preview-snapshot')?.src.startsWith('data:image/png')"),
+          `${viewport.name}: returning from form should regenerate a fresh static preview snapshot`
+        );
         await assertEffectModalLayout(page, viewport);
         await page.evaluate(`(() => {
           window.__confirmationSheetWrites = [];
@@ -342,8 +381,8 @@ async function main() {
           });
         })()`);
         await page.click("[data-download-sheet]");
-        await page.waitFor("window.__confirmationSheetWrites?.length === 1");
-        assert(await page.evaluate("window.__confirmationSheetWrites[0].includes('最终效果图')"), `${viewport.name}: final action should open the HTML confirmation sheet`);
+        await page.waitFor("window.__confirmationSheetWrites?.some((html) => html.includes('最终效果图'))");
+        assert(await page.evaluate("window.__confirmationSheetWrites.at(-1).includes('data:image/png')"), `${viewport.name}: final action should open the HTML confirmation sheet with static PNG previews`);
         assert(await page.evaluate("document.body.dataset.view === 'builder'"), `${viewport.name}: generating the confirmation sheet should keep the customization page state`);
       } finally {
         page?.ws?.close();

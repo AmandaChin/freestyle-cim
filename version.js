@@ -1,12 +1,12 @@
-window.SKATE_CIM_VERSION = "0.0.9";
+window.SKATE_CIM_VERSION = "0.1.1";
 
 window.SKATE_CIM_RELEASE = {
-  version: "0.0.9",
-  previousVersion: "0.0.8",
+  version: "0.1.1",
+  previousVersion: "0.1.0",
   releasedAt: "2026-05-18",
   notes: [
-    "确认流程改为生成 HTML 确认单，规避移动端 Excel 下载兼容性问题",
-    "确认单内嵌最终鞋子效果 UI、配色表格、特殊定制信息和上传参考图",
-    "确认单支持浏览器直接打印或另存为 PDF"
+    "确认鞋子效果页改为用 Canvas 按当前配置生成静态 PNG 快照",
+    "HTML 确认单复用三视角 PNG 效果图，避免移动端导出依赖 live DOM",
+    "返回表单后再次确认会重新生成快照，降低手机端预览刷新回首页的风险"
   ]
 };

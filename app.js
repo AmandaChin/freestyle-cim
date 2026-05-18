@@ -11,6 +11,7 @@ const SELECTION_RING_RADIUS = 14;
 const SELECTION_RING_STEP = 3;
 const SELECTION_RING_BLUR = 8;
 const SHOE_ART_ASPECT_RATIO = 2401 / 1601;
+const SHOE_SNAPSHOT_MAX_WIDTH = 1200;
 const APP_VERSION = window.SKATE_CIM_VERSION || "0.0.0";
 
 const SHARED_MVP_ASSETS = {
@@ -248,9 +249,12 @@ PRODUCT_CATALOG.forEach((item) => {
 const DEFAULT_PRODUCT_ID = PRODUCT_CATALOG.find((item) => item.id === "yjs-pro-cim-upper")?.id || PRODUCT_CATALOG[0].id;
 const DEFAULT_PRODUCT = PRODUCT_CATALOG.find((item) => item.id === DEFAULT_PRODUCT_ID);
 const hitCanvasCache = new Map();
+const snapshotImageCache = new Map();
 const selectionRingCache = new Map();
 let shoeHitRequestId = 0;
 let shoeFitObserver = null;
+let effectSnapshotRecord = null;
+let effectSnapshotRequestId = 0;
 
 const state = {
   view: "home",
@@ -627,6 +631,198 @@ function hitSourcesForComponent(component, item = product(), angle = angleAssets
 
 function componentHasLayerInAngle(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
   return component.editable && hitSourcesForComponent(component, item, angle).length > 0;
+}
+
+function loadSnapshotImage(src) {
+  if (snapshotImageCache.has(src)) return snapshotImageCache.get(src);
+
+  const promise = new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+
+  snapshotImageCache.set(src, promise);
+  return promise;
+}
+
+function drawRepeatingLines(context, width, height, step, color, alpha, direction = 1) {
+  context.save();
+  context.globalAlpha = alpha;
+  context.strokeStyle = color;
+  context.lineWidth = 2;
+  context.beginPath();
+  for (let x = -height; x < width + height; x += step) {
+    context.moveTo(x, direction > 0 ? height : 0);
+    context.lineTo(x + height, direction > 0 ? 0 : height);
+  }
+  context.stroke();
+  context.restore();
+}
+
+async function paintSnapshotMaterial(context, width, height, color, material) {
+  context.fillStyle = color;
+  context.fillRect(0, 0, width, height);
+
+  switch (material) {
+    case "chinoiserie-pink":
+    case "chinoiserie-white": {
+      const fileName = material === "chinoiserie-pink" ? "chinoiserie-pink.jpg" : "chinoiserie-white.jpg";
+      const image = await loadSnapshotImage(materialAsset(fileName));
+      if (image) {
+        const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+        const drawWidth = image.naturalWidth * scale;
+        const drawHeight = image.naturalHeight * scale;
+        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+      }
+      context.fillStyle = material === "chinoiserie-pink" ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.04)";
+      context.fillRect(0, 0, width, height);
+      break;
+    }
+    case "carbon":
+      drawRepeatingLines(context, width, height, 12, "#fff", 0.24, 1);
+      drawRepeatingLines(context, width, height, 12, "#000", 0.18, -1);
+      break;
+    case "pearl": {
+      const pearl = context.createRadialGradient(width * 0.2, height * 0.18, 0, width * 0.2, height * 0.18, width * 0.36);
+      pearl.addColorStop(0, "rgba(255,255,255,.82)");
+      pearl.addColorStop(1, "rgba(255,255,255,0)");
+      context.fillStyle = pearl;
+      context.fillRect(0, 0, width, height);
+      const shine = context.createLinearGradient(0, 0, width, height);
+      shine.addColorStop(0, "rgba(255,255,255,.28)");
+      shine.addColorStop(1, "rgba(255,255,255,0)");
+      context.fillStyle = shine;
+      context.fillRect(0, 0, width, height);
+      break;
+    }
+    case "mesh":
+      drawRepeatingLines(context, width, height, 8, "#fff", 0.2, 1);
+      drawRepeatingLines(context, width, height, 8, "#000", 0.08, -1);
+      break;
+    case "webbing":
+      context.fillStyle = "rgba(255,255,255,.22)";
+      for (let x = 0; x < width; x += 8) context.fillRect(x, 0, 3, height);
+      context.fillStyle = "rgba(0,0,0,.08)";
+      for (let x = 4; x < width; x += 8) context.fillRect(x, 0, 2, height);
+      break;
+    case "hardware": {
+      const metal = context.createLinearGradient(0, 0, width, height);
+      metal.addColorStop(0, "rgba(255,255,255,.9)");
+      metal.addColorStop(0.46, "rgba(255,255,255,0)");
+      metal.addColorStop(1, "rgba(0,0,0,.14)");
+      context.fillStyle = metal;
+      context.fillRect(0, 0, width, height);
+      break;
+    }
+    case "matte": {
+      const matte = context.createLinearGradient(0, 0, width, height);
+      matte.addColorStop(0, "rgba(255,255,255,.04)");
+      matte.addColorStop(1, "rgba(0,0,0,.16)");
+      context.fillStyle = matte;
+      context.fillRect(0, 0, width, height);
+      break;
+    }
+    case "smooth":
+    default: {
+      const smooth = context.createLinearGradient(0, 0, width, height * 0.8);
+      smooth.addColorStop(0, "rgba(255,255,255,.42)");
+      smooth.addColorStop(0.42, "rgba(255,255,255,0)");
+      context.fillStyle = smooth;
+      context.fillRect(0, 0, width, height);
+      break;
+    }
+  }
+}
+
+async function drawSnapshotMaskedMaterial(context, width, height, maskSrc, config) {
+  const mask = await loadSnapshotImage(maskSrc);
+  if (!mask) return;
+  const layerCanvas = document.createElement("canvas");
+  layerCanvas.width = width;
+  layerCanvas.height = height;
+  const layerContext = layerCanvas.getContext("2d");
+  if (!layerContext) return;
+
+  await paintSnapshotMaterial(layerContext, width, height, config.color, config.material);
+  layerContext.globalCompositeOperation = "destination-in";
+  layerContext.drawImage(mask, 0, 0, width, height);
+
+  context.save();
+  context.globalAlpha = 0.9;
+  context.globalCompositeOperation = "multiply";
+  context.drawImage(layerCanvas, 0, 0);
+  context.restore();
+}
+
+async function renderShoeSnapshot(item = product(), angleId = currentAngleConfig(item).id) {
+  const angle = angleAssets(angleId);
+  const base = await loadSnapshotImage(angle.base);
+  if (!base) return "";
+  const width = Math.min(SHOE_SNAPSHOT_MAX_WIDTH, base.naturalWidth || SHOE_SNAPSHOT_MAX_WIDTH);
+  const height = Math.round(width / SHOE_ART_ASPECT_RATIO);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return "";
+
+  context.drawImage(base, 0, 0, width, height);
+  for (const component of renderableComponents(item)) {
+    const config = componentConfigFor(item, component.id);
+    const fixedImage = fixedImageForAngle(component, config, angle);
+    if (fixedImage) {
+      const image = await loadSnapshotImage(fixedImage);
+      if (image) context.drawImage(image, 0, 0, width, height);
+      continue;
+    }
+    if (angle.parts && !angle.parts[component.id]) continue;
+    const masks = angle.parts?.[component.id] ? [angle.parts[component.id]] : (component.masks || []);
+    for (const mask of masks) {
+      await drawSnapshotMaskedMaterial(context, width, height, mask, config);
+    }
+  }
+
+  const stitch = await loadSnapshotImage(angle.stitch);
+  if (stitch) {
+    context.save();
+    context.globalCompositeOperation = "multiply";
+    context.drawImage(stitch, 0, 0, width, height);
+    context.restore();
+  }
+  return canvas.toDataURL("image/png");
+}
+
+async function buildEffectSnapshotRecord(item = product()) {
+  window.__shoeSnapshotBuildCount = (window.__shoeSnapshotBuildCount || 0) + 1;
+  const previews = await Promise.all(
+    productAngles(item).map(async (angle) => ({
+      id: angle.id,
+      label: angle.label,
+      dataUrl: await renderShoeSnapshot(item, angle.id)
+    }))
+  );
+  return {
+    productId: item.id,
+    createdAt: Date.now(),
+    previews
+  };
+}
+
+function clearEffectSnapshots() {
+  effectSnapshotRecord = null;
+  effectSnapshotRequestId += 1;
+}
+
+function effectSnapshotsReady(item = product()) {
+  return effectSnapshotRecord?.productId === item.id && effectSnapshotRecord.previews?.some((preview) => preview.dataUrl);
+}
+
+function effectSnapshotForAngle(angleId, item = product()) {
+  if (!effectSnapshotsReady(item)) return null;
+  return effectSnapshotRecord.previews.find((preview) => preview.id === angleId) || null;
 }
 
 function isPartAvailableInCurrentAngle(partId) {
@@ -1152,6 +1348,7 @@ function buildExportData(options = {}) {
   const item = product();
   const selectedEffect = effectAngleConfig(item);
   const includeImageData = options.includeImageData === true;
+  const includeEffectSnapshots = options.includeEffectSnapshots === true && effectSnapshotsReady(item);
   return {
     version: APP_VERSION,
     product: item.name,
@@ -1190,6 +1387,18 @@ function buildExportData(options = {}) {
           : null
       };
     }),
+    ...(includeEffectSnapshots
+      ? {
+          effectSnapshots: {
+            createdAt: effectSnapshotRecord.createdAt,
+            previews: effectSnapshotRecord.previews.map((preview) => ({
+              id: preview.id,
+              label: preview.label,
+              dataUrl: preview.dataUrl
+            }))
+          }
+        }
+      : {}),
     note: item.note
   };
 }
@@ -1274,7 +1483,7 @@ function resetProduct() {
   toast("已重置当前鞋款");
 }
 
-function openEffectPickerModal() {
+async function openEffectPickerModal() {
   // 表单信息先完成，再进入最终效果图确认，确保下载表格使用的是最终选择视角。
   state.selectedEffectAngle = currentAngleConfig(product(), state.angle).id;
   let modal = document.querySelector("#effectPickerModal");
@@ -1284,12 +1493,21 @@ function openEffectPickerModal() {
     modal.className = "confirm-modal effect-picker-modal";
     document.body.appendChild(modal);
   }
+  effectSnapshotRecord = null;
+  const requestId = effectSnapshotRequestId + 1;
+  effectSnapshotRequestId = requestId;
   modal.innerHTML = renderEffectPickerModal();
   modal.classList.add("is-visible");
+
+  const snapshots = await buildEffectSnapshotRecord(product());
+  if (requestId !== effectSnapshotRequestId || !modal.classList.contains("is-visible")) return;
+  effectSnapshotRecord = snapshots;
+  modal.innerHTML = renderEffectPickerModal();
 }
 
 function closeEffectPickerModal() {
   document.querySelector("#effectPickerModal")?.classList.remove("is-visible");
+  clearEffectSnapshots();
 }
 
 function returnToConfirmModal() {
@@ -1309,9 +1527,19 @@ function refreshEffectPickerModal() {
   modal.innerHTML = renderEffectPickerModal();
 }
 
+function effectOptionThumbMarkup(item, angle) {
+  const snapshot = effectSnapshotForAngle(angle.id, item);
+  if (snapshot?.dataUrl) {
+    return `<img class="effect-option-thumb-image" src="${escapeHtml(snapshot.dataUrl)}" alt="${escapeHtml(`${item.name} ${angle.label}视角缩略图`)}" draggable="false" />`;
+  }
+  const assets = angleAssets(angle.id);
+  return `<img class="effect-option-thumb-image" src="${escapeHtml(assets.base)}" alt="${escapeHtml(`${item.name} ${angle.label}视角缩略图`)}" loading="lazy" draggable="false" />`;
+}
+
 function renderEffectPickerModal() {
   const item = product();
   const selectedEffect = effectAngleConfig(item);
+  const selectedSnapshot = effectSnapshotForAngle(selectedEffect.id, item);
   const angles = productAngles(item);
 
   return `
@@ -1332,14 +1560,18 @@ function renderEffectPickerModal() {
             <span>${item.name}</span>
           </div>
           <div class="effect-preview-frame">
-            ${shoeMarkup(item, `${item.name} ${selectedEffect.label}效果图`, selectedEffect.id, { showSelection: false })}
+            ${
+              selectedSnapshot?.dataUrl
+                ? `<img class="effect-preview-snapshot" src="${escapeHtml(selectedSnapshot.dataUrl)}" alt="${escapeHtml(`${item.name} ${selectedEffect.label}效果图`)}" draggable="false" />`
+                : `<div class="effect-preview-loading">正在生成效果图...</div>`
+            }
           </div>
         </section>
 
         <section class="effect-choice-panel">
           <div class="section-title">
             <h3>效果图视角</h3>
-            <span>下载表格前确认最终鞋子效果 UI</span>
+            <span>生成确认单前确认最终鞋子效果 UI</span>
           </div>
           <div class="effect-option-grid">
             ${angles
@@ -1347,7 +1579,7 @@ function renderEffectPickerModal() {
                 (angle) => `
                   <button class="effect-option-card" type="button" data-effect-angle="${angle.id}" aria-pressed="${angle.id === selectedEffect.id}">
                     <span class="effect-option-thumb">
-                      ${shoeMarkup(item, `${item.name} ${angle.label}效果图`, angle.id, { showSelection: false })}
+                      ${effectOptionThumbMarkup(item, angle)}
                     </span>
                     <span>
                       <strong>${angle.label}效果图</strong>
@@ -1672,49 +1904,19 @@ function confirmationSheetStyles() {
       aspect-ratio: 2401 / 1601;
       margin: 0 auto;
     }
-    .mvp-shoe-frame {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      isolation: isolate;
-    }
-    .mvp-base-image {
+    .sheet-preview-image {
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: fill;
+      object-fit: contain;
       user-select: none;
     }
-    .mvp-fixed-image,
-    .mvp-stitch-image,
-    .mvp-upper-fill,
-    .mvp-selection-ring {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-    }
-    .mvp-fixed-image,
-    .mvp-stitch-image,
-    .mvp-selection-ring {
-      object-fit: fill;
-      user-select: none;
-    }
-    .mvp-fixed-image { z-index: var(--layer-index, 3); }
-    .mvp-stitch-image {
-      z-index: 200;
-      mix-blend-mode: multiply;
-    }
-    .mvp-selection-ring { display: none; }
-    .mvp-upper-fill {
-      z-index: var(--layer-index, 2);
-      background: var(--part-material);
-      opacity: .9;
-      mix-blend-mode: multiply;
-      mask-size: 100% 100%;
-      mask-repeat: no-repeat;
-      -webkit-mask-size: 100% 100%;
-      -webkit-mask-repeat: no-repeat;
+    .sheet-preview-empty {
+      display: grid;
+      min-height: 180px;
+      place-items: center;
+      color: var(--muted);
+      font-weight: 700;
     }
     .info-grid {
       display: grid;
@@ -1845,11 +2047,9 @@ function buildConfirmationSheetHtml(data) {
   const item = product();
   const generatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const baseHref = document.baseURI || window.location.href;
-  const angles = productAngles(item);
-  const allAnglePreviews = angles.map((angle) => ({
-    label: angle.label,
-    markup: shoeMarkup(item, `${data.product} ${angle.label}最终效果图`, angle.id, { showSelection: false })
-  }));
+  const allAnglePreviews = data.effectSnapshots?.previews?.length
+    ? data.effectSnapshots.previews
+    : productAngles(item).map((angle) => ({ id: angle.id, label: angle.label, dataUrl: "" }));
   const embroideryImages = data.embroidery.filter((entry) => entry.image?.dataUrl);
   const customerRows = [
     ["姓名", data.customer.name || "-"],
@@ -1899,7 +2099,13 @@ function buildConfirmationSheetHtml(data) {
           ${allAnglePreviews.map((preview) => `
             <div class="sheet-preview-card">
               <p class="sheet-preview-label">${escapeHtml(preview.label)}效果图</p>
-              <div class="sheet-shoe-art">${preview.markup}</div>
+              <div class="sheet-shoe-art">
+                ${
+                  preview.dataUrl
+                    ? `<img class="sheet-preview-image" src="${escapeHtml(preview.dataUrl)}" alt="${escapeHtml(`${data.product} ${preview.label}最终效果图`)}" />`
+                    : `<div class="sheet-preview-empty">效果图生成失败，请返回重新生成</div>`
+                }
+              </div>
             </div>
           `).join("")}
         </div>
@@ -1987,9 +2193,17 @@ function downloadConfirmationSheetFallback(html, fileName) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-function downloadSheet() {
+async function downloadSheet() {
   const sheetWindow = window.open("", "_blank");
-  const data = buildExportData({ includeImageData: true });
+  if (sheetWindow && !sheetWindow.closed) {
+    sheetWindow.document.open();
+    sheetWindow.document.write("<!doctype html><title>正在生成确认单</title><p>正在生成确认单...</p>");
+    sheetWindow.document.close();
+  }
+  if (!effectSnapshotsReady(product())) {
+    effectSnapshotRecord = await buildEffectSnapshotRecord(product());
+  }
+  const data = buildExportData({ includeImageData: true, includeEffectSnapshots: true });
   const html = buildConfirmationSheetHtml(data);
   if (sheetWindow && !sheetWindow.closed) {
     sheetWindow.document.open();
@@ -2150,12 +2364,12 @@ function bindEvents() {
 
     if (event.target.closest("[data-review-effect]")) {
       closeConfirmModal();
-      openEffectPickerModal();
+      void openEffectPickerModal();
       return;
     }
 
     if (event.target.closest("[data-download-sheet]")) {
-      downloadSheet();
+      void downloadSheet();
     }
   });
 

@@ -1,3 +1,4 @@
 .DS_Store
+node_modules/
 seba_public_assets_*/
 seba_public_assets_*.zip
