@@ -3,17 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Skate Studio</title>
+    <title>Freestyle CIM</title>
     <link rel="stylesheet" href="./styles.css?v=0.0.9" />
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar" aria-label="Site navigation">
         <div class="brand-lockup">
-          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-mark" aria-hidden="true">
+            <img src="./assets/logo.png" alt="Logo" />
+          </span>
           <div>
             <p class="eyebrow" id="pageEyebrow">Skate Studio</p>
-            <h1 id="pageTitle">轮滑鞋定制</h1>
+            <h1 id="pageTitle">Freestyle CIM</h1>
           </div>
         </div>
         <nav class="top-actions" aria-label="Primary actions">
@@ -33,9 +35,27 @@
             <p id="homeProductDescription"></p>
             <div class="home-meta" id="homeProductMeta"></div>
           </div>
-          <div class="home-showcase" aria-label="当前鞋款预览">
-            <div class="home-orbit" aria-hidden="true"></div>
-            <div class="home-shoe-art" id="homeShoeArt"></div>
+          <div class="home-showcase" aria-label="当前鞋款真实产品预览">
+            <div class="carousel-container" id="homeCarousel" aria-hidden="true">
+              <img class="carousel-slide active" src="./assets/skates/yjs-pro-cim/real-products/brown-1.jpg" alt="咖色款式" />
+              <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/white-pink-1.jpg" alt="白粉款式" />
+              <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/white-red-1.jpg" alt="白红款式" />
+              <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/pink-purple-1.jpg" alt="粉紫款式" />
+              <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/black-gold-1.jpg" alt="黑金款式" />
+              <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/silver-white-1.jpg" alt="银白款式" />
+              <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/black-purple-2.jpg" alt="黑紫款式" />
+              <div class="carousel-indicators">
+                <button class="indicator active" aria-label="Image 1"></button>
+                <button class="indicator" aria-label="Image 2"></button>
+                <button class="indicator" aria-label="Image 3"></button>
+                <button class="indicator" aria-label="Image 4"></button>
+                <button class="indicator" aria-label="Image 5"></button>
+                <button class="indicator" aria-label="Image 6"></button>
+                <button class="indicator" aria-label="Image 7"></button>
+              </div>
+            </div>
+            <!-- Keep a hidden container for the logic to not break if it tries to render -->
+            <div id="homeShoeArt" style="display: none;"></div>
           </div>
         </section>
 

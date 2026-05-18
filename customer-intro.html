@@ -89,27 +89,11 @@
       }
 
       .brand-mark {
-        position: relative;
         width: 34px;
         height: 34px;
         flex: 0 0 34px;
         border-radius: 9px;
-        background:
-          linear-gradient(135deg, rgba(255, 255, 255, 0.9), transparent 45%),
-          linear-gradient(145deg, #111114, #6d6d72);
-        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
-      }
-
-      .brand-mark::after {
-        content: "";
-        position: absolute;
-        left: 8px;
-        bottom: 8px;
-        width: 18px;
-        height: 5px;
-        border: 2px solid rgba(255, 255, 255, 0.84);
-        border-top: 0;
-        border-radius: 999px;
+        object-fit: contain;
       }
 
       .brand strong {
@@ -322,68 +306,80 @@
 
       .product-stage {
         position: relative;
+        display: grid;
+        gap: 14px;
+        align-content: start;
         min-height: 540px;
         border-radius: 34px;
       }
 
       .product-stage::before {
-        content: "";
-        position: absolute;
-        left: 10%;
-        right: 6%;
-        bottom: 10%;
-        height: 22%;
-        border-radius: 50%;
-        background: radial-gradient(ellipse at center, rgba(36, 39, 46, 0.18), rgba(36, 39, 46, 0));
-        filter: blur(6px);
+        display: none;
       }
 
-      .shoe-composite {
-        position: absolute;
-        inset: 0;
-        display: grid;
-        place-items: center;
-        transform: rotate(-3deg) translateY(8px);
-      }
-
-      .shoe-frame {
+      .carousel-container {
         position: relative;
-        width: min(100%, 760px);
-        aspect-ratio: 2401 / 1601;
+        width: 100%;
+        min-height: 430px;
+        aspect-ratio: 4 / 3;
+        border-radius: 34px;
+        overflow: hidden;
+        background: #f5f5f7;
+        box-shadow: 0 28px 70px rgba(0, 0, 0, 0.1);
       }
 
-      .shoe-frame img,
-      .shoe-frame .part-layer {
+      .carousel-slide {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
-        object-fit: contain;
-      }
-
-      .shoe-base {
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 0.8s ease-in-out;
         z-index: 1;
-        filter: drop-shadow(0 36px 46px rgba(0, 0, 0, 0.18));
       }
 
-      .part-layer {
+      .carousel-slide.active {
+        opacity: 1;
         z-index: 2;
-        opacity: 0.86;
-        background: var(--part-color);
-        mix-blend-mode: multiply;
-        mask: var(--part-mask) center / contain no-repeat;
-        -webkit-mask: var(--part-mask) center / contain no-repeat;
       }
 
-      .shoe-fixed,
-      .shoe-stitch {
-        z-index: 3;
+      .carousel-indicators {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        z-index: 5;
+      }
+
+      .indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.5);
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        transition: background 0.3s, transform 0.3s;
+      }
+
+      .indicator.active {
+        background: #fff;
+        transform: scale(1.2);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+
+      .stage-notes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
       }
 
       .floating-panel {
-        position: absolute;
+        position: relative;
         z-index: 4;
-        width: min(260px, 42%);
         padding: 16px;
         border: 1px solid var(--line-soft);
         border-radius: 20px;
@@ -403,16 +399,6 @@
         color: var(--muted);
         font-size: 13px;
         line-height: 1.35;
-      }
-
-      .panel-one {
-        top: 8%;
-        right: 2%;
-      }
-
-      .panel-two {
-        left: 0;
-        bottom: 15%;
       }
 
       .swatches {
@@ -708,7 +694,11 @@
         }
 
         .product-stage {
-          min-height: 430px;
+          min-height: 0;
+        }
+
+        .carousel-container {
+          min-height: 390px;
         }
 
         .feature-grid {
@@ -769,27 +759,13 @@
           grid-template-columns: 1fr;
         }
 
-        .product-stage {
-          min-height: 330px;
+        .carousel-container {
+          min-height: 320px;
+          border-radius: 28px;
         }
 
-        .shoe-composite {
-          transform: rotate(-3deg) translateY(24px) scale(1.12);
-        }
-
-        .floating-panel {
-          position: relative;
-          width: 100%;
-          inset: auto;
-          margin-top: 12px;
-        }
-
-        .panel-one,
-        .panel-two {
-          top: auto;
-          right: auto;
-          bottom: auto;
-          left: auto;
+        .stage-notes {
+          grid-template-columns: 1fr;
         }
 
         .timeline-card {
@@ -808,8 +784,8 @@
     <div class="page">
       <header class="nav">
         <div class="nav-inner">
-          <a class="brand" href="./index.html" aria-label="Skate Studio 首页">
-            <span class="brand-mark" aria-hidden="true"></span>
+          <a class="brand" href="https://amandachin.github.io/freestyle-cim/" aria-label="Skate Studio 首页">
+            <img class="brand-mark" src="./assets/logo.png" alt="Logo" />
             <span>
               <strong>Skate Studio</strong>
               <span>C 端定制网站介绍</span>
@@ -820,7 +796,7 @@
             <a href="#workflow">流程</a>
             <a href="#versions">版本</a>
             <button class="lang-toggle" id="languageToggle" type="button" aria-label="切换为英文版">EN</button>
-            <a class="nav-cta" href="./index.html">进入定制</a>
+            <a class="nav-cta" href="https://amandachin.github.io/freestyle-cim/">进入定制</a>
           </nav>
         </div>
       </header>
@@ -835,7 +811,7 @@
                 C 端网站把鞋款选择、裁片定制、颜色材质预览、特殊电绣和确认单生成放在同一条清晰链路里，客户可以先看效果，再提交可执行的定制信息。
               </p>
               <div class="hero-actions">
-                <a class="hero-cta" href="./index.html">打开 C 端网站</a>
+                <a class="hero-cta" href="https://amandachin.github.io/freestyle-cim/">打开 C 端网站</a>
                 <a class="secondary-cta" href="#versions">查看版本优化</a>
               </div>
               <div class="hero-stats" aria-label="核心能力数据">
@@ -854,33 +830,40 @@
               </div>
             </div>
 
-            <div class="product-stage" aria-label="YJS-pro CIM 定制鞋效果展示">
-              <div class="shoe-composite" aria-hidden="true">
-                <div class="shoe-frame">
-                  <img class="shoe-base" src="./assets/skates/yjs-pro-cim/forty_five/base.png" alt="" />
-                  <span class="part-layer" style="--part-color: #f0b7c8; --part-mask: url('./assets/skates/yjs-pro-cim/forty_five/parts/G.png')"></span>
-                  <span class="part-layer" style="--part-color: #f8d8e3; --part-mask: url('./assets/skates/yjs-pro-cim/forty_five/parts/C2.png')"></span>
-                  <span class="part-layer" style="--part-color: #f6f3ec; --part-mask: url('./assets/skates/yjs-pro-cim/forty_five/parts/F.png')"></span>
-                  <span class="part-layer" style="--part-color: #17171a; --part-mask: url('./assets/skates/yjs-pro-cim/forty_five/parts/L.png')"></span>
-                  <img class="shoe-fixed" src="./assets/skates/yjs-pro-cim/forty_five/fixed/D/cuff-silver.png" alt="" />
-                  <img class="shoe-fixed" src="./assets/skates/yjs-pro-cim/forty_five/fixed/M/buckle-black.png" alt="" />
-                  <img class="shoe-fixed" src="./assets/skates/yjs-pro-cim/forty_five/fixed/N/sole-silver.png" alt="" />
-                  <img class="shoe-stitch" src="./assets/skates/yjs-pro-cim/forty_five/stitch.png" alt="" />
+            <div class="product-stage" aria-label="YJS-pro CIM 真实产品展示">
+              <div class="carousel-container" id="productCarousel" aria-hidden="true">
+                <img class="carousel-slide active" src="./assets/skates/yjs-pro-cim/real-products/brown-1.jpg" alt="咖色款式" />
+                <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/white-pink-1.jpg" alt="白粉款式" />
+                <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/white-red-1.jpg" alt="白红款式" />
+                <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/pink-purple-1.jpg" alt="粉紫款式" />
+                <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/black-gold-1.jpg" alt="黑金款式" />
+                <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/silver-white-1.jpg" alt="银白款式" />
+                <img class="carousel-slide" src="./assets/skates/yjs-pro-cim/real-products/black-purple-2.jpg" alt="黑紫款式" />
+                <div class="carousel-indicators">
+                  <button class="indicator active" aria-label="Image 1"></button>
+                  <button class="indicator" aria-label="Image 2"></button>
+                  <button class="indicator" aria-label="Image 3"></button>
+                  <button class="indicator" aria-label="Image 4"></button>
+                  <button class="indicator" aria-label="Image 5"></button>
+                  <button class="indicator" aria-label="Image 6"></button>
+                  <button class="indicator" aria-label="Image 7"></button>
                 </div>
               </div>
-              <div class="floating-panel panel-one">
-                <strong>实时视觉预览</strong>
-                <span>选择裁片后即可看到颜色、材质和固定部件效果。</span>
-                <div class="swatches" aria-hidden="true">
-                  <span class="swatch" style="background: #f6f3ec"></span>
-                  <span class="swatch" style="background: #f0b7c8"></span>
-                  <span class="swatch" style="background: #17171a"></span>
-                  <span class="swatch" style="background: #cfd2d5"></span>
+              <div class="stage-notes" aria-label="轮播图说明">
+                <div class="floating-panel panel-one">
+                  <strong>海量真实配色</strong>
+                  <span>基于客户真实选择，不断丰富的款式库。</span>
+                  <div class="swatches" aria-hidden="true">
+                    <span class="swatch" style="background: #8b5a2b"></span>
+                    <span class="swatch" style="background: #f8d8e3"></span>
+                    <span class="swatch" style="background: #e3002b"></span>
+                    <span class="swatch" style="background: #000000"></span>
+                  </div>
                 </div>
-              </div>
-              <div class="floating-panel panel-two">
-                <strong>面向客户确认</strong>
-                <span>填写姓名、脚长、尺码和特殊定制后生成确认单。</span>
+                <div class="floating-panel panel-two">
+                  <strong>从概念到实物</strong>
+                  <span>定制预览图与实际大货效果高度一致。</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1074,7 +1057,7 @@
             <h2 id="closingTitle">现在可以直接给客户演示。</h2>
             <p>打开 C 端网站，客户可以从选择鞋款开始，完成一套带视觉预览和确认单的定制流程。</p>
           </div>
-          <a class="hero-cta" href="./index.html">进入 C 端网站</a>
+          <a class="hero-cta" href="https://amandachin.github.io/freestyle-cim/">进入 C 端网站</a>
         </section>
       </main>
     </div>
@@ -1119,15 +1102,16 @@
               "当前 C 端版本，持续优化手机和桌面端体验。"
             ]
           },
-          stageAria: "YJS-pro CIM 定制鞋效果展示",
+          stageAria: "YJS-pro CIM 真实产品展示",
+          stageNotesAria: "轮播图说明",
           floatingPanels: [
             {
-              title: "实时视觉预览",
-              body: "选择裁片后即可看到颜色、材质和固定部件效果。"
+              title: "海量真实配色",
+              body: "基于客户真实选择，不断丰富的款式库。"
             },
             {
-              title: "面向客户确认",
-              body: "填写姓名、脚长、尺码和特殊定制后生成确认单。"
+              title: "从概念到实物",
+              body: "定制预览图与实际大货效果高度一致。"
             }
           ],
           features: {
@@ -1208,15 +1192,16 @@
               "current customer-site version, with ongoing mobile and desktop improvements."
             ]
           },
-          stageAria: "YJS-pro CIM customized skate preview",
+          stageAria: "YJS-pro CIM real product showcase",
+          stageNotesAria: "Carousel notes",
           floatingPanels: [
             {
-              title: "Real-time visual preview",
-              body: "Customers can see color, material, and fixed-component results as soon as they select a part."
+              title: "Rich real-world colorways",
+              body: "A growing gallery based on real customer choices and finished product references."
             },
             {
-              title: "Ready for customer approval",
-              body: "Customer name, foot length, size, and special customization details are captured before generating the confirmation sheet."
+              title: "From concept to product",
+              body: "Customization previews stay close to the final product effect customers receive."
             }
           ],
           features: {
@@ -1351,6 +1336,7 @@
         });
 
         attr(".product-stage", "aria-label", current.stageAria);
+        attr(".stage-notes", "aria-label", current.stageNotesAria);
         document.querySelectorAll(".floating-panel").forEach((panel, index) => {
           const item = current.floatingPanels[index];
           if (!item) return;
@@ -1414,6 +1400,45 @@
         applyLanguage(nextLang);
       });
 
+      
+      function initCarousel() {
+        const slides = document.querySelectorAll('.carousel-slide');
+        const indicators = document.querySelectorAll('.indicator');
+        let currentSlide = 0;
+        let slideInterval;
+
+        if (slides.length === 0) return;
+
+        function goToSlide(index) {
+          slides[currentSlide].classList.remove('active');
+          indicators[currentSlide].classList.remove('active');
+          currentSlide = (index + slides.length) % slides.length;
+          slides[currentSlide].classList.add('active');
+          indicators[currentSlide].classList.add('active');
+        }
+
+        function nextSlide() {
+          goToSlide(currentSlide + 1);
+        }
+
+        // Add click events to indicators
+        indicators.forEach((indicator, index) => {
+          indicator.addEventListener('click', () => {
+            goToSlide(index);
+            resetInterval();
+          });
+        });
+
+        function resetInterval() {
+          clearInterval(slideInterval);
+          slideInterval = setInterval(nextSlide, 3000);
+        }
+
+        // Start automatic sliding
+        resetInterval();
+      }
+
+      initCarousel();
       applyLanguage(initialLanguage());
     </script>
   </body>

@@ -3,6 +3,7 @@ const FIXED_MATERIAL_ID = "fixed-image";
 const LAYER_ASSET_DIR = "./assets/mvp/layers/";
 const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
 const FULL_ANGLE_ASSET_VERSION = "20260515-fixed-v3";
+const REAL_PRODUCT_ASSET_DIR = "./assets/skates/yjs-pro-cim/real-products/";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
 const MATERIAL_ASSET_VERSION = "20260516-leather-v1";
 const HIT_ALPHA_THRESHOLD = 18;
@@ -16,6 +17,16 @@ const SHARED_MVP_ASSETS = {
   base: "./assets/mvp/base-ui.png",
   stitch: `${LAYER_ASSET_DIR}stitch.png`
 };
+
+const YJS_PRO_REAL_PRODUCT_IMAGES = [
+  { file: "brown-1.jpg", alt: "YJS-pro CIM 咖色真实鞋款" },
+  { file: "white-pink-1.jpg", alt: "YJS-pro CIM 白粉真实鞋款" },
+  { file: "white-red-1.jpg", alt: "YJS-pro CIM 白红真实鞋款" },
+  { file: "pink-purple-1.jpg", alt: "YJS-pro CIM 粉紫真实鞋款" },
+  { file: "black-gold-1.jpg", alt: "YJS-pro CIM 黑金真实鞋款" },
+  { file: "silver-white-1.jpg", alt: "YJS-pro CIM 银白真实鞋款" },
+  { file: "black-purple-2.jpg", alt: "YJS-pro CIM 黑紫真实鞋款" }
+];
 
 const FULL_ANGLE_PARTS = ["A", "A1", "F", "G", "H", "C", "C2", "I", "I1", "B", "J", "K1", "K2", "L"];
 
@@ -31,6 +42,10 @@ function fullAngleAsset(path) {
 
 function materialAsset(fileName) {
   return `${MATERIAL_ASSET_DIR}${fileName}?v=${MATERIAL_ASSET_VERSION}`;
+}
+
+function realProductAsset(fileName) {
+  return `${REAL_PRODUCT_ASSET_DIR}${fileName}`;
 }
 
 function angleAssets(angleId) {
@@ -159,6 +174,7 @@ const PRODUCT_CATALOG = [
     description: "高帮轮滑鞋上鞋定制，面向进阶训练与比赛配置，支持按标注裁片扩展颜色和皮料。",
     note: "巴扣、鞋底、CUFF 使用切图指定固定色值；其余标注裁片支持颜色与皮料选择。",
     homeFeatures: ["高帮支撑", "碳纤鞋壳", "确认单导出"],
+    realProductImages: YJS_PRO_REAL_PRODUCT_IMAGES,
     accentA: "#f0b7c8",
     accentB: "#ad94ff",
     angles: ANGLE_CONFIG,
@@ -993,6 +1009,29 @@ function homeShoeMarkup(item = product()) {
   return shoeMarkup(item, `${item.name} 预览图`);
 }
 
+function realProductCarouselMarkup(item = product()) {
+  const images = item.realProductImages || [];
+  if (!images.length) return homeShoeMarkup(item);
+
+  const secondsPerImage = 3;
+  const carouselDuration = `${images.length * secondsPerImage}s`;
+  const slides = images
+    .map((image, index) => {
+      const eagerAttrs = index === 0 ? ` loading="eager" fetchpriority="high"` : ` loading="lazy"`;
+      return `<img class="real-product-slide" src="${escapeHtml(realProductAsset(image.file))}" alt="" draggable="false"${eagerAttrs} style="--carousel-delay:${index * secondsPerImage}s;" />`;
+    })
+    .join("");
+  const dots = images
+    .map((_, index) => `<span style="--carousel-delay:${index * secondsPerImage}s;"></span>`)
+    .join("");
+
+  return `
+    <span class="real-product-carousel" aria-hidden="true" style="--carousel-duration:${carouselDuration};">
+      ${slides}
+      <span class="real-product-dots">${dots}</span>
+    </span>`;
+}
+
 function renderHome() {
   const item = product();
   const assets = angleAssets(item.defaultAngle || productAngles(item)[0]?.id || "side");
@@ -1013,8 +1052,8 @@ function renderHome() {
     return `
       <button class="home-model-card" type="button" data-home-product="${catalogItem.id}" aria-pressed="${selected}" style="--accent-a:${catalogItem.accentA};--accent-b:${catalogItem.accentB};">
         <span class="home-card-title">${catalogItem.code}</span>
-        <span class="home-card-thumb">
-          ${homeShoeMarkup(catalogItem)}
+        <span class="home-card-thumb home-card-thumb--real">
+          ${realProductCarouselMarkup(catalogItem)}
         </span>
         <span class="home-card-dot" aria-hidden="true"></span>
         <span class="home-card-body">
@@ -1034,7 +1073,6 @@ function renderModelStrip() {
   els.modelStrip.innerHTML = PRODUCT_CATALOG.map(
     (item) => `
       <button class="model-pill" type="button" data-product="${item.id}" aria-pressed="${item.id === state.productId}" style="--thumb-a:${item.accentA};--thumb-b:${item.accentB};">
-        <span class="model-thumb" aria-hidden="true">${item.code}</span>
         <span>
           <strong>${item.name}</strong>
           <span>${item.price}</span>
@@ -1192,7 +1230,7 @@ function render() {
   els.resetButton.hidden = isHome;
   els.saveButton.hidden = isHome;
   els.pageEyebrow.textContent = isHome ? "Skate Studio" : "Customizer";
-  els.pageTitle.textContent = isHome ? "轮滑鞋定制" : product().name;
+  els.pageTitle.textContent = isHome ? "Freestyle CIM" : product().name;
   renderHome();
   renderModelStrip();
   renderAngleTabs();
@@ -1612,6 +1650,18 @@ function confirmationSheetStyles() {
       margin-top: 24px;
       break-inside: avoid;
     }
+    .sheet-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .sheet-preview-label {
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-align: center;
+    }
     .sheet-preview-card {
       padding: 18px;
       border: 1px solid var(--line);
@@ -1757,7 +1807,8 @@ function confirmationSheetStyles() {
       .sheet-meta { text-align: left; }
       .info-grid,
       .fixed-grid,
-      .image-grid {
+      .image-grid,
+      .sheet-preview-grid {
         grid-template-columns: 1fr;
       }
       table { font-size: 12px; }
@@ -1795,7 +1846,11 @@ function buildConfirmationSheetHtml(data) {
   const item = product();
   const generatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const baseHref = document.baseURI || window.location.href;
-  const effectPreview = shoeMarkup(item, `${data.product} ${data.effectPreview.angle}最终效果图`, data.effectPreview.angleId, { showSelection: false });
+  const angles = productAngles(item);
+  const allAnglePreviews = angles.map((angle) => ({
+    label: angle.label,
+    markup: shoeMarkup(item, `${data.product} ${angle.label}最终效果图`, angle.id, { showSelection: false })
+  }));
   const embroideryImages = data.embroidery.filter((entry) => entry.image?.dataUrl);
   const customerRows = [
     ["姓名", data.customer.name || "-"],
@@ -1830,7 +1885,7 @@ function buildConfirmationSheetHtml(data) {
         <div>
           <p class="sheet-kicker">Skate Studio</p>
           <h1>定制确认单</h1>
-          <p>${escapeHtml(data.product)} · ${escapeHtml(data.effectPreview.angle)}最终效果图</p>
+          <p>${escapeHtml(data.product)} · 三视角最终效果图</p>
         </div>
         <div class="sheet-meta">
           <span>版本：${escapeHtml(data.version)}</span>
@@ -1841,8 +1896,13 @@ function buildConfirmationSheetHtml(data) {
 
       <section class="sheet-section">
         <h2>最终效果图</h2>
-        <div class="sheet-preview-card">
-          <div class="sheet-shoe-art">${effectPreview}</div>
+        <div class="sheet-preview-grid">
+          ${allAnglePreviews.map((preview) => `
+            <div class="sheet-preview-card">
+              <p class="sheet-preview-label">${escapeHtml(preview.label)}效果图</p>
+              <div class="sheet-shoe-art">${preview.markup}</div>
+            </div>
+          `).join("")}
         </div>
       </section>
 
