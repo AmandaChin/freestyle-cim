@@ -12,6 +12,13 @@ const VISUAL_SELECTION_PARTS = {
   forty_five: ["G", "L", "D", "N"],
   front: ["G", "L"]
 };
+const RESPONSIVE_VIEWPORTS = [
+  { name: "desktop large", width: 1440, height: 1000 },
+  { name: "pc compact", width: 1180, height: 680 },
+  { name: "pc short", width: 1180, height: 560 },
+  { name: "tablet landscape", width: 1024, height: 640 },
+  { name: "narrow desktop", width: 900, height: 640 }
+];
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -152,8 +159,73 @@ async function openPage(debugPort, url) {
     throw new Error(`Timed out waiting for: ${expression}`);
   };
 
+  const setViewport = async (viewport) => {
+    await send("Emulation.setDeviceMetricsOverride", {
+      width: viewport.width,
+      height: viewport.height,
+      deviceScaleFactor: 1,
+      mobile: false,
+      screenWidth: viewport.width,
+      screenHeight: viewport.height,
+      positionX: 0,
+      positionY: 0
+    }, sessionId);
+  };
+
   await waitFor("document.readyState === 'complete' && Boolean(document.querySelector('[data-home-product]'))");
-  return { ws, send, sessionId, evaluate, waitFor, sessionEvents };
+  return { ws, send, sessionId, evaluate, waitFor, setViewport, sessionEvents };
+}
+
+async function assertBuilderLayout(page, viewport) {
+  const layout = await page.evaluate(`(() => {
+    const selectors = {
+      app: '.app-shell',
+      topbar: '.topbar',
+      workspace: '#workspace',
+      workspaceTopbar: '.workspace-topbar',
+      preview: '.preview-stage',
+      scene: '#shoeScene',
+      shoe: '#shoeArt',
+      frame: '#shoeArt .mvp-shoe-frame',
+      customizer: '#customizerPanel',
+      rail: '.part-rail-block'
+    };
+    const rect = (selector) => {
+      const element = document.querySelector(selector);
+      const box = element.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        width: box.width,
+        height: box.height,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight
+      };
+    };
+    return Object.fromEntries(Object.entries(selectors).map(([key, selector]) => [key, rect(selector)]));
+  })()`);
+  const label = `${viewport.name} ${viewport.width}x${viewport.height}`;
+
+  assert(layout.app.scrollWidth <= layout.app.clientWidth + 2, `${label}: app should not have horizontal overflow (${layout.app.scrollWidth}/${layout.app.clientWidth})`);
+  assert(layout.workspace.right <= viewport.width + 1, `${label}: workspace should stay inside viewport right edge`);
+  assert(layout.workspace.bottom <= viewport.height + 1, `${label}: workspace should stay inside viewport bottom edge`);
+  assert(layout.workspace.scrollWidth <= layout.workspace.clientWidth + 2, `${label}: workspace should not have horizontal overflow (${layout.workspace.scrollWidth}/${layout.workspace.clientWidth})`);
+
+  assert(layout.topbar.bottom <= layout.workspace.top + 1, `${label}: page topbar should not overlap workspace`);
+  assert(layout.workspaceTopbar.bottom <= layout.preview.top + 1, `${label}: workspace topbar should not overlap preview`);
+  assert(layout.preview.bottom <= layout.rail.top + 1, `${label}: preview should not overlap part rail`);
+  assert(layout.preview.right <= layout.customizer.left + 1, `${label}: preview should not overlap customizer`);
+
+  assert(layout.shoe.left >= layout.scene.left - 1, `${label}: shoe should stay inside scene left edge ${JSON.stringify({ scene: layout.scene, shoe: layout.shoe })}`);
+  assert(layout.shoe.right <= layout.scene.right + 1, `${label}: shoe should stay inside scene right edge ${JSON.stringify({ scene: layout.scene, shoe: layout.shoe })}`);
+  assert(layout.shoe.top >= layout.scene.top - 1, `${label}: shoe should stay inside scene top edge ${JSON.stringify({ scene: layout.scene, shoe: layout.shoe })}`);
+  assert(layout.shoe.bottom <= layout.scene.bottom + 1, `${label}: shoe should stay inside scene bottom edge ${JSON.stringify({ scene: layout.scene, shoe: layout.shoe })}`);
+  assert(layout.frame.left >= layout.shoe.left - 1 && layout.frame.right <= layout.shoe.right + 1, `${label}: shoe frame should stay inside shoe art horizontally`);
+  assert(layout.frame.top >= layout.shoe.top - 1 && layout.frame.bottom <= layout.shoe.bottom + 1, `${label}: shoe frame should stay inside shoe art vertically`);
 }
 
 async function main() {
@@ -164,6 +236,12 @@ async function main() {
     page = await openPage(chrome.debugPort, `${server.origin}/`);
     await page.evaluate("document.querySelector('[data-home-product]').click()");
     await page.waitFor("document.body.dataset.view === 'builder' && Boolean(document.querySelector('.mvp-shoe-frame'))");
+
+    for (const viewport of RESPONSIVE_VIEWPORTS) {
+      await page.setViewport(viewport);
+      await page.waitFor("document.body.dataset.view === 'builder' && Boolean(document.querySelector('#shoeArt .mvp-shoe-frame'))");
+      await assertBuilderLayout(page, viewport);
+    }
 
     const failures = [];
     const angles = await page.evaluate("Array.from(document.querySelectorAll('[data-angle]')).map((button) => button.dataset.angle)");

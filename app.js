@@ -9,6 +9,7 @@ const HIT_ALPHA_THRESHOLD = 18;
 const SELECTION_RING_RADIUS = 14;
 const SELECTION_RING_STEP = 3;
 const SELECTION_RING_BLUR = 8;
+const SHOE_ART_ASPECT_RATIO = 2401 / 1601;
 const APP_VERSION = window.SKATE_CIM_VERSION || "0.0.0";
 
 const SHARED_MVP_ASSETS = {
@@ -234,6 +235,7 @@ const DEFAULT_PRODUCT = PRODUCT_CATALOG.find((item) => item.id === DEFAULT_PRODU
 const hitCanvasCache = new Map();
 const selectionRingCache = new Map();
 let shoeHitRequestId = 0;
+let shoeFitObserver = null;
 
 const state = {
   view: "home",
@@ -717,6 +719,36 @@ function setCustomizerOpen(open) {
   render();
 }
 
+function parseCssNumber(value, fallback) {
+  const number = Number.parseFloat(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function syncShoeFit() {
+  const scene = els.shoeScene;
+  const art = els.shoeArt;
+  if (!scene || !art || state.view === "home") return;
+
+  const sceneRect = scene.getBoundingClientRect();
+  if (!sceneRect.width || !sceneRect.height) return;
+
+  const style = window.getComputedStyle(scene);
+  const paddingX = parseCssNumber(style.paddingLeft, 0) + parseCssNumber(style.paddingRight, 0);
+  const paddingY = parseCssNumber(style.paddingTop, 0) + parseCssNumber(style.paddingBottom, 0);
+  const availableWidth = Math.max(0, scene.clientWidth - paddingX);
+  const availableHeight = Math.max(0, scene.clientHeight - paddingY);
+  const scale = Math.max(0.1, Math.min(1, parseCssNumber(style.getPropertyValue("--shoe-fit-scale"), 0.96)));
+  const maxWidth = parseCssNumber(style.getPropertyValue("--shoe-max-width"), Number.POSITIVE_INFINITY);
+
+  // 同时受宽度和高度约束，避免小窗时只按宽度放大导致鞋图被预览容器裁掉。
+  const fitWidth = Math.max(0, Math.min(
+    availableWidth * scale,
+    availableHeight * scale * SHOE_ART_ASPECT_RATIO,
+    maxWidth
+  ));
+  art.style.setProperty("--shoe-fit-width", `${fitWidth}px`);
+}
+
 function selectPart(partId, shouldOpenPanel = false) {
   if (!isEditablePart(partId)) {
     toast("该区域暂未配置切图");
@@ -1077,6 +1109,7 @@ function renderTextures() {
 
 function renderShoe() {
   els.shoeArt.innerHTML = mvpShoeMarkup();
+  window.requestAnimationFrame(syncShoeFit);
 }
 
 function buildExportData() {
@@ -1165,6 +1198,7 @@ function render() {
   renderShoe();
   renderSummary();
   syncCustomizerState();
+  window.requestAnimationFrame(syncShoeFit);
 }
 
 function setProduct(id) {
@@ -1215,6 +1249,17 @@ function openEffectPickerModal() {
 
 function closeEffectPickerModal() {
   document.querySelector("#effectPickerModal")?.classList.remove("is-visible");
+}
+
+function returnToConfirmModal() {
+  // 返回表单属于确认流程内的上一步；即使外部导航让页面状态漂回首页，也要先恢复到定制器再展示表单。
+  closeEffectPickerModal();
+  if (state.view === "home") {
+    state.view = "builder";
+    state.isCustomizerOpen = defaultCustomizerOpen();
+    render();
+  }
+  openConfirmModal();
 }
 
 function refreshEffectPickerModal() {
@@ -1656,8 +1701,7 @@ function bindEvents() {
     }
 
     if (event.target.closest("[data-back-confirm]")) {
-      closeEffectPickerModal();
-      openConfirmModal();
+      returnToConfirmModal();
       return;
     }
 
@@ -1736,7 +1780,14 @@ function bindEvents() {
     if (event.key === "Escape" && state.isCustomizerOpen) setCustomizerOpen(false);
   });
 
-  window.addEventListener("resize", syncCustomizerState);
+  window.addEventListener("resize", () => {
+    syncCustomizerState();
+    syncShoeFit();
+  });
+  if ("ResizeObserver" in window && !shoeFitObserver) {
+    shoeFitObserver = new ResizeObserver(() => syncShoeFit());
+    shoeFitObserver.observe(els.shoeScene);
+  }
 
   let dragStartX = 0;
   let isShoeDragging = false;

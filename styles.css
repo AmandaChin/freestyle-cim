@@ -557,6 +557,8 @@ h1 {
   min-height: 420px;
   place-items: center;
   padding: 20px;
+  --shoe-fit-scale: 0.94;
+  --shoe-max-width: 920px;
   cursor: grab;
   user-select: none;
   touch-action: pan-y;
@@ -589,7 +591,9 @@ h1 {
 .shoe-art {
   position: relative;
   z-index: 1;
-  width: min(94%, 920px);
+  width: min(var(--shoe-fit-width, 94%), var(--shoe-max-width, 920px));
+  max-width: 100%;
+  max-height: 100%;
   aspect-ratio: 2401 / 1601;
   transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 240ms ease;
 }
@@ -753,15 +757,20 @@ h1 {
 }
 
 .section-title h3 {
+  min-width: 0;
   margin: 0;
   font-size: 15px;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .section-title span {
+  min-width: 0;
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.35;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .part-button {
@@ -1206,7 +1215,9 @@ pre {
   position: relative;
   z-index: 1;
   display: block;
-  width: min(94%, 920px);
+  width: min(var(--shoe-fit-width, 94%), var(--shoe-max-width, 920px));
+  max-width: 100%;
+  max-height: 100%;
   aspect-ratio: 2401 / 1601;
   transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 240ms ease;
 }
@@ -1314,7 +1325,9 @@ pre {
 
 .effect-body {
   display: grid;
+  align-content: start;
   grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  grid-auto-rows: max-content;
   gap: 14px;
   min-height: 0;
   padding: 16px;
@@ -1341,7 +1354,8 @@ pre {
 
 .effect-preview-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
+  grid-template-rows: auto auto;
   gap: 10px;
 }
 
@@ -1358,12 +1372,13 @@ pre {
 }
 
 .effect-preview-frame {
-  min-height: 360px;
+  width: 100%;
+  min-height: 0;
   aspect-ratio: 2401 / 1601;
 }
 
 .effect-preview-frame .mvp-shoe-frame {
-  width: min(100%, 860px);
+  width: min(90%, 780px);
   height: auto;
   aspect-ratio: 2401 / 1601;
 }
@@ -1402,7 +1417,7 @@ pre {
 .effect-option-thumb {
   display: grid;
   width: 112px;
-  aspect-ratio: 1.35;
+  aspect-ratio: 2401 / 1601;
   place-items: center;
   overflow: hidden;
   border-radius: 8px;
@@ -1412,7 +1427,7 @@ pre {
 }
 
 .effect-option-thumb .mvp-shoe-frame {
-  width: 116%;
+  width: 92%;
   height: auto;
   aspect-ratio: 2401 / 1601;
 }
@@ -1541,7 +1556,7 @@ pre {
   }
 
   .effect-preview-frame {
-    min-height: 260px;
+    min-height: 0;
   }
 
   .confirm-effect-section,
@@ -1638,7 +1653,11 @@ pre {
   }
 
   .effect-preview-frame {
-    min-height: 190px;
+    min-height: 0;
+  }
+
+  .effect-preview-frame .mvp-shoe-frame {
+    width: 86%;
   }
 
   .effect-option-card {
@@ -1790,7 +1809,7 @@ body.drawer-open {
 }
 
 .shoe-art {
-  width: min(96%, 920px);
+  width: min(var(--shoe-fit-width, 96%), var(--shoe-max-width, 920px));
   max-width: 100%;
   max-height: 100%;
 }
@@ -2107,10 +2126,12 @@ body.drawer-open {
   .shoe-scene {
     min-height: 0;
     padding: 2px 8px;
+    --shoe-fit-scale: 0.96;
+    --shoe-max-width: 720px;
   }
 
   .shoe-art {
-    width: min(100%, 720px);
+    width: min(var(--shoe-fit-width, 100%), var(--shoe-max-width, 720px));
     max-height: 100%;
   }
 
@@ -2418,10 +2439,12 @@ body.drawer-open {
     min-height: 0;
     overflow: hidden;
     padding: 2px 8px;
+    --shoe-fit-scale: 0.9;
+    --shoe-max-width: 720px;
   }
 
   .shoe-art {
-    width: min(100%, 720px);
+    width: min(var(--shoe-fit-width, 100%), var(--shoe-max-width, 720px));
     max-height: 100%;
   }
 
@@ -2517,20 +2540,35 @@ body.drawer-open {
     max-height: calc(100dvh - 124px);
   }
 
+  .shoe-scene {
+    --shoe-fit-scale: 0.9;
+    --shoe-max-width: 820px;
+  }
+
   .shoe-art {
-    width: min(90%, 820px);
+    width: min(var(--shoe-fit-width, 90%), var(--shoe-max-width, 820px));
   }
 }
 
 @media (max-height: 760px) and (min-width: 761px) {
+  .shoe-scene {
+    --shoe-fit-scale: 0.9;
+    --shoe-max-width: 700px;
+  }
+
   .shoe-art {
-    width: min(84%, 700px);
+    width: min(var(--shoe-fit-width, 84%), var(--shoe-max-width, 700px));
   }
 }
 
 @media (max-width: 900px) and (max-height: 520px) {
+  .shoe-scene {
+    --shoe-fit-scale: 0.82;
+    --shoe-max-width: 460px;
+  }
+
   .shoe-art {
-    width: min(58%, 460px);
+    width: min(var(--shoe-fit-width, 58%), var(--shoe-max-width, 460px));
   }
 }
 
