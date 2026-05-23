@@ -1,43 +1,45 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import vm from "node:vm";
 
 const ROOT_DIR = path.resolve(import.meta.dirname, "..");
 const CHROME_BIN = process.env.CHROME_BIN || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const VISUAL_SELECTION_PARTS = {
-  side: ["A", "B", "C", "C2", "F", "G", "H", "I", "J", "K1", "K2", "L", "M1", "M2", "O", "D", "N"],
-  forty_five: ["A", "B", "C", "C2", "F", "G", "H", "I", "J", "K1", "K2", "L", "M1", "M2", "O", "D", "N"],
-  front: ["C", "C2", "F", "G", "H", "I", "J", "K1", "K2", "L", "M1", "M2"]
+  side: ["A", "B", "C", "C1", "C2", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
+  forty_five: ["A", "C", "C1", "C2", "C3", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
+  front: ["C", "C1", "C2", "C3", "F1", "G", "H", "I", "J", "K", "L", "M", "N"]
 };
 
 const EXPECTED_PART_NAMES = {
   A: "鞋帮",
   B: "后提带",
   C: "鞋舌",
-  C2: "鞋舌三角片",
+  C1: "鞋舌三角片",
+  C2: "皮垫套下片",
+  C3: "皮垫套上片",
+  D: "CUFF",
+  D1: "蘑菇钉",
+  E: "碳纤鞋壳",
   F: "下鞋身片",
-  G: "上身鞋片",
+  F1: "下鞋身片2",
+  G: "上鞋身片",
   H: "鞋头下片",
   I: "鞋眼片",
   J: "鞋带",
-  K1: "前魔术贴绑带1",
-  K2: "前魔术贴绑带2",
+  K: "前魔术贴绑带",
   L: "防磨片",
-  M1: "上能量带",
-  M2: "下能量带",
-  O: "蘑菇钉",
-  D: "CUFF",
-  N: "鞋底"
+  M: "上能量带",
+  N: "下能量带"
 };
-
-const SIDE_EXPECTED_PART_NAMES = {
-  ...EXPECTED_PART_NAMES,
-  K1: "皮垫套下片",
-  K2: "前魔术贴绑带",
-  N: "碳纤鞋壳"
+const CANONICAL_PART_KEYS = new Set(Object.keys(EXPECTED_PART_NAMES));
+const EXPECTED_ASSET_FILES = {
+  side: ["A", "B", "C", "C1", "C2", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
+  forty_five: ["A", "C", "C1", "C2", "C3", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
+  front: ["C", "C1", "C2", "C3", "F1", "G", "H", "I", "J", "K", "L", "M", "N"]
 };
 const RESPONSIVE_VIEWPORTS = [
   { name: "desktop large", width: 1440, height: 1000 },
@@ -61,6 +63,69 @@ function assert(condition, message) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function loadGlobalScript(relativePath, sandbox = { window: {} }) {
+  const source = await readFile(path.join(ROOT_DIR, relativePath), "utf8");
+  vm.runInNewContext(source, sandbox, { filename: relativePath });
+  return sandbox;
+}
+
+async function assertSharedSchemaContract() {
+  const sandbox = await loadGlobalScript("shared/yjs-pro-cim-schema.js");
+  const schema = sandbox.window.SKATE_CIM_SCHEMA;
+  assert(schema, "shared schema should expose window.SKATE_CIM_SCHEMA");
+  assert(Array.isArray(schema.parts) && schema.parts.length > 0, "schema.parts should be non-empty");
+  assert(Array.isArray(schema.angles) && schema.angles.length > 0, "schema.angles should be non-empty");
+  assert(Array.isArray(schema.materials) && schema.materials.length > 0, "schema.materials should be non-empty");
+  const abrasivePad = schema.parts.find((part) => part.key === "L");
+  assert(abrasivePad?.renderMode === "fixed_variant", "L should use the same fixed variant model as hardware parts");
+  assert(Array.isArray(abrasivePad.fixedVariants) && abrasivePad.fixedVariants.length === 4, "L should declare four explicit fixed variants");
+  assert(abrasivePad.materialIds?.length === 1 && abrasivePad.materialIds[0] === "fixed-image", "L should be configured as a fixed-image part");
+  assert(!abrasivePad.hitMask, "L should not need a separate hit mask after fixed PNG assets are transparent");
+  assert(!abrasivePad.variants, "L should not use a separate fixed variant matrix");
+  assert(!abrasivePad.fixedStyleSet, "L should not use generated fixedStyleSet mapping");
+}
+
+async function assertCanonicalShoePartSchema() {
+  const textFiles = ["app.js", "b-side/app.js", "b-side/data/cim-config.js"];
+  const disallowedPatterns = [
+    /["'`]A1["'`]|\bA1\s*:|\/A1\//,
+    /["'`]I1["'`]|\bI1\s*:|\/I1\//,
+    /["'`]K1["'`]|\bK1\s*:|\/K1\//,
+    /["'`]K2["'`]|\bK2\s*:|\/K2\//,
+    /["'`]M1["'`]|\bM1\s*:|\/M1\//,
+    /["'`]M2["'`]|\bM2\s*:|\/M2\//,
+    /["'`]O["'`]|\bO\s*:|\/O\//,
+    /sourceKey/,
+    /fixedFileKeys/
+  ];
+  const failures = [];
+
+  for (const relativePath of textFiles) {
+    const content = await readFile(path.join(ROOT_DIR, relativePath), "utf8");
+    for (const pattern of disallowedPatterns) {
+      if (pattern.test(content)) failures.push(`${relativePath}: contains legacy shoe part semantic ${pattern}`);
+    }
+  }
+
+  for (const [angle, keys] of Object.entries(EXPECTED_ASSET_FILES)) {
+    const partDir = path.join(ROOT_DIR, "assets/skates/yjs-pro-cim", angle, "parts");
+    const fixedDir = path.join(ROOT_DIR, "assets/skates/yjs-pro-cim", angle, "fixed");
+    const partFiles = (await readdir(partDir)).filter((file) => file.endsWith(".png")).map((file) => path.basename(file, ".png"));
+    const fixedDirs = existsSync(fixedDir) ? await readdir(fixedDir, { withFileTypes: true }) : [];
+    const fixedKeys = fixedDirs.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    const expected = new Set(keys);
+    const actual = new Set([...partFiles, ...fixedKeys]);
+    const unexpected = [...actual].filter((key) => !expected.has(key));
+    const missing = [...expected].filter((key) => !actual.has(key));
+    const nonCanonical = [...actual].filter((key) => !CANONICAL_PART_KEYS.has(key));
+    if (unexpected.length || missing.length || nonCanonical.length) {
+      failures.push(`${angle}: asset keys mismatch, missing ${missing.join(", ") || "none"}, unexpected ${unexpected.join(", ") || "none"}, non-canonical ${nonCanonical.join(", ") || "none"}`);
+    }
+  }
+
+  if (failures.length) throw new Error(`Shoe part schema is not canonical:\n${failures.join("\n")}`);
 }
 
 async function startStaticServer() {
@@ -256,6 +321,8 @@ async function assertBuilderLayout(page, viewport) {
 }
 
 async function main() {
+  await assertSharedSchemaContract();
+  await assertCanonicalShoePartSchema();
   const server = await startStaticServer();
   const chrome = await startChrome();
   let page;
@@ -290,7 +357,7 @@ async function main() {
       if (missingExpectedParts.length || extraEnabledParts.length) {
         failures.push(`${angle}: enabled parts mismatch, missing ${missingExpectedParts.join(", ") || "none"}, extra ${extraEnabledParts.join(", ") || "none"}`);
       }
-      const expectedPartNames = angle === "side" ? SIDE_EXPECTED_PART_NAMES : EXPECTED_PART_NAMES;
+      const expectedPartNames = EXPECTED_PART_NAMES;
       for (const part of partState.enabledParts) {
         if (expectedPartNames[part] && partState.names[part] !== expectedPartNames[part]) {
           failures.push(`${angle}/${part}: expected name "${expectedPartNames[part]}", got "${partState.names[part]}"`);
@@ -299,6 +366,71 @@ async function main() {
       const missingLayers = partState.enabledParts.filter((part) => !partState.layerParts.includes(part));
       if (missingLayers.length) {
         failures.push(`${angle}: enabled parts without rendered layer: ${missingLayers.join(", ")}`);
+      }
+
+      if (partState.enabledParts.includes("L")) {
+        await page.evaluate(`document.querySelector('#partRail [data-part="L"]').click()`);
+        await page.waitFor(`document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part="L"]')`);
+        await page.evaluate(`document.querySelector('#textureList [data-color="pad-new-white"]')?.click()`);
+        await page.waitFor(`document.querySelector('#shoeArt .mvp-fixed-image[data-part="L"]')?.src.includes('/${angle}/fixed/L/pad-new-white.png')`);
+        await page.waitFor(`document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part="L"]')?.dataset.source.includes('/${angle}/fixed/L/pad-new-white.png')`);
+        const abrasivePadState = await page.evaluate(`(() => {
+          const visual = document.querySelector('#shoeArt .mvp-fixed-image[data-part="L"]');
+          const tinted = document.querySelector('#shoeArt .mvp-part-layer[data-part="L"]');
+          const ring = document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part="L"]');
+          return {
+            visualSrc: visual?.currentSrc || visual?.src || "",
+            ringSource: ring?.dataset.source || "",
+            hasTintedLayer: Boolean(tinted)
+          };
+        })()`);
+        if (abrasivePadState.hasTintedLayer) {
+          failures.push(`${angle}/L: abrasive pad should render as direct fixed PNG instead of tinted mask layer`);
+        }
+        if (!abrasivePadState.visualSrc.includes(`/${angle}/fixed/L/pad-new-white.png`)) {
+          failures.push(`${angle}/L: abrasive pad default visual should use fixed variant PNG, got ${abrasivePadState.visualSrc}`);
+        }
+        if (!abrasivePadState.ringSource.includes(`/${angle}/fixed/L/pad-new-white.png`)) {
+          failures.push(`${angle}/L: abrasive pad selection ring should follow the current fixed variant PNG, got ${abrasivePadState.ringSource}`);
+        }
+        await page.evaluate(`document.querySelector('#textureList [data-color="pad-old-white"]')?.click()`);
+        await page.waitFor(`document.querySelector('#shoeArt .mvp-fixed-image[data-part="L"]')?.src.includes('/${angle}/fixed/L/pad-old-white.png')`);
+        await page.waitFor(`document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part="L"]')?.dataset.source.includes('/${angle}/fixed/L/pad-old-white.png')`);
+        const switchedAbrasivePadState = await page.evaluate(`(() => {
+          const visual = document.querySelector('#shoeArt .mvp-fixed-image[data-part="L"]');
+          const ring = document.querySelector('#shoeArt .mvp-selection-ring.is-selected[data-part="L"]');
+          return {
+            visualSrc: visual?.currentSrc || visual?.src || "",
+            ringSource: ring?.dataset.source || ""
+          };
+        })()`);
+        if (!switchedAbrasivePadState.visualSrc.includes(`/${angle}/fixed/L/pad-old-white.png`)) {
+          failures.push(`${angle}/L: abrasive pad switched visual should use selected fixed variant PNG, got ${switchedAbrasivePadState.visualSrc}`);
+        }
+        if (!switchedAbrasivePadState.ringSource.includes(`/${angle}/fixed/L/pad-old-white.png`)) {
+          failures.push(`${angle}/L: abrasive pad switched selection ring should follow selected fixed variant PNG, got ${switchedAbrasivePadState.ringSource}`);
+        }
+      }
+
+      if (angle === "front") {
+        const frontLowerPadHit = await page.evaluate(`(async () => {
+          const frame = document.querySelector('#shoeArt .mvp-shoe-frame');
+          const rect = frame.getBoundingClientRect();
+          const hits = {};
+          for (let y = 0.24; y <= 0.41; y += 0.01) {
+            for (let x = 0.44; x <= 0.63; x += 0.01) {
+              const clientX = Math.round(rect.left + rect.width * x);
+              const clientY = Math.round(rect.top + rect.height * y);
+              const hit = await hitTestShoePart({ clientX, clientY, target: frame });
+              if (hit) hits[hit] = (hits[hit] || 0) + 1;
+              if (hit === "C2") return { hit, clientX, clientY, x, y };
+            }
+          }
+          return { hit: "", hits };
+        })()`);
+        if (frontLowerPadHit?.hit !== "C2") {
+          failures.push(`front/C2: lower pad cover red-arrow area should be clickable, got ${JSON.stringify(frontLowerPadHit)}`);
+        }
       }
 
       for (const part of partState.enabledParts) {
