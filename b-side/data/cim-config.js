@@ -36,6 +36,11 @@ window.SKATE_CIM_CONFIG = {
           name: "侧面",
           active: true,
           baseFile: "side/base.png",
+          partOverrides: {
+            K1: { key: "C2", name: "皮垫套下片" },
+            K2: { key: "K", name: "前魔术贴绑带" },
+            N: { key: "E", name: "碳纤鞋壳" }
+          },
           layerAssets: {
             A: { maskFile: "side/A/mask.png" },
             A1: { maskFile: "side/A1/mask.png" },

@@ -193,6 +193,30 @@ const SHARED_PRODUCT_DETAILS = {
   ]
 };
 
+const ANGLE_PART_OVERRIDES = {
+  side: {
+    K1: { code: "C2", cn: "皮垫套下片", en: "Lower pad cover" },
+    K2: { code: "K", cn: "前魔术贴绑带", en: "Front velcro strap" },
+    N: { code: "E", cn: "碳纤鞋壳", en: "Carbon shell" }
+  }
+};
+
+function anglePartOverridesFor(item, angleId) {
+  const sharedOverrides = sharedShoeFor(item)?.angles
+    ?.find((angle) => angle.key === angleId || angle.id === angleId)
+    ?.partOverrides || {};
+  const fallbackOverrides = ANGLE_PART_OVERRIDES[angleId] || {};
+  return { ...fallbackOverrides, ...sharedOverrides };
+}
+
+function normalizeDisplayOverride(override = {}) {
+  return {
+    ...(override.code || override.key ? { code: override.code || override.key } : {}),
+    ...(override.cn || override.name ? { cn: override.cn || override.name } : {}),
+    ...(override.en ? { en: override.en } : {})
+  };
+}
+
 function buildComponents(overrides = {}) {
   return COMPONENT_TEMPLATE.map((component) => ({
     ...component,
@@ -598,6 +622,18 @@ function texturePreview(component, config, material) {
   return component.fixedOptions ? componentPreview(component, config) : cssTexture(config.color, material.id);
 }
 
+function isSelectedMaterial(component, config, material) {
+  if (material.id === "fixed-straw") return Boolean(fixedStrawStyleByMaterial(config.material));
+  return material.id === config.material;
+}
+
+function shouldExpandMaterial(component, config, material) {
+  if (!isSelectedMaterial(component, config, material)) return false;
+  if (material.id === "fixed-straw") return true;
+  if (component.fixedOptions) return true;
+  return !material.id.startsWith("chinoiserie-");
+}
+
 function componentColorValue(component, config = componentConfig(component.id)) {
   if (component.fixedColorOptions) return config.color || component.color;
   const option = fixedOption(component, config);
@@ -814,6 +850,14 @@ function hitSourcesForComponent(component, item = product(), angle = angleAssets
 
 function componentHasLayerInAngle(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
   return component.editable && hitSourcesForComponent(component, item, angle).length > 0;
+}
+
+function displayComponentForAngle(component, angleId = currentAngleConfig(product()).id) {
+  const overrides = anglePartOverridesFor(product(), angleId);
+  return {
+    ...component,
+    ...normalizeDisplayOverride(overrides[component.id])
+  };
 }
 
 function loadSnapshotImage(src) {
@@ -1473,18 +1517,20 @@ function renderAngleTabs() {
 
 function renderParts() {
   const item = product();
-  const angle = angleAssets(currentAngleConfig(item).id);
+  const currentAngle = currentAngleConfig(item);
+  const angle = angleAssets(currentAngle.id);
   els.partRail.innerHTML = item.components
     .map((component) => {
+      const displayComponent = displayComponentForAngle(component, currentAngle.id);
       const config = componentConfig(component.id);
       const angleAvailable = componentHasLayerInAngle(component, item, angle);
       const disabled = !component.editable || !angleAvailable;
       const disabledReason = !component.editable ? component.lockReason : "当前角度无切图";
       return `
-        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${isPartSelectionVisible() && component.id === state.selectedPartId}" title="${component.code} · ${component.cn}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
+        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${isPartSelectionVisible() && component.id === state.selectedPartId}" title="${displayComponent.code} · ${displayComponent.cn}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
           <span>
-            <strong>${component.cn}</strong>
-            <span>${disabled ? disabledReason : component.en}</span>
+            <strong>${displayComponent.cn}</strong>
+            <span>${disabled ? disabledReason : displayComponent.en}</span>
           </span>
           <i style="--component-color:${componentPreview(component, config)}"></i>
         </button>`;
@@ -1493,21 +1539,30 @@ function renderParts() {
 }
 
 function renderSwatches() {
-  const component = selectedComponent();
-  const config = componentConfig();
   const colorBlock = els.swatchGrid.closest(".color-block");
-  const isVisible = isColorControlVisible(component, config);
-  if (colorBlock) colorBlock.hidden = !isVisible;
-  if (!isVisible) {
-    els.swatchGrid.innerHTML = "";
-    return;
-  }
-  els.swatchGrid.innerHTML = colorOptions(component)
+  if (colorBlock) colorBlock.hidden = true;
+  els.swatchGrid.innerHTML = "";
+}
+
+function renderMaterialSubChoices(component, config, material) {
+  if (!shouldExpandMaterial(component, config, material)) return "";
+  if (material.id === "fixed-straw") return renderFixedStrawStyles(component, config);
+  const title = component.fixedColorOptions ? "颜色" : (component.fixedOptions ? "选项" : "颜色");
+  return renderInlineSwatches(component, config, title);
+}
+
+function renderInlineSwatches(component, config, title) {
+  const swatches = colorOptions(component)
     .map(
       (color) => `
         <button class="swatch-button" type="button" title="${color.name}" aria-label="${color.name}" aria-pressed="${color.value.toLowerCase() === (component.fixedColorOptions ? config.color : (config.variant || config.color)).toLowerCase()}" data-part-id="${component.id}" data-color="${color.value}" style="--swatch:${color.swatch || color.value};"></button>`
     )
     .join("");
+  return `
+    <div class="texture-subpanel" role="group" aria-label="${title}">
+      <div class="texture-subtitle">${title}</div>
+      <div class="swatch-grid swatch-grid--inline">${swatches}</div>
+    </div>`;
 }
 
 function renderTextures() {
@@ -1515,18 +1570,17 @@ function renderTextures() {
   const config = componentConfig();
   els.textureList.innerHTML = materialsFor(component)
     .map((material) => {
-      const isFixedStraw = material.id === "fixed-straw";
-      const isFixedStrawSelected = isFixedStraw && Boolean(fixedStrawStyleByMaterial(config.material));
+      const isSelected = isSelectedMaterial(component, config, material);
       return `
-      <button class="texture-button" type="button" data-part-id="${component.id}" data-material="${material.id}" aria-pressed="${material.id === config.material}">
+      <button class="texture-button" type="button" data-part-id="${component.id}" data-material="${material.id}" aria-pressed="${isSelected}">
         <span class="texture-preview" style="--texture:${texturePreview(component, config, material)};"></span>
         <span>
           <strong>${material.name}</strong>
           <span>${material.note}</span>
         </span>
-        <span class="texture-check">${material.id === config.material || isFixedStrawSelected ? "✓" : ""}</span>
+        <span class="texture-check">${isSelected ? "✓" : ""}</span>
       </button>
-      ${isFixedStraw && isFixedStrawSelected ? renderFixedStrawStyles(component, config) : ""}`;
+      ${renderMaterialSubChoices(component, config, material)}`;
     })
     .join("");
 }
@@ -1551,6 +1605,7 @@ function renderShoe() {
 function buildExportData(options = {}) {
   const item = product();
   const selectedEffect = effectAngleConfig(item);
+  const currentAngle = currentAngleConfig(item);
   const includeImageData = options.includeImageData === true;
   const includeEffectSnapshots = options.includeEffectSnapshots === true && effectSnapshotsReady(item);
   return {
@@ -1562,11 +1617,12 @@ function buildExportData(options = {}) {
       angleId: selectedEffect.id
     },
     components: item.components.map((component) => {
+      const displayComponent = displayComponentForAngle(component, currentAngle.id);
       const config = componentConfig(component.id);
       return {
-        code: component.code,
-        component: component.en,
-        name: component.cn,
+        code: displayComponent.code,
+        component: displayComponent.en,
+        name: displayComponent.cn,
         color: colorName(config.color, component),
         colorValue: componentColorValue(component, config),
         material: materialName(config.material, component)
@@ -1610,11 +1666,12 @@ function buildExportData(options = {}) {
 function renderSummary() {
   const item = product();
   const component = selectedComponent();
+  const displayComponent = displayComponentForAngle(component, currentAngleConfig(item).id);
   const config = componentConfig();
   const output = {
     version: APP_VERSION,
     product: item.id,
-    selectedPart: component.code,
+    selectedPart: displayComponent.code,
     color: colorName(config.color),
     colorValue: componentColorValue(component, config),
     material: materialName(config.material, component)
@@ -1624,8 +1681,8 @@ function renderSummary() {
   els.modelDescription.textContent = item.description;
   els.angleMeta.textContent = currentAngleConfig(item).meta || `${currentAngleConfig(item).label}预览`;
   els.modelMeta.textContent = `${item.code} · 已开放 ${item.components.filter((part) => part.editable).length} 个标注区域`;
-  els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${component.cn}` : "";
-  els.selectedPartTitle.textContent = `正在编辑：${component.cn}`;
+  els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${displayComponent.code} · ${displayComponent.cn}` : "";
+  els.selectedPartTitle.textContent = `正在编辑：${displayComponent.cn}`;
   els.selectedColorName.textContent = colorName(config.color);
   els.selectedTextureName.textContent = materialName(config.material, component);
   els.configPreview.textContent = JSON.stringify(output, null, 2);
@@ -2489,7 +2546,7 @@ function bindEvents() {
     selectPart(button.dataset.part, true);
   });
 
-  els.swatchGrid.addEventListener("click", (event) => {
+  const handleColorClick = (event) => {
     const button = event.target.closest("[data-color]");
     if (!button) return;
     const partId = button.dataset.partId || state.selectedPartId;
@@ -2505,9 +2562,16 @@ function bindEvents() {
       return;
     }
     updatePartConfig(component.id, { color: button.dataset.color, variant: "" });
-  });
+  };
+
+  els.swatchGrid.addEventListener("click", handleColorClick);
 
   els.textureList.addEventListener("click", (event) => {
+    if (event.target.closest("[data-color]")) {
+      handleColorClick(event);
+      return;
+    }
+
     const strawStyleButton = event.target.closest("[data-straw-style]");
     if (strawStyleButton) {
       const partId = strawStyleButton.dataset.partId || state.selectedPartId;

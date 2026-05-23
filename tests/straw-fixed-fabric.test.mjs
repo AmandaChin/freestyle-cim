@@ -14,6 +14,8 @@ assert(appSource.includes('name: "草席"'), "straw fixed fabric parent should b
 assert(appSource.includes("FIXED_STRAW_STYLES"), "straw fixed fabric should define expandable styles");
 assert(appSource.includes("fixedStrawStylePatch"), "selecting a straw style should patch material and style id together");
 assert(appSource.includes("renderFixedStrawStyles"), "texture UI should render straw sub-style buttons");
+assert(appSource.includes("renderMaterialSubChoices"), "material UI should reveal color or style choices inside the selected material");
+assert(appSource.includes("if (colorBlock) colorBlock.hidden = true;"), "top-level sidebar should only show materials before a material is opened");
 assert(appSource.includes("fixedStrawStyleByMaterial"), "rendering should resolve fixed straw style by selected material");
 assert(appSource.includes("return `url('${materialAsset(fixedStrawStyle.file)}') center / cover no-repeat`"), "fixed straw style should render as a fixed top image texture");
 assert(appSource.includes("isColorControlVisible"), "fixed straw styles should hide explicit color selection");

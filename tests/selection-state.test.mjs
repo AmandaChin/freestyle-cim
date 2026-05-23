@@ -32,6 +32,13 @@ const EXPECTED_PART_NAMES = {
   D: "CUFF",
   N: "鞋底"
 };
+
+const SIDE_EXPECTED_PART_NAMES = {
+  ...EXPECTED_PART_NAMES,
+  K1: "皮垫套下片",
+  K2: "前魔术贴绑带",
+  N: "碳纤鞋壳"
+};
 const RESPONSIVE_VIEWPORTS = [
   { name: "desktop large", width: 1440, height: 1000 },
   { name: "pc compact", width: 1180, height: 680 },
@@ -283,9 +290,10 @@ async function main() {
       if (missingExpectedParts.length || extraEnabledParts.length) {
         failures.push(`${angle}: enabled parts mismatch, missing ${missingExpectedParts.join(", ") || "none"}, extra ${extraEnabledParts.join(", ") || "none"}`);
       }
+      const expectedPartNames = angle === "side" ? SIDE_EXPECTED_PART_NAMES : EXPECTED_PART_NAMES;
       for (const part of partState.enabledParts) {
-        if (EXPECTED_PART_NAMES[part] && partState.names[part] !== EXPECTED_PART_NAMES[part]) {
-          failures.push(`${angle}/${part}: expected name "${EXPECTED_PART_NAMES[part]}", got "${partState.names[part]}"`);
+        if (expectedPartNames[part] && partState.names[part] !== expectedPartNames[part]) {
+          failures.push(`${angle}/${part}: expected name "${expectedPartNames[part]}", got "${partState.names[part]}"`);
         }
       }
       const missingLayers = partState.enabledParts.filter((part) => !partState.layerParts.includes(part));
