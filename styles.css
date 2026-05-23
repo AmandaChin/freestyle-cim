@@ -1037,6 +1037,30 @@ h1 {
   background: rgba(255, 255, 255, 0.48);
 }
 
+.texture-subpanel {
+  display: grid;
+  gap: 8px;
+  margin: -2px 0 4px 18px;
+  padding: 10px;
+  border: 1px solid rgba(0, 113, 227, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.texture-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.swatch-grid--inline {
+  grid-template-columns: repeat(auto-fill, minmax(34px, 38px));
+  gap: 8px;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+}
+
 .texture-preview {
   width: 46px;
   height: 36px;
@@ -2747,6 +2771,7 @@ body.drawer-open {
 
   .shoe-art {
     width: min(var(--shoe-fit-width, 84%), var(--shoe-max-width, 700px));
+    width: min(var(--shoe-fit-width, 84%), var(--shoe-max-width, 700px), 84cqw, calc(84cqh * 1.499 - 72px));
   }
 }
 
@@ -2758,6 +2783,7 @@ body.drawer-open {
 
   .shoe-art {
     width: min(var(--shoe-fit-width, 58%), var(--shoe-max-width, 460px));
+    width: min(var(--shoe-fit-width, 58%), var(--shoe-max-width, 460px), 58cqw, calc(58cqh * 1.499 - 48px));
   }
 }
 

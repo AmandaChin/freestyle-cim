@@ -28,9 +28,59 @@ window.SKATE_CIM_CONFIG = {
       notes: "专业上鞋定制，侧面图层已接入 MVP。",
       homeLabel: "专业支撑款",
       homeFeatures: ["YJS-PRO", "高帮支撑", "CIM 表格导出"],
+      assets: window.SKATE_CIM_SCHEMA.assets,
+      palettes: window.SKATE_CIM_SCHEMA.palettes,
+      materials: window.SKATE_CIM_SCHEMA.materials,
+      fixedStyleSets: window.SKATE_CIM_SCHEMA.fixedStyleSets,
+      fixedVariants: window.SKATE_CIM_SCHEMA.fixedVariants,
       angles: [
-        { key: "front", name: "正面", active: false, baseFile: "front/base.png", layerAssets: {} },
-        { key: "forty_five", name: "45度", active: false, baseFile: "forty_five/base.png", layerAssets: {} },
+        {
+          key: "front",
+          name: "正面",
+          active: true,
+          baseFile: "front/base.png",
+          layerAssets: {
+            C: { maskFile: "front/C/mask.png" },
+            C1: { maskFile: "front/C1/mask.png" },
+            C2: { maskFile: "front/C2/mask.png" },
+            C3: { maskFile: "front/C3/mask.png" },
+            F1: { maskFile: "front/F1/mask.png" },
+            G: { maskFile: "front/G/mask.png" },
+            H: { maskFile: "front/H/mask.png" },
+            I: { maskFile: "front/I/mask.png" },
+            J: { maskFile: "front/J/mask.png" },
+            K: { maskFile: "front/K/mask.png" },
+            L: { maskFile: "front/L/fixed.png" },
+            M: { maskFile: "front/M/fixed.png" },
+            N: { maskFile: "front/N/fixed.png" }
+          }
+        },
+        {
+          key: "forty_five",
+          name: "45度",
+          active: true,
+          baseFile: "forty_five/base.png",
+          layerAssets: {
+            A: { maskFile: "forty_five/A/mask.png" },
+            C: { maskFile: "forty_five/C/mask.png" },
+            C1: { maskFile: "forty_five/C1/mask.png" },
+            C2: { maskFile: "forty_five/C2/mask.png" },
+            C3: { maskFile: "forty_five/C3/mask.png" },
+            D: { maskFile: "forty_five/D/fixed.png" },
+            D1: { maskFile: "forty_five/D1/fixed.png" },
+            E: { maskFile: "forty_five/E/fixed.png" },
+            F: { maskFile: "forty_five/F/mask.png" },
+            F1: { maskFile: "forty_five/F1/mask.png" },
+            G: { maskFile: "forty_five/G/mask.png" },
+            H: { maskFile: "forty_five/H/mask.png" },
+            I: { maskFile: "forty_five/I/mask.png" },
+            J: { maskFile: "forty_five/J/mask.png" },
+            K: { maskFile: "forty_five/K/mask.png" },
+            L: { maskFile: "forty_five/L/fixed.png" },
+            M: { maskFile: "forty_five/M/fixed.png" },
+            N: { maskFile: "forty_five/N/fixed.png" }
+          }
+        },
         {
           key: "side",
           name: "侧面",
@@ -38,44 +88,28 @@ window.SKATE_CIM_CONFIG = {
           baseFile: "side/base.png",
           layerAssets: {
             A: { maskFile: "side/A/mask.png" },
-            A1: { maskFile: "side/A1/mask.png" },
+            B: { maskFile: "side/B/mask.png" },
+            C: { maskFile: "side/C/mask.png" },
+            C1: { maskFile: "side/C1/mask.png" },
+            C2: { maskFile: "side/C2/mask.png" },
+            D: { maskFile: "side/D/fixed.png" },
+            D1: { maskFile: "side/D1/fixed.png" },
+            E: { maskFile: "side/E/fixed.png" },
             F: { maskFile: "side/F/mask.png" },
+            F1: { maskFile: "side/F1/mask.png" },
             G: { maskFile: "side/G/mask.png" },
             H: { maskFile: "side/H/mask.png" },
-            C: { maskFile: "side/C/mask.png" },
-            C2: { maskFile: "side/C2/mask.png" },
             I: { maskFile: "side/I/mask.png" },
-            I1: { maskFile: "side/I1/mask.png" },
-            B: { maskFile: "side/B/mask.png" },
             J: { maskFile: "side/J/mask.png" },
-            K1: { maskFile: "side/K1/mask.png" },
-            K2: { maskFile: "side/K2/mask.png" },
-            L: { maskFile: "side/L/mask.png" },
-            D: { maskFile: "side/D/fixed.png" },
+            K: { maskFile: "side/K/mask.png" },
+            L: { maskFile: "side/L/fixed.png" },
             M: { maskFile: "side/M/fixed.png" },
             N: { maskFile: "side/N/fixed.png" }
           }
         }
       ],
-      parts: [
-        { key: "A", name: "鞋帮", group: "upper", selectable: true },
-        { key: "A1", name: "鞋身下摆", group: "upper", selectable: true },
-        { key: "F", name: "下身鞋片", group: "upper", selectable: true },
-        { key: "G", name: "上身鞋片", group: "upper", selectable: true },
-        { key: "H", name: "鞋头", group: "upper", selectable: true },
-        { key: "C", name: "鞋舌", group: "upper", selectable: true },
-        { key: "C2", name: "鞋舌裁片", group: "upper", selectable: true },
-        { key: "I", name: "鞋眼片", group: "upper", selectable: true },
-        { key: "I1", name: "鞋眼", group: "hardware", selectable: true },
-        { key: "B", name: "后提带", group: "strap", selectable: true },
-        { key: "J", name: "鞋带", group: "strap", selectable: true },
-        { key: "K1", name: "扣带1", group: "strap", selectable: true },
-        { key: "K2", name: "扣带2", group: "strap", selectable: true },
-        { key: "L", name: "防磨片", group: "sole", selectable: true },
-        { key: "D", name: "CUFF", group: "hardware", selectable: true },
-        { key: "M", name: "巴扣 / 芭扣", group: "hardware", selectable: true },
-        { key: "N", name: "鞋底", group: "sole", selectable: true }
-      ]
+      parts: window.SKATE_CIM_SCHEMA.parts
+
     }
   ],
   fabrics: [
@@ -99,6 +133,24 @@ window.SKATE_CIM_CONFIG = {
       groups: ["upper"],
       status: "published",
       updatedAt: "2026-05-07 11:20"
+    },
+    {
+      id: "fabric-fixed-straw",
+      materialKey: "fixed_straw",
+      name: "草席",
+      mode: "fixed_style_set",
+      color: "#c8aa74",
+      styles: [
+        { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.png" },
+        { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.png" },
+        { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.png" },
+        { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.png" },
+        { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.png" },
+        { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.png" }
+      ],
+      groups: ["upper"],
+      status: "published",
+      updatedAt: "2026-05-23 18:20"
     },
     {
       id: "fabric-carbon",

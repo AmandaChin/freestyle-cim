@@ -3,17 +3,20 @@ import path from "node:path";
 
 const ROOT_DIR = path.resolve(import.meta.dirname, "..");
 const appSource = await readFile(path.join(ROOT_DIR, "app.js"), "utf8");
+const schemaSource = await readFile(path.join(ROOT_DIR, "shared", "yjs-pro-cim-schema.js"), "utf8");
 const styleIds = ["1336", "1437", "1518", "1635", "1741", "2932"];
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-assert(appSource.includes('id: "fixed-straw"'), "straw fixed fabric parent material should be registered");
-assert(appSource.includes('name: "草席"'), "straw fixed fabric parent should be named 草席");
+assert(schemaSource.includes('id: "fixed-straw"'), "straw fixed fabric parent material should be registered in shared schema");
+assert(schemaSource.includes('name: "草席"'), "straw fixed fabric parent should be named 草席 in shared schema");
 assert(appSource.includes("FIXED_STRAW_STYLES"), "straw fixed fabric should define expandable styles");
 assert(appSource.includes("fixedStrawStylePatch"), "selecting a straw style should patch material and style id together");
 assert(appSource.includes("renderFixedStrawStyles"), "texture UI should render straw sub-style buttons");
+assert(appSource.includes("renderMaterialSubChoices"), "material UI should reveal color or style choices inside the selected material");
+assert(appSource.includes("if (colorBlock) colorBlock.hidden = true;"), "top-level sidebar should only show materials before a material is opened");
 assert(appSource.includes("fixedStrawStyleByMaterial"), "rendering should resolve fixed straw style by selected material");
 assert(appSource.includes("return `url('${materialAsset(fixedStrawStyle.file)}') center / cover no-repeat`"), "fixed straw style should render as a fixed top image texture");
 assert(appSource.includes("isColorControlVisible"), "fixed straw styles should hide explicit color selection");

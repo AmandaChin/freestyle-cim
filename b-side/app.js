@@ -1,4 +1,6 @@
 const STORAGE_KEY = "skate-cim-bside-host-state-v3";
+const SHOE_SCHEMA = window.SKATE_CIM_SCHEMA;
+const SCHEMA_UTILS = window.SKATE_CIM_SCHEMA_UTILS;
 
 const icons = {
   shoes: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15.5c2.2 0 3.8-.2 5.6-1.8l1.7-1.5 2.9 2.3c1.4 1.1 3.1 1.7 4.9 1.7H21v2.3H3z"></path><path d="M9 10.5l.6-3.5 3.3 1.3"></path></svg>',
@@ -20,8 +22,18 @@ const modules = {
 const renderModes = {
   solid_mask: "固定色值蒙版",
   texture_tint: "纹理调色",
-  image_tile: "图片平铺"
+  image_tile: "图片平铺",
+  fixed_style_set: "固定样式组"
 };
+
+const fixedStrawStyleSeeds = [
+  { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.png" },
+  { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.png" },
+  { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.png" },
+  { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.png" },
+  { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.png" },
+  { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.png" }
+];
 
 const shoeStatus = {
   draft: "草稿",
@@ -37,23 +49,36 @@ const layerAssetFields = [
   { key: "shadowFile", label: "阴影高亮", fileName: "shadow.png" }
 ];
 
-const angleSeeds = [
-  { key: "front", name: "正面", active: false, baseFile: "front/base.png", layerAssets: {} },
-  { key: "forty_five", name: "45度", active: false, baseFile: "forty_five/base.png", layerAssets: {} },
-  { key: "side", name: "侧面", active: true, baseFile: "side/base.png", layerAssets: {} }
-];
+function schemaLayerAssets(angle) {
+  return Object.fromEntries((angle.layerPartKeys || []).map((partKey) => [partKey, emptyLayerAsset({ maskFile: `${angle.key}/${partKey}/mask.png` })]));
+}
 
-const partSeeds = [
-  { key: "A", name: "鞋帮", group: "upper", selectable: true },
-  { key: "A1", name: "鞋身下摆", group: "upper", selectable: true },
-  { key: "F", name: "下身鞋片", group: "upper", selectable: true },
-  { key: "G", name: "上身鞋片", group: "upper", selectable: true },
-  { key: "H", name: "鞋头", group: "upper", selectable: true },
-  { key: "C", name: "鞋舌", group: "upper", selectable: true },
-  { key: "D", name: "CUFF", group: "hardware", selectable: true },
-  { key: "M", name: "巴扣", group: "hardware", selectable: true },
-  { key: "N", name: "鞋底", group: "sole", selectable: true }
-];
+function schemaAngles() {
+  return SCHEMA_UTILS.clone(SHOE_SCHEMA.angles).map((angle) => ({
+    key: angle.key,
+    name: angle.name,
+    active: angle.active !== false,
+    baseFile: angle.baseFile,
+    stitchFile: angle.stitchFile,
+    layerPartKeys: angle.layerPartKeys || [],
+    layerAssets: schemaLayerAssets(angle)
+  }));
+}
+
+function schemaParts() {
+  return SCHEMA_UTILS.clone(SHOE_SCHEMA.parts).map((part) => ({
+    key: part.key,
+    name: part.name,
+    group: part.group || "upper",
+    selectable: part.selectable !== false,
+    materialRule: part.materialRule || "",
+    renderMode: part.renderMode,
+    renderOrder: part.renderOrder,
+    materialIds: part.materialIds || [],
+    defaultStyle: part.defaultStyle || {},
+    ...(part.fixedVariants ? { fixedVariants: part.fixedVariants.map((variant) => ({ ...variant })) } : {})
+  }));
+}
 
 const CIM_SHARED_CONFIG = window.SKATE_CIM_CONFIG || {};
 
@@ -67,13 +92,9 @@ function normalizeLayerAssets(layerAssets = {}) {
 }
 
 function normalizeAngles(angles, parts) {
-  const sourceAngles = Array.isArray(angles) && angles.length ? angles : angleSeeds;
-  const partKeys = new Set(parts.map((part) => part.key));
+  const sourceAngles = Array.isArray(angles) && angles.length ? angles : schemaAngles();
   return sourceAngles.map((angle) => {
-    const layerAssets = normalizeLayerAssets(angle.layerAssets || {});
-    partKeys.forEach((key) => {
-      if (!layerAssets[key]) layerAssets[key] = emptyLayerAsset();
-    });
+    const layerAssets = normalizeLayerAssets(angle.layerAssets || schemaLayerAssets(angle));
     return {
       key: angle.key,
       name: angle.name,
@@ -91,7 +112,7 @@ function countLayerAssets(angle) {
 }
 
 function ensureLayerAssetSlot(shoe, partKey) {
-  shoe.angles.forEach((angle) => {
+  shoe.angles.filter((angle) => angle.active).forEach((angle) => {
     if (!angle.layerAssets) angle.layerAssets = {};
     if (!angle.layerAssets[partKey]) {
       angle.layerAssets[partKey] = emptyLayerAsset();
@@ -104,6 +125,23 @@ function emptyLayerAsset(source = {}) {
     maskFile: source.maskFile || "",
     topLineFile: source.topLineFile || "",
     shadowFile: source.shadowFile || ""
+  };
+}
+
+function normalizePart(part) {
+  return {
+    key: part.key,
+    name: part.name,
+    en: part.en || part.name,
+    group: part.group || "upper",
+    selectable: part.selectable !== false,
+    renderMode: part.renderMode,
+    renderOrder: part.renderOrder,
+    materialIds: part.materialIds || [],
+    defaultStyle: part.defaultStyle || {},
+    ...(part.fixedVariants ? { fixedVariants: part.fixedVariants.map((variant) => ({ ...variant })) } : {}),
+    ...(part.fixedStyleSet ? { fixedStyleSet: SCHEMA_UTILS.clone(part.fixedStyleSet) } : {}),
+    ...(part.materialRule ? { materialRule: part.materialRule } : {})
   };
 }
 
@@ -138,13 +176,8 @@ function adminShoesFromShared() {
     status: item.status,
     defaultAngle: item.defaultAngleKey || "side",
     updatedAt: item.updatedAt || nowString(),
-    parts: (item.parts?.length ? item.parts : partSeeds).map((part) => ({
-      key: part.key,
-      name: part.name,
-      group: part.group || "upper",
-      selectable: part.selectable !== false
-    })),
-    angles: normalizeAngles(item.angles?.length ? item.angles : angleSeeds, item.parts?.length ? item.parts : partSeeds),
+    parts: (item.parts?.length ? item.parts : schemaParts()).map(normalizePart),
+    angles: normalizeAngles(item.angles?.length ? item.angles : schemaAngles(), item.parts?.length ? item.parts : schemaParts()),
     notes: item.notes || item.description || ""
   }));
 }
@@ -158,6 +191,7 @@ function adminFabricsFromShared() {
     mode: item.mode,
     color: item.color || "#8f9298",
     textureFile: item.textureFile || null,
+    styles: Array.isArray(item.styles) ? item.styles.map((style) => ({ ...style })) : [],
     groups: item.groups || ["upper"],
     status: item.status || "draft",
     updatedAt: item.updatedAt || nowString()
@@ -174,6 +208,87 @@ function adminReleaseFromShared() {
     },
     history: CIM_SHARED_CONFIG.release?.history || []
   };
+}
+
+function buildPublishedConfig() {
+  return {
+    schemaVersion: 1,
+    generatedAt: nowString(),
+    release: clone(state.release),
+    shoes: state.shoes
+      .filter((shoe) => shoe.status === "published")
+      .map((shoe) => ({
+        id: shoe.id,
+        shoeId: shoe.shoeId,
+        name: shoe.name,
+        code: shoe.code,
+        version: shoe.version,
+        status: shoe.status,
+        defaultAngleKey: shoe.defaultAngle,
+        defaultPartKey: shoe.defaultPartKey || "G",
+        updatedAt: shoe.updatedAt,
+        description: shoe.description || shoe.notes || "",
+        notes: shoe.notes || "",
+        homeLabel: shoe.homeLabel || "专业支撑款",
+        homeFeatures: shoe.homeFeatures || [shoe.code, "高帮支撑", "CIM 表格导出"],
+        assets: SCHEMA_UTILS.clone(SHOE_SCHEMA.assets),
+        palettes: SCHEMA_UTILS.clone(SHOE_SCHEMA.palettes),
+        materials: SCHEMA_UTILS.clone(SHOE_SCHEMA.materials),
+        fixedStyleSets: SCHEMA_UTILS.clone(SHOE_SCHEMA.fixedStyleSets),
+        fixedVariants: SCHEMA_UTILS.clone(SHOE_SCHEMA.fixedVariants),
+        angles: shoe.angles.map((angle) => ({
+          key: angle.key,
+          name: angle.name,
+          active: angle.active,
+          baseFile: angle.baseFile,
+          stitchFile: angle.stitchFile || `${angle.key}/stitch.png`,
+          layerPartKeys: Object.keys(angle.layerAssets || {}),
+          layerAssets: normalizeLayerAssets(angle.layerAssets || {})
+        })),
+        parts: shoe.parts.map(normalizePart)
+      })),
+    fabrics: state.fabrics.map((fabric) => ({
+      id: fabric.id,
+      materialKey: fabric.materialKey,
+      name: fabric.name,
+      mode: fabric.mode,
+      color: fabric.color,
+      ...(fabric.textureFile ? { textureFile: fabric.textureFile } : {}),
+      ...(fabric.mode === "fixed_style_set" && Array.isArray(fabric.styles) && fabric.styles.length
+        ? { styles: fabric.styles.map((style) => ({ id: style.id, name: style.name, file: style.file })) }
+        : {}),
+      groups: fabric.groups,
+      status: fabric.status,
+      updatedAt: fabric.updatedAt
+    }))
+  };
+}
+
+function configSourceText(config = buildPublishedConfig()) {
+  return `window.SKATE_CIM_CONFIG = ${JSON.stringify(config, null, 2)};\n`;
+}
+
+function publishConfigToLocalPreview() {
+  localStorage.setItem("SKATE_CIM_PUBLISHED_CONFIG", JSON.stringify(buildPublishedConfig()));
+}
+
+function downloadText(fileName, text) {
+  const blob = new Blob([text], { type: "text/javascript;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportPublishedConfig() {
+  const text = configSourceText();
+  navigator.clipboard?.writeText(text).catch(() => {});
+  downloadText("cim-config.js", text);
+  toast("发布配置已导出，并已复制到剪贴板");
 }
 
 const defaultState = {
@@ -213,6 +328,7 @@ const els = {
   createTestButton: document.querySelector("#createTestButton"),
   stopTestButton: document.querySelector("#stopTestButton"),
   promoteButton: document.querySelector("#promoteButton"),
+  exportConfigButton: document.querySelector("#exportConfigButton"),
   testSummary: document.querySelector("#testSummary"),
   onlineSummary: document.querySelector("#onlineSummary"),
   publishDiff: document.querySelector("#publishDiff"),
@@ -640,8 +756,8 @@ function openShoeModal(item = null) {
       defaultAngle: "side",
       coverData: null,
       updatedAt: nowString(),
-      parts: partSeeds.map((part) => ({ ...part })),
-      angles: normalizeAngles(angleSeeds, partSeeds),
+      parts: schemaParts(),
+      angles: normalizeAngles(schemaAngles(), schemaParts()),
       notes: ""
     }
   );
@@ -748,7 +864,7 @@ function shoeFormHtml(item) {
       <div class="field">
         <span>裁片定义</span>
         <div class="add-part-grid">
-          <input class="input" id="newPartKey" placeholder="裁片 key，如 O" />
+          <input class="input" id="newPartKey" placeholder="裁片 key，如 D1" />
           <input class="input" id="newPartName" placeholder="裁片名称，如侧翼片" />
           <select class="select" id="newPartGroup">
             ${partGroups.map((group) => `<option value="${group}">${group} · ${groupLabel(group)}</option>`).join("")}
@@ -816,7 +932,8 @@ function syncDraftPartsFromForm(form, draft) {
       key,
       name: row.querySelector("[data-part-name-input]")?.value.trim() || key,
       group: row.querySelector("[data-part-group-select]")?.value || "upper",
-      selectable: row.querySelector("[data-part-selectable]")?.checked !== false
+      selectable: row.querySelector("[data-part-selectable]")?.checked !== false,
+      materialRule: row.querySelector("[data-part-rule-input]")?.value.trim() || ""
     });
     keyPairs.push([originalKey, key]);
   });
@@ -825,11 +942,17 @@ function syncDraftPartsFromForm(form, draft) {
   draft.parts = nextParts;
   draft.angles.forEach((angle) => {
     const previousAssets = angle.layerAssets || {};
+    const renamedAssets = new Map(
+      keyPairs
+        .filter(([originalKey, key]) => originalKey !== key && previousAssets[originalKey])
+        .map(([originalKey, key]) => [key, previousAssets[originalKey]])
+    );
     angle.layerAssets = Object.fromEntries(
-      nextParts.map((part, index) => {
-        const [originalKey] = keyPairs[index] || [];
-        const assets = previousAssets[part.key] || previousAssets[originalKey] || {};
-        return [part.key, emptyLayerAsset(assets)];
+      Object.keys(previousAssets).map((assetKey) => {
+        if (nextParts.some((part) => part.key === assetKey)) return [assetKey, emptyLayerAsset(previousAssets[assetKey] || {})];
+        const renamedEntry = [...renamedAssets.entries()].find(([, assets]) => assets === previousAssets[assetKey]);
+        if (renamedEntry) return [renamedEntry[0], emptyLayerAsset(renamedEntry[1])];
+        return [assetKey, emptyLayerAsset(previousAssets[assetKey] || {})];
       })
     );
   });
@@ -853,12 +976,13 @@ function renderPartDefinitionList(form, draft) {
           <select class="select" data-part-group-select aria-label="裁片分组">
             ${partGroups.map((group) => `<option value="${group}" ${part.group === group ? "selected" : ""}>${group} · ${groupLabel(group)}</option>`).join("")}
           </select>
+          <input class="input" data-part-rule-input value="${escapeHtml(part.materialRule || "")}" placeholder="材质规则" aria-label="材质规则" />
           <button class="danger-button part-remove-button" type="button" data-part-remove="${escapeHtml(part.key)}">删除</button>
         </div>`
     )
     .join("");
 
-  target.querySelectorAll("[data-part-name-input]").forEach((input) => {
+  target.querySelectorAll("[data-part-name-input], [data-part-rule-input]").forEach((input) => {
     input.addEventListener("input", () => {
       syncDraftPartsFromForm(form, draft);
       renderAngleLayerEditor(form, draft);
@@ -947,7 +1071,7 @@ function renderAngleLayerEditor(form, draft) {
               <div>裁片</div>
               ${layerAssetFields.map((field) => `<div>${escapeHtml(field.label)}</div>`).join("")}
             </div>
-            ${draft.parts.map((part) => renderLayerAssetRow(angle, part)).join("")}
+            ${draft.parts.filter((part) => angle.layerAssets?.[part.key]).map((part) => renderLayerAssetRow(angle, part)).join("")}
           </div>
         </section>`
     )
@@ -1022,6 +1146,7 @@ function openFabricModal(item = null) {
       mode: "solid_mask",
       color: "#f6f3ec",
       textureFile: null,
+      styles: [],
       groups: ["upper"],
       status: "draft",
       updatedAt: nowString()
@@ -1041,6 +1166,7 @@ function openFabricModal(item = null) {
       draft.materialKey = form.querySelector("#materialKey").value.trim() || slugify(name);
       draft.mode = form.querySelector("#fabricMode").value;
       draft.color = form.querySelector(`[data-color-for="${draft.mode}"]`)?.value || draft.color;
+      draft.styles = draft.mode === "fixed_style_set" ? collectFabricStyles(form) : [];
       draft.groups = [...form.querySelectorAll("[data-fabric-group]:checked")].map((checkbox) => checkbox.value);
       draft.status = form.querySelector("#fabricStatus").value;
       draft.updatedAt = nowString();
@@ -1114,6 +1240,16 @@ function fabricFormHtml(item) {
           </div>
         </div>
       </div>
+      <div class="mode-panel" data-mode-panel="fixed_style_set">
+        <div class="field">
+          <span>固定样式</span>
+          <div class="field-hint">用于草席等完整固定贴图：C 端会读取 styles 并展开为子样式。</div>
+          <div class="fabric-style-list" id="fabricStyleList">
+            ${fabricStylesForForm(item).map((style) => fabricStyleRow(style)).join("")}
+          </div>
+          <button class="secondary-button" id="addFabricStyleButton" type="button">新增样式</button>
+        </div>
+      </div>
       <div class="field">
         <span>适用范围</span>
         <div class="part-grid">
@@ -1129,12 +1265,42 @@ function fabricFormHtml(item) {
     </div>`;
 }
 
+function fabricStylesForForm(item) {
+  if (item.styles?.length) return item.styles;
+  if (item.materialKey === "fixed_straw" || item.mode === "fixed_style_set") return fixedStrawStyleSeeds;
+  return [];
+}
+
+function fabricStyleRow(style = {}) {
+  return `
+    <div class="fabric-style-row" data-fabric-style-row>
+      <input class="input" data-style-id value="${escapeHtml(style.id || "")}" placeholder="style id" />
+      <input class="input" data-style-name value="${escapeHtml(style.name || "")}" placeholder="样式名称" />
+      <input class="input" data-style-file value="${escapeHtml(style.file || "")}" placeholder="贴图路径，如 草席/1336.png" />
+      <button class="danger-button" type="button" data-style-remove>删除</button>
+    </div>`;
+}
+
+function collectFabricStyles(form) {
+  return [...form.querySelectorAll("[data-fabric-style-row]")]
+    .map((row) => ({
+      id: row.querySelector("[data-style-id]")?.value.trim() || "",
+      name: row.querySelector("[data-style-name]")?.value.trim() || "",
+      file: row.querySelector("[data-style-file]")?.value.trim() || ""
+    }))
+    .filter((style) => style.id && style.name && style.file);
+}
+
 function hydrateFabricForm(form, draft) {
   const modeSelect = form.querySelector("#fabricMode");
+  const styleList = form.querySelector("#fabricStyleList");
   const syncPanels = () => {
     form.querySelectorAll("[data-mode-panel]").forEach((panel) => {
       panel.classList.toggle("is-active", panel.dataset.modePanel === modeSelect.value);
     });
+    if (modeSelect.value === "fixed_style_set" && styleList && !styleList.querySelector("[data-fabric-style-row]")) {
+      styleList.innerHTML = fixedStrawStyleSeeds.map((style) => fabricStyleRow(style)).join("");
+    }
   };
   bindUpload(form.querySelector("#tintUploadZone"), form.querySelector("#tintUploadInput"), (file) => {
     draft.textureFile = { name: file.name, size: formatBytes(file.size) };
@@ -1143,6 +1309,14 @@ function hydrateFabricForm(form, draft) {
   bindUpload(form.querySelector("#tileUploadZone"), form.querySelector("#tileUploadInput"), (file) => {
     draft.textureFile = { name: file.name, size: formatBytes(file.size) };
     form.querySelector("#tileUploadMeta").textContent = `${draft.textureFile.name} · ${draft.textureFile.size}`;
+  });
+  form.querySelector("#addFabricStyleButton")?.addEventListener("click", () => {
+    styleList.insertAdjacentHTML("beforeend", fabricStyleRow());
+  });
+  styleList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-style-remove]");
+    if (!button) return;
+    button.closest("[data-fabric-style-row]")?.remove();
   });
   modeSelect.addEventListener("change", syncPanels);
   syncPanels();
@@ -1291,6 +1465,7 @@ function promoteRelease() {
       state.shoes.forEach((shoe) => {
         if (shoe.status === "testing" || shoe.status === "draft") shoe.status = "published";
       });
+      publishConfigToLocalPreview();
       persist();
       render();
       toast("正式版本已发布");
@@ -1401,6 +1576,7 @@ function bindEvents() {
   els.createTestButton.addEventListener("click", openTestModal);
   els.stopTestButton.addEventListener("click", stopTest);
   els.promoteButton.addEventListener("click", promoteRelease);
+  els.exportConfigButton.addEventListener("click", exportPublishedConfig);
   els.ratioSlider.addEventListener("input", () => {
     els.ratioText.textContent = `${els.ratioSlider.value}%`;
     if (state.release.testing) {

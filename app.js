@@ -2,7 +2,7 @@ const MVP_ACTIVE_PART_ID = "G";
 const FIXED_MATERIAL_ID = "fixed-image";
 const LAYER_ASSET_DIR = "./assets/mvp/layers/";
 const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
-const FULL_ANGLE_ASSET_VERSION = "20260518-front-v4";
+const FULL_ANGLE_ASSET_VERSION = "20260523-annotated-v1";
 const REAL_PRODUCT_ASSET_DIR = "./assets/skates/yjs-pro-cim/real-products/";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
 const MATERIAL_ASSET_VERSION = "20260523-bear-test-v1";
@@ -19,128 +19,57 @@ const SHARED_MVP_ASSETS = {
   stitch: `${LAYER_ASSET_DIR}stitch.png`
 };
 
-const YJS_PRO_REAL_PRODUCT_IMAGES = [
-  { file: "brown-1.jpg", alt: "YJS-pro CIM 咖色真实鞋款" },
-  { file: "white-pink-1.jpg", alt: "YJS-pro CIM 白粉真实鞋款" },
-  { file: "white-red-1.jpg", alt: "YJS-pro CIM 白红真实鞋款" },
-  { file: "pink-purple-1.jpg", alt: "YJS-pro CIM 粉紫真实鞋款" },
-  { file: "black-gold-1.jpg", alt: "YJS-pro CIM 黑金真实鞋款" },
-  { file: "silver-white-1.jpg", alt: "YJS-pro CIM 银白真实鞋款" },
-  { file: "black-purple-2.jpg", alt: "YJS-pro CIM 黑紫真实鞋款" }
-];
-
-const FULL_ANGLE_PARTS = ["A", "A1", "F", "G", "H", "C", "C2", "I", "B", "J", "K1", "K2", "L"];
-
-const ANGLE_CONFIG = [
-  { id: "side", label: "侧面", meta: "侧面全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M: ["buckle-white", "buckle-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black"] } },
-  { id: "forty_five", label: "45度", meta: "45度全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M: ["buckle-white", "buckle-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black", "sole-black-gold"] } },
-  { id: "front", label: "正面", meta: "正面全角度 UI", parts: ["F", "G", "H", "C", "C2", "I", "J", "K1", "K2", "L"], fixed: { M: ["buckle-white", "buckle-black"] } }
-];
-
-function fullAngleAsset(path) {
-  return `${FULL_ANGLE_ASSET_DIR}${path}?v=${FULL_ANGLE_ASSET_VERSION}`;
-}
+const SHOE_SCHEMA = window.SKATE_CIM_SCHEMA;
+const SCHEMA_UTILS = window.SKATE_CIM_SCHEMA_UTILS;
 
 function materialAsset(fileName) {
   return `${MATERIAL_ASSET_DIR}${fileName}?v=${MATERIAL_ASSET_VERSION}`;
 }
 
+function activeShoeSchema() {
+  const publishedShoe = (CIM_SHARED_CONFIG.shoes || []).find((item) => item.shoeId === SHOE_SCHEMA.shoeId || item.id === SHOE_SCHEMA.shoeId);
+  return SCHEMA_UTILS.mergePublishedShoe(SHOE_SCHEMA, publishedShoe);
+}
+
 function realProductAsset(fileName) {
-  return `${REAL_PRODUCT_ASSET_DIR}${fileName}`;
+  const schema = activeShoeSchema();
+  return `${schema.assets.root}${schema.assets.realProductDir || "real-products/"}${fileName}`;
 }
 
 function angleAssets(angleId) {
-  const angle = ANGLE_CONFIG.find((item) => item.id === angleId) || ANGLE_CONFIG[0];
-  const fixed = Object.fromEntries(
-    Object.entries(angle.fixed || {}).map(([componentId, variants]) => [
-      componentId,
-      Object.fromEntries(variants.map((variant) => [variant, fullAngleAsset(`${angle.id}/fixed/${componentId}/${variant}.png`)]))
-    ])
-  );
-  return {
-    ...angle,
-    base: fullAngleAsset(`${angle.id}/base.png`),
-    stitch: fullAngleAsset(`${angle.id}/stitch.png`),
-    parts: Object.fromEntries(angle.parts.map((partId) => [partId, fullAngleAsset(`${angle.id}/parts/${partId}.png`)])),
-    fixed
-  };
+  return SCHEMA_UTILS.resolveAngleAssets(activeShoeSchema(), angleId || activeShoeSchema().defaultAngleKey);
 }
 
-const COMPONENT_TEMPLATE = [
-  { id: "A", code: "A", en: "Shoe collar", cn: "鞋帮", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}collar.png`], renderOrder: 30 },
-  { id: "A1", code: "A1", en: "Lower edge", cn: "鞋身下摆", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}lower-edge.png`], renderOrder: 35 },
-  { id: "F", code: "F", en: "Lower body", cn: "下身鞋片", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}lower-body.png`], renderOrder: 40 },
-  { id: "G", code: "G", en: "Main upper", cn: "上身鞋片", palette: "leather", color: "#f0b7c8", material: "pearl", masks: [`${LAYER_ASSET_DIR}upper-body.png`], renderOrder: 45 },
-  { id: "H", code: "H", en: "Toe", cn: "鞋头", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}toe.png`], renderOrder: 50 },
-  { id: "C", code: "C", en: "Tongue", cn: "鞋舌", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}tongue.png`], renderOrder: 55 },
-  { id: "C2", code: "C2", en: "Tongue panel", cn: "鞋舌裁片", palette: "leather", color: "#f0b7c8", material: "pearl", masks: [`${LAYER_ASSET_DIR}tongue-panel.png`], renderOrder: 60 },
-  { id: "I", code: "I", en: "Eyelet panel", cn: "鞋眼片", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}eyelet-panel.png`], renderOrder: 65 },
-  { id: "B", code: "B", en: "Back handle strap", cn: "后提带", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}back-strap.png`], renderOrder: 75 },
-  { id: "J", code: "J", en: "Lace", cn: "鞋带", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}lace.png`], renderOrder: 80 },
-  { id: "K1", code: "K1", en: "Toe strap 1", cn: "扣带1", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-1.png`], renderOrder: 85 },
-  { id: "K2", code: "K2", en: "Toe strap 2", cn: "扣带2", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-2.png`], renderOrder: 90 },
-  { id: "L", code: "L", en: "Abrasive pad", cn: "防磨片", palette: "rubber", color: "#17171a", material: "matte", masks: [`${LAYER_ASSET_DIR}abrasive-pad.png`], renderOrder: 95 },
-  {
-    id: "D",
-    code: "D",
-    en: "Cuff",
-    cn: "CUFF",
-    palette: "fixed",
-    material: FIXED_MATERIAL_ID,
-    defaultVariant: "cuff-silver",
-    renderOrder: 110,
-    fixedOptions: [
-      { id: "cuff-black-gold-1", name: "黑金色 CUFF 1", swatch: "linear-gradient(135deg, #302010 0 72%, #403020 100%)", image: `${LAYER_ASSET_DIR}cuff-black-gold-1.png` },
-      { id: "cuff-silver", name: "银色 CUFF", swatch: "linear-gradient(135deg, #b0b0b0 0 72%, #d8d8d8 100%)", image: `${LAYER_ASSET_DIR}cuff-silver.png` },
-      { id: "cuff-red-black", name: "红黑色 CUFF", swatch: "linear-gradient(135deg, #301010 0 72%, #401818 100%)", image: `${LAYER_ASSET_DIR}cuff-red-black.png` },
-      { id: "cuff-black-gold-2", name: "黑金色 CUFF 2", swatch: "linear-gradient(135deg, #302010 0 72%, #403020 100%)", image: `${LAYER_ASSET_DIR}cuff-black-gold-2.png` },
-      { id: "cuff-black-purple", name: "黑紫色 CUFF", swatch: "linear-gradient(135deg, #281830 0 72%, #302038 100%)", image: `${LAYER_ASSET_DIR}cuff-black-purple.png` },
-      { id: "cuff-black", name: "黑色 CUFF", swatch: "linear-gradient(135deg, #202020 0 72%, #303030 100%)", image: `${LAYER_ASSET_DIR}cuff-black.png` }
-    ]
-  },
-  {
-    id: "M",
-    code: "M",
-    en: "Buckle",
-    cn: "巴扣 / 芭扣",
-    palette: "fixed",
-    material: FIXED_MATERIAL_ID,
-    defaultVariant: "buckle-black",
-    renderOrder: 120,
-    fixedOptions: [
-      { id: "buckle-white", name: "白色巴扣", swatch: "#f7f7f8", image: `${LAYER_ASSET_DIR}buckle-white.png` },
-      { id: "buckle-black", name: "黑色巴扣", swatch: "#17171a", image: `${LAYER_ASSET_DIR}buckle-black.png` }
-    ]
-  },
-  {
-    id: "N",
-    code: "N",
-    en: "Sole",
-    cn: "鞋底",
-    palette: "fixed",
-    material: FIXED_MATERIAL_ID,
-    defaultVariant: "sole-silver",
-    renderOrder: 20,
-    fixedOptions: [
-      { id: "sole-silver", name: "银色鞋底", swatch: "linear-gradient(135deg, #d8d0d0 0 72%, #e0e0e0 100%)", image: `${LAYER_ASSET_DIR}sole-silver.png` },
-      { id: "sole-black-red", name: "黑红色鞋底", swatch: "linear-gradient(135deg, #301010 0 72%, #401818 100%)", image: `${LAYER_ASSET_DIR}sole-black-red.png` },
-      { id: "sole-black-purple", name: "黑紫色鞋底", swatch: "linear-gradient(135deg, #281830 0 72%, #302038 100%)", image: `${LAYER_ASSET_DIR}sole-black-purple.png` },
-      { id: "sole-black", name: "黑色鞋底", swatch: "linear-gradient(135deg, #202020 0 72%, #282828 100%)", image: `${LAYER_ASSET_DIR}sole-black.png` }
-    ]
-  }
-];
+function buildComponentsFromSchema(schema) {
+  return (schema.parts || []).map((part) => ({
+    id: part.key,
+    code: part.key,
+    en: part.en || part.name,
+    cn: part.name,
+    group: part.group,
+    palette: part.group,
+    editable: part.selectable !== false,
+    renderMode: part.renderMode,
+    renderOrder: part.renderOrder,
+    materialRule: part.materialRule,
+    materialIds: part.materialIds || [],
+    fixedOptions: part.fixedVariants || part.fixedStyleSet?.variants || null,
+    fixedColorOptions: part.fixedStyleSet?.colorOptions || null,
+    fixedStyleSet: part.fixedStyleSet || null,
+    color: part.defaultStyle?.color || "#f6f3ec",
+    material: part.defaultStyle?.material || "smooth",
+    defaultVariant: part.defaultStyle?.variant || part.defaultStyle?.material || part.fixedStyleSet?.defaultVariant || part.fixedVariants?.[0]?.id || ""
+  }));
+}
 
 const SHARED_PRODUCT_DETAILS = {
   fixedItems: [
-    { en: "Double strap", cn: "能量带", value: "黑色" },
-    { en: "Spider buckle", cn: "蜘蛛扣", value: "参考黑色公款" },
-    { en: "Boot stitch", cn: "主绣线", value: "参考黑色公款" }
+    { en: "Upper energy strap", cn: "上能量带", value: "黑色" },
+    { en: "Lower energy strap", cn: "下能量带", value: "黑色" },
+    { en: "Mushroom nail", cn: "蘑菇钉", value: "黑色" },
+    { en: "Spider buckle", cn: "蜘蛛扣", value: "参考黑色公款" }
   ],
-  padStyles: [
-    { id: "new", name: "新" },
-    { id: "old", name: "旧" },
-    { id: "brake", name: "刹车防磨片" }
-  ],
+  padStyles: [],
   embroiderySlots: [
     { id: "B1", code: "B1", en: "Back handle strap", cn: "后提带电绣", enabled: true },
     { id: "tongue", code: "C", en: "Tongue", cn: "鞋舌电绣片", enabled: true },
@@ -149,98 +78,55 @@ const SHARED_PRODUCT_DETAILS = {
   ]
 };
 
-function buildComponents(overrides = {}) {
-  return COMPONENT_TEMPLATE.map((component) => ({
-    ...component,
-    ...(overrides[component.id] || {})
-  }));
+const CIM_SHARED_CONFIG = (() => {
+  try {
+    const localConfig = JSON.parse(localStorage.getItem("SKATE_CIM_PUBLISHED_CONFIG") || "null");
+    if (localConfig?.schemaVersion && Array.isArray(localConfig.shoes)) return localConfig;
+  } catch {
+    localStorage.removeItem("SKATE_CIM_PUBLISHED_CONFIG");
+  }
+  return window.SKATE_CIM_CONFIG || {};
+})();
+
+function publishedShoeForSchema(schema = SHOE_SCHEMA) {
+  return (CIM_SHARED_CONFIG.shoes || []).find((item) => item.shoeId === schema.shoeId || item.id === schema.shoeId || item.id === `shoe-${schema.shoeId}`);
 }
 
-const CIM_SHARED_CONFIG = window.SKATE_CIM_CONFIG || {};
-const PUBLISHED_SHOE_IDS = new Set(
-  (CIM_SHARED_CONFIG.shoes || [])
-    .filter((item) => item.status === "published")
-    .map((item) => item.shoeId)
-);
-
-const PRODUCT_CATALOG = [
-  {
-    id: "yjs-pro-cim-upper",
-    name: "YJS-pro CIM",
-    code: "YJS-PRO",
+function productFromSchema(schema) {
+  const productSchema = SCHEMA_UTILS.mergePublishedShoe(schema, publishedShoeForSchema(schema));
+  return {
+    id: productSchema.shoeId,
+    shoeId: productSchema.shoeId,
+    name: productSchema.name,
+    code: productSchema.code,
     price: "专业上鞋定制",
     homeTag: "Pro Custom",
-    homeLabel: "专业支撑款",
-    description: "高帮轮滑鞋上鞋定制，面向进阶训练与比赛配置，支持按标注裁片扩展颜色和皮料。",
-    note: "巴扣、鞋底、CUFF 使用切图指定固定色值；其余标注裁片支持颜色与皮料选择。",
-    homeFeatures: ["高帮支撑", "碳纤鞋壳", "确认单导出"],
-    realProductImages: YJS_PRO_REAL_PRODUCT_IMAGES,
+    homeLabel: productSchema.homeLabel || "专业支撑款",
+    description: productSchema.description || "高帮轮滑鞋上鞋定制，面向进阶训练与比赛配置。",
+    note: productSchema.notes || "鞋款裁片、视角、布料和贴图由统一 schema 驱动。",
+    homeFeatures: productSchema.homeFeatures || ["高帮支撑", "碳纤鞋壳", "确认单导出"],
+    realProductImages: productSchema.assets?.realProducts || [],
     accentA: "#f0b7c8",
     accentB: "#ad94ff",
-    angles: ANGLE_CONFIG,
-    defaultAngle: "side",
-    editablePartId: MVP_ACTIVE_PART_ID,
+    angles: (productSchema.angles || [])
+      .filter((angle) => angle.active !== false)
+      .map((angle) => ({ id: angle.key, key: angle.key, label: angle.name, meta: angle.name })),
+    defaultAngle: productSchema.defaultAngleKey || "side",
+    editablePartId: productSchema.defaultPartKey || MVP_ACTIVE_PART_ID,
     assets: SHARED_MVP_ASSETS,
-    components: buildComponents({
-      G: { color: "#f0b7c8", material: "pearl" },
-      C2: { color: "#f0b7c8", material: "pearl" },
-      D: { defaultVariant: "cuff-silver" },
-      M: { defaultVariant: "buckle-black" },
-      N: { defaultVariant: "sole-silver" }
-    }),
+    schema: productSchema,
+    components: buildComponentsFromSchema(productSchema),
     ...SHARED_PRODUCT_DETAILS
-  }
-].filter((item) => PUBLISHED_SHOE_IDS.size === 0 || PUBLISHED_SHOE_IDS.has(item.id));
+  };
+}
 
-const PALETTES = {
-  leather: [
-    { id: "white", name: "奶油白", value: "#f6f3ec" },
-    { id: "pink", name: "樱花粉", value: "#f0b7c8" },
-    { id: "silver", name: "银灰", value: "#cfd2d5" },
-    { id: "black", name: "黑色", value: "#17171a" },
-    { id: "mint", name: "薄荷绿", value: "#86d9bd" },
-    { id: "blue", name: "冰蓝", value: "#8ed8ff" },
-    { id: "violet", name: "雾紫", value: "#b9a7ff" },
-    { id: "scarlet", name: "红莓", value: "#e95a67" }
-  ],
-  strap: [
-    { id: "white", name: "白色织带", value: "#ffffff" },
-    { id: "black", name: "黑色织带", value: "#17171a" },
-    { id: "pink", name: "粉色织带", value: "#f0b7c8" },
-    { id: "grey", name: "浅灰织带", value: "#d8d9de" }
-  ],
-  carbon: [
-    { id: "black-carbon", name: "黑碳纤", value: "#2d2e32" },
-    { id: "silver-carbon", name: "银碳纤", value: "#aeb3b8" },
-    { id: "smoke-carbon", name: "烟灰碳纤", value: "#5d6068" }
-  ],
-  hardware: [
-    { id: "white", name: "白色", value: "#f7f7f8" },
-    { id: "silver", name: "银色", value: "#cfd2d5" },
-    { id: "black", name: "黑色", value: "#17171a" }
-  ],
-  rubber: [
-    { id: "black", name: "黑色", value: "#17171a" },
-    { id: "white", name: "白色", value: "#f6f3ec" },
-    { id: "grey", name: "灰色", value: "#8f9298" }
-  ]
-};
+const PRODUCT_CATALOG = [productFromSchema(SHOE_SCHEMA)].filter((item) => {
+  const publishedShoes = (CIM_SHARED_CONFIG.shoes || []).filter((shoe) => shoe.status === "published");
+  if (!publishedShoes.length) return true;
+  return publishedShoes.some((shoe) => shoe.shoeId === item.id || shoe.id === item.id || shoe.id === `shoe-${item.id}`);
+});
 
-const MATERIALS = [
-  { id: "smooth", name: "光面皮", note: "细腻皮革" },
-  { id: "mesh", name: "网布纹理", note: "细密织纹" },
-  { id: "pearl", name: "珍珠皮", note: "柔亮渐变" },
-  { id: "matte", name: "哑光皮", note: "低反光" },
-  { id: "chinoiserie-pink", name: "中国风粉色", note: "固定花纹布料" },
-  { id: "chinoiserie-white", name: "中国风白色", note: "固定花纹布料" },
-  { id: "fixed-straw", name: "草席", note: "固定贴图 · 点开选择样式" },
-  { id: "carbon", name: "碳纤皮", note: "碳纤纹理" },
-  { id: "webbing", name: "织带", note: "绑带质感" },
-  { id: "hardware", name: "五金", note: "扣件质感" },
-  { id: FIXED_MATERIAL_ID, name: "固定贴图", note: "按切图色值" }
-];
-
-const FIXED_STRAW_STYLES = [
+const STATIC_FIXED_STRAW_STYLES = [
   { id: "fixed-straw-1336", name: "1336号皮料", parentId: "fixed-straw", file: "草席/1336.png" },
   { id: "fixed-straw-1437", name: "1437号皮料", parentId: "fixed-straw", file: "草席/1437.png" },
   { id: "fixed-straw-1518", name: "1518号皮料", parentId: "fixed-straw", file: "草席/1518.png" },
@@ -249,9 +135,27 @@ const FIXED_STRAW_STYLES = [
   { id: "fixed-straw-2932", name: "2932号皮料", parentId: "fixed-straw", file: "草席/2932.png" }
 ];
 
+function fixedStrawStylesFromSharedConfig() {
+  const fabric = (CIM_SHARED_CONFIG.fabrics || []).find((item) => item.materialKey === "fixed_straw" || item.id === "fabric-fixed-straw");
+  if (!Array.isArray(fabric?.styles) || !fabric.styles.length) return [];
+  return fabric.styles.map((style) => ({
+    id: style.id,
+    name: style.name,
+    parentId: "fixed-straw",
+    file: style.file
+  }));
+}
+
+const SHARED_FIXED_STRAW_STYLES = fixedStrawStylesFromSharedConfig();
+const FIXED_STRAW_STYLES = SHARED_FIXED_STRAW_STYLES.length ? SHARED_FIXED_STRAW_STYLES : STATIC_FIXED_STRAW_STYLES;
+
 PRODUCT_CATALOG.forEach((item) => {
   item.components.forEach((component) => {
-    component.editable = component.editable !== false && (Boolean(component.masks?.length) || Boolean(component.fixedOptions?.length));
+    const hasAnyLayer = item.angles.some((angle) => {
+      const assets = angleAssets(angle.id);
+      return Boolean(assets?.parts?.[component.id] || assets?.fixed?.[component.id]);
+    });
+    component.editable = component.editable !== false && hasAnyLayer;
     if (!component.editable) component.lockReason = "暂未配置切图";
   });
 });
@@ -333,11 +237,11 @@ function selectedComponent() {
 }
 
 function productAngles(item = product()) {
-  return item?.angles?.length ? item.angles : ANGLE_CONFIG;
+  return item?.angles?.length ? item.angles : (activeShoeSchema().angles || []).map((angle) => ({ id: angle.key, key: angle.key, label: angle.name, meta: angle.name }));
 }
 
 function currentAngleConfig(item = product(), angleId = state.angle) {
-  return productAngles(item).find((angle) => angle.id === angleId) || productAngles(item)[0] || ANGLE_CONFIG[0];
+  return productAngles(item).find((angle) => angle.id === angleId || angle.key === angleId) || productAngles(item)[0] || { id: activeShoeSchema().defaultAngleKey || "side", label: "侧面" };
 }
 
 function effectAngleConfig(item = product()) {
@@ -355,17 +259,18 @@ function cloneProductConfig(item) {
     components: Object.fromEntries(
       item.components.map((component) => {
         const fixedOption = defaultFixedOption(component);
+        const fixedColor = component.fixedColorOptions?.[0];
         return [
           component.id,
           {
-            color: fixedOption?.id || component.color,
+            color: fixedColor?.value || fixedOption?.id || component.color,
             variant: fixedOption?.id || "",
-            material: fixedOption ? FIXED_MATERIAL_ID : component.material
+            material: fixedColor ? fixedOption?.id : (fixedOption ? FIXED_MATERIAL_ID : component.material)
           }
         ];
       })
     ),
-    padStyle: item.padStyles[0].id,
+    padStyle: item.padStyles[0]?.id || "",
     embroidery: Object.fromEntries(
       item.embroiderySlots.map((slot) => [
         slot.id,
@@ -388,13 +293,14 @@ function componentConfigFor(item, id) {
 }
 
 function colorOptions(component) {
+  if (component.fixedColorOptions) return component.fixedColorOptions;
   if (component.fixedOptions) {
     return component.fixedOptions.map((option) => ({
       ...option,
       value: option.id
     }));
   }
-  return PALETTES[component.palette] || PALETTES.leather;
+  return activeShoeSchema().palettes?.[component.palette] || activeShoeSchema().palettes?.leather || [];
 }
 
 function isColorControlVisible(component = selectedComponent(), config = componentConfig(component.id)) {
@@ -402,18 +308,11 @@ function isColorControlVisible(component = selectedComponent(), config = compone
 }
 
 function materialsFor(component) {
-  if (component.fixedOptions) return MATERIALS.filter((item) => item.id === FIXED_MATERIAL_ID);
-  if (["A", "A1", "G"].includes(component.id)) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte" || item.id === "chinoiserie-pink" || item.id === "chinoiserie-white" || item.id === "fixed-straw");
-  if (component.editable) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte");
-  if (component.palette === "carbon") return MATERIALS.filter((item) => item.id === "carbon" || item.id === "matte");
-  if (component.palette === "strap") return MATERIALS.filter((item) => item.id === "webbing" || item.id === "smooth");
-  if (component.palette === "hardware") return MATERIALS.filter((item) => item.id === "hardware" || item.id === "matte");
-  if (component.palette === "rubber") return MATERIALS.filter((item) => item.id === "matte" || item.id === "smooth");
-  return MATERIALS.filter((item) => item.id === "smooth" || item.id === "pearl" || item.id === "matte");
+  return SCHEMA_UTILS.materialsForPart(activeShoeSchema(), component.id);
 }
 
 function materialById(id) {
-  return fixedStrawStyleByMaterial(id) || MATERIALS.find((item) => item.id === id) || MATERIALS[0];
+  return fixedStrawStyleByMaterial(id) || activeShoeSchema().materials.find((item) => item.id === id) || activeShoeSchema().materials[0];
 }
 
 function fixedStrawStyleByMaterial(id) {
@@ -426,6 +325,7 @@ function fixedStrawStylePatch(styleId = FIXED_STRAW_STYLES[0].id) {
 }
 
 function colorName(value, component = selectedComponent()) {
+  if (component?.fixedColorOptions) return component.fixedColorOptions.find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value;
   if (component?.fixedOptions) return fixedOption(component, { color: value, variant: value })?.name || value;
   return colorOptions(component).find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value;
 }
@@ -437,22 +337,48 @@ function defaultFixedOption(component) {
 
 function fixedOption(component, config = componentConfig(component.id)) {
   if (!component.fixedOptions) return null;
-  const fixedId = config?.variant || config?.color || component.defaultVariant;
+  const fixedId = component.fixedColorOptions ? (config?.material || config?.variant || component.defaultVariant) : (config?.variant || config?.color || component.defaultVariant);
   return component.fixedOptions.find((option) => option.id === fixedId) || defaultFixedOption(component);
 }
 
+function fixedImageId(component, option, config = componentConfig(component.id)) {
+  if (!component.fixedColorOptions) return option?.id || "";
+  const color = component.fixedColorOptions.find((item) => item.value.toLowerCase() === (config?.color || component.color || "").toLowerCase()) || component.fixedColorOptions[0];
+  return `${option.sourcePrefix}-${color.suffix}`;
+}
+
 function componentPreview(component, config = componentConfig(component.id)) {
+  if (component.fixedColorOptions) return config.color || component.color;
   const option = fixedOption(component, config);
   if (option) return option.swatch;
   return cssTexture(config.color, config.material);
 }
 
+function texturePreview(component, config, material) {
+  if (component.fixedColorOptions) return material.swatch || componentPreview(component, config);
+  return component.fixedOptions ? componentPreview(component, config) : cssTexture(config.color, material.id);
+}
+
+function isSelectedMaterial(component, config, material) {
+  if (material.id === "fixed-straw") return Boolean(fixedStrawStyleByMaterial(config.material));
+  return material.id === config.material;
+}
+
+function shouldExpandMaterial(component, config, material) {
+  if (!isSelectedMaterial(component, config, material)) return false;
+  if (material.id === "fixed-straw") return true;
+  if (component.fixedOptions) return true;
+  return !material.id.startsWith("chinoiserie-");
+}
+
 function componentColorValue(component, config = componentConfig(component.id)) {
+  if (component.fixedColorOptions) return config.color || component.color;
   const option = fixedOption(component, config);
   return option?.swatch || config.color;
 }
 
-function materialName(id) {
+function materialName(id, component = selectedComponent()) {
+  if (component?.fixedColorOptions) return fixedOption(component, { material: id, variant: id })?.name || id;
   return materialById(id).name;
 }
 
@@ -646,8 +572,10 @@ function renderableComponents(item = product()) {
 function fixedImageForAngle(component, config, angle) {
   const option = fixedOption(component, config);
   if (!option) return "";
+  if (component.fixedColorOptions) return "";
   if (angle?.fixed && !angle.fixed[component.id]) return "";
-  return angle?.fixed?.[component.id]?.[option.id] || option.image;
+  const imageId = fixedImageId(component, option, config);
+  return angle?.fixed?.[component.id]?.[imageId] || option.image;
 }
 
 function hitSourcesForComponent(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
@@ -813,7 +741,6 @@ async function renderShoeSnapshot(item = product(), angleId = currentAngleConfig
       await drawSnapshotMaskedMaterial(context, width, height, mask, config);
     }
   }
-
   const stitch = await loadSnapshotImage(angle.stitch);
   if (stitch) {
     context.save();
@@ -1189,7 +1116,7 @@ function componentLayerMarkup(component, item = product(), angle = angleAssets(c
   const layerIndex = component.renderOrder || 1;
   const option = fixedOption(component, config);
 
-  if (option) {
+  if (option && !component.fixedColorOptions) {
     const fixedImage = fixedImageForAngle(component, config, angle);
     if (!fixedImage) return "";
     return `
@@ -1320,7 +1247,8 @@ function renderAngleTabs() {
 
 function renderParts() {
   const item = product();
-  const angle = angleAssets(currentAngleConfig(item).id);
+  const currentAngle = currentAngleConfig(item);
+  const angle = angleAssets(currentAngle.id);
   els.partRail.innerHTML = item.components
     .map((component) => {
       const config = componentConfig(component.id);
@@ -1340,21 +1268,30 @@ function renderParts() {
 }
 
 function renderSwatches() {
-  const component = selectedComponent();
-  const config = componentConfig();
   const colorBlock = els.swatchGrid.closest(".color-block");
-  const isVisible = isColorControlVisible(component, config);
-  if (colorBlock) colorBlock.hidden = !isVisible;
-  if (!isVisible) {
-    els.swatchGrid.innerHTML = "";
-    return;
-  }
-  els.swatchGrid.innerHTML = colorOptions(component)
+  if (colorBlock) colorBlock.hidden = true;
+  els.swatchGrid.innerHTML = "";
+}
+
+function renderMaterialSubChoices(component, config, material) {
+  if (!shouldExpandMaterial(component, config, material)) return "";
+  if (material.id === "fixed-straw") return renderFixedStrawStyles(component, config);
+  const title = component.fixedColorOptions ? "颜色" : (component.fixedOptions ? "选项" : "颜色");
+  return renderInlineSwatches(component, config, title);
+}
+
+function renderInlineSwatches(component, config, title) {
+  const swatches = colorOptions(component)
     .map(
       (color) => `
-        <button class="swatch-button" type="button" title="${color.name}" aria-label="${color.name}" aria-pressed="${color.value.toLowerCase() === (config.variant || config.color).toLowerCase()}" data-part-id="${component.id}" data-color="${color.value}" style="--swatch:${color.swatch || color.value};"></button>`
+        <button class="swatch-button" type="button" title="${color.name}" aria-label="${color.name}" aria-pressed="${color.value.toLowerCase() === (component.fixedColorOptions ? config.color : (config.variant || config.color)).toLowerCase()}" data-part-id="${component.id}" data-color="${color.value}" style="--swatch:${color.swatch || color.value};"></button>`
     )
     .join("");
+  return `
+    <div class="texture-subpanel" role="group" aria-label="${title}">
+      <div class="texture-subtitle">${title}</div>
+      <div class="swatch-grid swatch-grid--inline">${swatches}</div>
+    </div>`;
 }
 
 function renderTextures() {
@@ -1362,18 +1299,17 @@ function renderTextures() {
   const config = componentConfig();
   els.textureList.innerHTML = materialsFor(component)
     .map((material) => {
-      const isFixedStraw = material.id === "fixed-straw";
-      const isFixedStrawSelected = isFixedStraw && Boolean(fixedStrawStyleByMaterial(config.material));
+      const isSelected = isSelectedMaterial(component, config, material);
       return `
-      <button class="texture-button" type="button" data-part-id="${component.id}" data-material="${material.id}" aria-pressed="${material.id === config.material}">
-        <span class="texture-preview" style="--texture:${component.fixedOptions ? componentPreview(component, config) : cssTexture(config.color, material.id)};"></span>
+      <button class="texture-button" type="button" data-part-id="${component.id}" data-material="${material.id}" aria-pressed="${isSelected}">
+        <span class="texture-preview" style="--texture:${texturePreview(component, config, material)};"></span>
         <span>
           <strong>${material.name}</strong>
           <span>${material.note}</span>
         </span>
-        <span class="texture-check">${material.id === config.material || isFixedStrawSelected ? "✓" : ""}</span>
+        <span class="texture-check">${isSelected ? "✓" : ""}</span>
       </button>
-      ${isFixedStraw && isFixedStrawSelected ? renderFixedStrawStyles(component, config) : ""}`;
+      ${renderMaterialSubChoices(component, config, material)}`;
     })
     .join("");
 }
@@ -1398,6 +1334,7 @@ function renderShoe() {
 function buildExportData(options = {}) {
   const item = product();
   const selectedEffect = effectAngleConfig(item);
+  const currentAngle = currentAngleConfig(item);
   const includeImageData = options.includeImageData === true;
   const includeEffectSnapshots = options.includeEffectSnapshots === true && effectSnapshotsReady(item);
   return {
@@ -1416,7 +1353,7 @@ function buildExportData(options = {}) {
         name: component.cn,
         color: colorName(config.color, component),
         colorValue: componentColorValue(component, config),
-        material: materialName(config.material)
+        material: materialName(config.material, component)
       };
     }),
     fixedItems: item.fixedItems,
@@ -1464,7 +1401,7 @@ function renderSummary() {
     selectedPart: component.code,
     color: colorName(config.color),
     colorValue: componentColorValue(component, config),
-    material: materialName(config.material)
+    material: materialName(config.material, component)
   };
 
   els.modelName.textContent = item.name;
@@ -1474,7 +1411,7 @@ function renderSummary() {
   els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${component.cn}` : "";
   els.selectedPartTitle.textContent = `正在编辑：${component.cn}`;
   els.selectedColorName.textContent = colorName(config.color);
-  els.selectedTextureName.textContent = materialName(config.material);
+  els.selectedTextureName.textContent = materialName(config.material, component);
   els.configPreview.textContent = JSON.stringify(output, null, 2);
 }
 
@@ -1723,16 +1660,8 @@ function renderConfirmModal() {
         <section class="confirm-section confirm-special-section">
           <div class="section-title">
             <h3>特殊定制</h3>
-            <span>电绣 / 防磨片 / 固定件</span>
+            <span>电绣 / 固定件</span>
           </div>
-          <label class="select-row">
-            <span>L1 防磨片款式</span>
-            <select data-pad-style>
-              ${product().padStyles
-                .map((style) => `<option value="${style.id}" ${style.name === data.padStyle ? "selected" : ""}>${style.name}</option>`)
-                .join("")}
-            </select>
-          </label>
           <div class="embroidery-list">
             ${product().embroiderySlots
               .map((slot) => {
@@ -2182,7 +2111,7 @@ function buildConfirmationSheetHtml(data) {
       <section class="sheet-section">
         <h2>特殊定制</h2>
         <div class="info-grid">
-          <div class="info-item"><span>L1 防磨片款式</span><strong>${escapeHtml(data.padStyle || "-")}</strong></div>
+          ${data.padStyle ? `<div class="info-item"><span>L1 防磨片款式</span><strong>${escapeHtml(data.padStyle)}</strong></div>` : ""}
         </div>
         <table aria-label="电绣定制">
           <thead>
@@ -2344,21 +2273,32 @@ function bindEvents() {
     selectPart(button.dataset.part, true);
   });
 
-  els.swatchGrid.addEventListener("click", (event) => {
+  const handleColorClick = (event) => {
     const button = event.target.closest("[data-color]");
     if (!button) return;
     const partId = button.dataset.partId || state.selectedPartId;
     const component = product().components.find((item) => item.id === partId) || selectedComponent();
     invalidatePendingShoeHit();
     state.selectedPartId = component.id;
+    if (component.fixedColorOptions) {
+      updatePartConfig(component.id, { color: button.dataset.color });
+      return;
+    }
     if (component.fixedOptions) {
       updatePartConfig(component.id, { color: button.dataset.color, variant: button.dataset.color, material: FIXED_MATERIAL_ID });
       return;
     }
     updatePartConfig(component.id, { color: button.dataset.color, variant: "" });
-  });
+  };
+
+  els.swatchGrid.addEventListener("click", handleColorClick);
 
   els.textureList.addEventListener("click", (event) => {
+    if (event.target.closest("[data-color]")) {
+      handleColorClick(event);
+      return;
+    }
+
     const strawStyleButton = event.target.closest("[data-straw-style]");
     if (strawStyleButton) {
       const partId = strawStyleButton.dataset.partId || state.selectedPartId;
