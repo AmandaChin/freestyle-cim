@@ -29,12 +29,12 @@ const YJS_PRO_REAL_PRODUCT_IMAGES = [
   { file: "black-purple-2.jpg", alt: "YJS-pro CIM 黑紫真实鞋款" }
 ];
 
-const FULL_ANGLE_PARTS = ["A", "A1", "F", "G", "H", "C", "C2", "I", "B", "J", "K1", "K2"];
+const FULL_ANGLE_PARTS = ["A", "B", "C", "C2", "F", "G", "H", "I", "J", "K1", "K2", "L"];
 
 const ANGLE_CONFIG = [
   { id: "side", label: "侧面", meta: "侧面全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M1: ["upper-strap-white", "upper-strap-black"], M2: ["lower-strap-white", "lower-strap-black"], L: { "pad-style-1": ["pad-new-white", "pad-new-black"], "pad-style-2": ["pad-old-white", "pad-old-black"] }, O: ["mushroom-nail-white", "mushroom-nail-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black"] } },
   { id: "forty_five", label: "45度", meta: "45度全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M1: ["upper-strap-white", "upper-strap-black"], M2: ["lower-strap-white", "lower-strap-black"], L: { "pad-style-1": ["pad-new-white", "pad-new-black"], "pad-style-2": ["pad-old-white", "pad-old-black"] }, O: ["mushroom-nail-white", "mushroom-nail-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black", "sole-black-gold"] } },
-  { id: "front", label: "正面", meta: "正面全角度 UI", parts: ["F", "G", "H", "C", "C2", "I", "J", "K1", "K2"], fixed: { M1: ["upper-strap-white", "upper-strap-black"], M2: ["lower-strap-white", "lower-strap-black"], L: { "pad-style-1": ["pad-new-white", "pad-new-black"], "pad-style-2": ["pad-old-white", "pad-old-black"] } } }
+  { id: "front", label: "正面", meta: "正面全角度 UI", parts: ["C", "C2", "F", "G", "H", "I", "J", "K1", "K2", "L"], fixed: { M1: ["upper-strap-white", "upper-strap-black"], M2: ["lower-strap-white", "lower-strap-black"], L: { "pad-style-1": ["pad-new-white", "pad-new-black"], "pad-style-2": ["pad-old-white", "pad-old-black"] } } }
 ];
 
 function fullAngleAsset(path) {
@@ -70,17 +70,16 @@ function angleAssets(angleId) {
 
 const COMPONENT_TEMPLATE = [
   { id: "A", code: "A", en: "Shoe collar", cn: "鞋帮", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}collar.png`], renderOrder: 30 },
-  { id: "A1", code: "A1", en: "Lower edge", cn: "鞋身下摆", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}lower-edge.png`], renderOrder: 35 },
-  { id: "F", code: "F", en: "Lower body", cn: "下身鞋片", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}lower-body.png`], renderOrder: 40 },
+  { id: "F", code: "F", en: "Lower body", cn: "下鞋身片", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}lower-body.png`], renderOrder: 40 },
   { id: "G", code: "G", en: "Main upper", cn: "上身鞋片", palette: "leather", color: "#f0b7c8", material: "pearl", masks: [`${LAYER_ASSET_DIR}upper-body.png`], renderOrder: 45 },
-  { id: "H", code: "H", en: "Toe", cn: "鞋头", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}toe.png`], renderOrder: 50 },
+  { id: "H", code: "H", en: "Toe lower panel", cn: "鞋头下片", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}toe.png`], renderOrder: 50, materialRule: "部分可用（PU/TPU 不可用于鞋头）" },
   { id: "C", code: "C", en: "Tongue", cn: "鞋舌", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}tongue.png`], renderOrder: 55 },
-  { id: "C2", code: "C2", en: "Tongue panel", cn: "鞋舌裁片", palette: "leather", color: "#f0b7c8", material: "pearl", masks: [`${LAYER_ASSET_DIR}tongue-panel.png`], renderOrder: 60 },
+  { id: "C2", code: "C2", en: "Tongue triangle panel", cn: "鞋舌三角片", palette: "leather", color: "#f0b7c8", material: "pearl", masks: [`${LAYER_ASSET_DIR}tongue-panel.png`], renderOrder: 60 },
   { id: "I", code: "I", en: "Eyelet panel", cn: "鞋眼片", palette: "leather", color: "#f6f3ec", material: "smooth", masks: [`${LAYER_ASSET_DIR}eyelet-panel.png`], renderOrder: 65 },
   { id: "B", code: "B", en: "Back handle strap", cn: "后提带", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}back-strap.png`], renderOrder: 75 },
   { id: "J", code: "J", en: "Lace", cn: "鞋带", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}lace.png`], renderOrder: 80 },
-  { id: "K1", code: "K1", en: "Toe strap 1", cn: "扣带1", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-1.png`], renderOrder: 85 },
-  { id: "K2", code: "K2", en: "Toe strap 2", cn: "扣带2", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-2.png`], renderOrder: 90 },
+  { id: "K1", code: "K1", en: "Front velcro strap 1", cn: "前魔术贴绑带1", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-1.png`], renderOrder: 85 },
+  { id: "K2", code: "K2", en: "Front velcro strap 2", cn: "前魔术贴绑带2", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-2.png`], renderOrder: 90 },
   {
     id: "L",
     code: "L",
@@ -362,7 +361,7 @@ const MATERIALS = [
   { id: FIXED_MATERIAL_ID, name: "固定贴图", note: "按切图色值" }
 ];
 
-const FIXED_STRAW_STYLES = [
+const STATIC_FIXED_STRAW_STYLES = [
   { id: "fixed-straw-1336", name: "1336号皮料", parentId: "fixed-straw", file: "草席/1336.png" },
   { id: "fixed-straw-1437", name: "1437号皮料", parentId: "fixed-straw", file: "草席/1437.png" },
   { id: "fixed-straw-1518", name: "1518号皮料", parentId: "fixed-straw", file: "草席/1518.png" },
@@ -370,6 +369,20 @@ const FIXED_STRAW_STYLES = [
   { id: "fixed-straw-1741", name: "1741号皮料", parentId: "fixed-straw", file: "草席/1741.png" },
   { id: "fixed-straw-2932", name: "2932号皮料", parentId: "fixed-straw", file: "草席/2932.png" }
 ];
+
+function fixedStrawStylesFromSharedConfig() {
+  const fabric = (CIM_SHARED_CONFIG.fabrics || []).find((item) => item.materialKey === "fixed_straw" || item.id === "fabric-fixed-straw");
+  if (!Array.isArray(fabric?.styles) || !fabric.styles.length) return [];
+  return fabric.styles.map((style) => ({
+    id: style.id,
+    name: style.name,
+    parentId: "fixed-straw",
+    file: style.file
+  }));
+}
+
+const SHARED_FIXED_STRAW_STYLES = fixedStrawStylesFromSharedConfig();
+const FIXED_STRAW_STYLES = SHARED_FIXED_STRAW_STYLES.length ? SHARED_FIXED_STRAW_STYLES : STATIC_FIXED_STRAW_STYLES;
 
 PRODUCT_CATALOG.forEach((item) => {
   item.components.forEach((component) => {

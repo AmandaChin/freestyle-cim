@@ -20,8 +20,18 @@ const modules = {
 const renderModes = {
   solid_mask: "固定色值蒙版",
   texture_tint: "纹理调色",
-  image_tile: "图片平铺"
+  image_tile: "图片平铺",
+  fixed_style_set: "固定样式组"
 };
+
+const fixedStrawStyleSeeds = [
+  { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.png" },
+  { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.png" },
+  { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.png" },
+  { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.png" },
+  { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.png" },
+  { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.png" }
+];
 
 const shoeStatus = {
   draft: "草稿",
@@ -45,17 +55,16 @@ const angleSeeds = [
 
 const partSeeds = [
   { key: "A", name: "鞋帮", group: "upper", selectable: true },
-  { key: "A1", name: "鞋身下摆", group: "upper", selectable: true, sourceKey: "F1" },
   { key: "B", name: "后提带", group: "strap", selectable: true },
   { key: "C", name: "鞋舌", group: "upper", selectable: true },
-  { key: "C2", name: "皮垫套下片", group: "upper", selectable: true, sourceKey: "C2" },
-  { key: "F", name: "下身鞋片", group: "upper", selectable: true },
+  { key: "C2", name: "鞋舌三角片", group: "upper", selectable: true },
+  { key: "F", name: "下鞋身片", group: "upper", selectable: true },
   { key: "G", name: "上身鞋片", group: "upper", selectable: true },
-  { key: "H", name: "鞋头下片", group: "upper", selectable: true },
+  { key: "H", name: "鞋头下片", group: "upper", selectable: true, materialRule: "部分可用（PU/TPU 不可用于鞋头）" },
   { key: "I", name: "鞋眼片", group: "upper", selectable: true },
   { key: "J", name: "鞋带", group: "strap", selectable: true },
-  { key: "K1", name: "扣带1", group: "strap", selectable: true, sourceKey: "K" },
-  { key: "K2", name: "扣带2", group: "strap", selectable: true, sourceKey: "K" },
+  { key: "K1", name: "前魔术贴绑带1", group: "strap", selectable: true },
+  { key: "K2", name: "前魔术贴绑带2", group: "strap", selectable: true },
   { key: "L", name: "防磨片", group: "sole", selectable: true, materialRule: "黑色/白色，样式：新/旧" },
   { key: "D", name: "CUFF", group: "hardware", selectable: true },
   { key: "M1", name: "上能量带", group: "strap", selectable: true, sourceKey: "M" },
@@ -173,6 +182,7 @@ function adminFabricsFromShared() {
     mode: item.mode,
     color: item.color || "#8f9298",
     textureFile: item.textureFile || null,
+    styles: Array.isArray(item.styles) ? item.styles.map((style) => ({ ...style })) : [],
     groups: item.groups || ["upper"],
     status: item.status || "draft",
     updatedAt: item.updatedAt || nowString()
@@ -228,6 +238,9 @@ function buildPublishedConfig() {
       mode: fabric.mode,
       color: fabric.color,
       ...(fabric.textureFile ? { textureFile: fabric.textureFile } : {}),
+      ...(fabric.mode === "fixed_style_set" && Array.isArray(fabric.styles) && fabric.styles.length
+        ? { styles: fabric.styles.map((style) => ({ id: style.id, name: style.name, file: style.file })) }
+        : {}),
       groups: fabric.groups,
       status: fabric.status,
       updatedAt: fabric.updatedAt
@@ -1113,6 +1126,7 @@ function openFabricModal(item = null) {
       mode: "solid_mask",
       color: "#f6f3ec",
       textureFile: null,
+      styles: [],
       groups: ["upper"],
       status: "draft",
       updatedAt: nowString()
@@ -1132,6 +1146,7 @@ function openFabricModal(item = null) {
       draft.materialKey = form.querySelector("#materialKey").value.trim() || slugify(name);
       draft.mode = form.querySelector("#fabricMode").value;
       draft.color = form.querySelector(`[data-color-for="${draft.mode}"]`)?.value || draft.color;
+      draft.styles = draft.mode === "fixed_style_set" ? collectFabricStyles(form) : [];
       draft.groups = [...form.querySelectorAll("[data-fabric-group]:checked")].map((checkbox) => checkbox.value);
       draft.status = form.querySelector("#fabricStatus").value;
       draft.updatedAt = nowString();
@@ -1205,6 +1220,16 @@ function fabricFormHtml(item) {
           </div>
         </div>
       </div>
+      <div class="mode-panel" data-mode-panel="fixed_style_set">
+        <div class="field">
+          <span>固定样式</span>
+          <div class="field-hint">用于草席等完整固定贴图：C 端会读取 styles 并展开为子样式。</div>
+          <div class="fabric-style-list" id="fabricStyleList">
+            ${fabricStylesForForm(item).map((style) => fabricStyleRow(style)).join("")}
+          </div>
+          <button class="secondary-button" id="addFabricStyleButton" type="button">新增样式</button>
+        </div>
+      </div>
       <div class="field">
         <span>适用范围</span>
         <div class="part-grid">
@@ -1220,12 +1245,42 @@ function fabricFormHtml(item) {
     </div>`;
 }
 
+function fabricStylesForForm(item) {
+  if (item.styles?.length) return item.styles;
+  if (item.materialKey === "fixed_straw" || item.mode === "fixed_style_set") return fixedStrawStyleSeeds;
+  return [];
+}
+
+function fabricStyleRow(style = {}) {
+  return `
+    <div class="fabric-style-row" data-fabric-style-row>
+      <input class="input" data-style-id value="${escapeHtml(style.id || "")}" placeholder="style id" />
+      <input class="input" data-style-name value="${escapeHtml(style.name || "")}" placeholder="样式名称" />
+      <input class="input" data-style-file value="${escapeHtml(style.file || "")}" placeholder="贴图路径，如 草席/1336.png" />
+      <button class="danger-button" type="button" data-style-remove>删除</button>
+    </div>`;
+}
+
+function collectFabricStyles(form) {
+  return [...form.querySelectorAll("[data-fabric-style-row]")]
+    .map((row) => ({
+      id: row.querySelector("[data-style-id]")?.value.trim() || "",
+      name: row.querySelector("[data-style-name]")?.value.trim() || "",
+      file: row.querySelector("[data-style-file]")?.value.trim() || ""
+    }))
+    .filter((style) => style.id && style.name && style.file);
+}
+
 function hydrateFabricForm(form, draft) {
   const modeSelect = form.querySelector("#fabricMode");
+  const styleList = form.querySelector("#fabricStyleList");
   const syncPanels = () => {
     form.querySelectorAll("[data-mode-panel]").forEach((panel) => {
       panel.classList.toggle("is-active", panel.dataset.modePanel === modeSelect.value);
     });
+    if (modeSelect.value === "fixed_style_set" && styleList && !styleList.querySelector("[data-fabric-style-row]")) {
+      styleList.innerHTML = fixedStrawStyleSeeds.map((style) => fabricStyleRow(style)).join("");
+    }
   };
   bindUpload(form.querySelector("#tintUploadZone"), form.querySelector("#tintUploadInput"), (file) => {
     draft.textureFile = { name: file.name, size: formatBytes(file.size) };
@@ -1234,6 +1289,14 @@ function hydrateFabricForm(form, draft) {
   bindUpload(form.querySelector("#tileUploadZone"), form.querySelector("#tileUploadInput"), (file) => {
     draft.textureFile = { name: file.name, size: formatBytes(file.size) };
     form.querySelector("#tileUploadMeta").textContent = `${draft.textureFile.name} · ${draft.textureFile.size}`;
+  });
+  form.querySelector("#addFabricStyleButton")?.addEventListener("click", () => {
+    styleList.insertAdjacentHTML("beforeend", fabricStyleRow());
+  });
+  styleList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-style-remove]");
+    if (!button) return;
+    button.closest("[data-fabric-style-row]")?.remove();
   });
   modeSelect.addEventListener("change", syncPanels);
   syncPanels();

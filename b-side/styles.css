@@ -999,6 +999,26 @@ button:not(:disabled):hover,
   gap: 12px;
 }
 
+.fabric-style-list {
+  display: grid;
+  gap: 8px;
+}
+
+.fabric-style-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(150px, 0.9fr) minmax(220px, 1.4fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--tool-radius);
+  background: var(--surface);
+}
+
+.fabric-style-row .danger-button {
+  height: 40px;
+}
+
 .color-input {
   width: 100%;
   height: 44px;

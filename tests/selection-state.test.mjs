@@ -8,9 +8,29 @@ import { spawn } from "node:child_process";
 const ROOT_DIR = path.resolve(import.meta.dirname, "..");
 const CHROME_BIN = process.env.CHROME_BIN || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const VISUAL_SELECTION_PARTS = {
-  side: ["A", "A1", "G", "L", "M1", "M2", "O", "D", "N"],
-  forty_five: ["G", "L", "M1", "M2", "O", "D", "N"],
-  front: ["G", "L", "M1", "M2"]
+  side: ["A", "B", "C", "C2", "F", "G", "H", "I", "J", "K1", "K2", "L", "M1", "M2", "O", "D", "N"],
+  forty_five: ["A", "B", "C", "C2", "F", "G", "H", "I", "J", "K1", "K2", "L", "M1", "M2", "O", "D", "N"],
+  front: ["C", "C2", "F", "G", "H", "I", "J", "K1", "K2", "L", "M1", "M2"]
+};
+
+const EXPECTED_PART_NAMES = {
+  A: "鞋帮",
+  B: "后提带",
+  C: "鞋舌",
+  C2: "鞋舌三角片",
+  F: "下鞋身片",
+  G: "上身鞋片",
+  H: "鞋头下片",
+  I: "鞋眼片",
+  J: "鞋带",
+  K1: "前魔术贴绑带1",
+  K2: "前魔术贴绑带2",
+  L: "防磨片",
+  M1: "上能量带",
+  M2: "下能量带",
+  O: "蘑菇钉",
+  D: "CUFF",
+  N: "鞋底"
 };
 const RESPONSIVE_VIEWPORTS = [
   { name: "desktop large", width: 1440, height: 1000 },
@@ -252,10 +272,22 @@ async function main() {
       const partState = await page.evaluate(`(() => {
         const buttons = Array.from(document.querySelectorAll('#partRail [data-part]'));
         const enabledParts = buttons.filter((button) => !button.disabled).map((button) => button.dataset.part);
+        const names = Object.fromEntries(buttons.map((button) => [button.dataset.part, button.querySelector('strong')?.textContent.trim() || '']));
         const layerParts = Array.from(document.querySelectorAll('#shoeArt .mvp-part-layer[data-part], #shoeArt .mvp-fixed-image[data-part]'))
           .map((layer) => layer.dataset.part);
-        return { enabledParts, layerParts };
+        return { enabledParts, layerParts, names };
       })()`);
+      const expectedParts = VISUAL_SELECTION_PARTS[angle] || [];
+      const missingExpectedParts = expectedParts.filter((part) => !partState.enabledParts.includes(part));
+      const extraEnabledParts = partState.enabledParts.filter((part) => !expectedParts.includes(part));
+      if (missingExpectedParts.length || extraEnabledParts.length) {
+        failures.push(`${angle}: enabled parts mismatch, missing ${missingExpectedParts.join(", ") || "none"}, extra ${extraEnabledParts.join(", ") || "none"}`);
+      }
+      for (const part of partState.enabledParts) {
+        if (EXPECTED_PART_NAMES[part] && partState.names[part] !== EXPECTED_PART_NAMES[part]) {
+          failures.push(`${angle}/${part}: expected name "${EXPECTED_PART_NAMES[part]}", got "${partState.names[part]}"`);
+        }
+      }
       const missingLayers = partState.enabledParts.filter((part) => !partState.layerParts.includes(part));
       if (missingLayers.length) {
         failures.push(`${angle}: enabled parts without rendered layer: ${missingLayers.join(", ")}`);

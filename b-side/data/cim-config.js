@@ -61,18 +61,16 @@ window.SKATE_CIM_CONFIG = {
       ],
       parts: [
         { key: "A", name: "鞋帮", group: "upper", selectable: true },
-        { key: "A1", name: "鞋身下摆", group: "upper", selectable: true, sourceKey: "F1" },
-        { key: "F", name: "下身鞋片", group: "upper", selectable: true },
+        { key: "F", name: "下鞋身片", group: "upper", selectable: true },
         { key: "G", name: "上身鞋片", group: "upper", selectable: true },
         { key: "H", name: "鞋头下片", group: "upper", selectable: true, materialRule: "部分可用（PU/TPU 不可用于鞋头）" },
         { key: "C", name: "鞋舌", group: "upper", selectable: true },
-        { key: "C2", name: "皮垫套下片", group: "upper", selectable: true, sourceKey: "C2" },
+        { key: "C2", name: "鞋舌三角片", group: "upper", selectable: true },
         { key: "I", name: "鞋眼片", group: "upper", selectable: true },
-        { key: "I1", name: "鞋眼", group: "hardware", selectable: true },
         { key: "B", name: "后提带", group: "strap", selectable: true },
         { key: "J", name: "鞋带", group: "strap", selectable: true },
-        { key: "K1", name: "扣带1", group: "strap", selectable: true, sourceKey: "K" },
-        { key: "K2", name: "扣带2", group: "strap", selectable: true, sourceKey: "K" },
+        { key: "K1", name: "前魔术贴绑带1", group: "strap", selectable: true },
+        { key: "K2", name: "前魔术贴绑带2", group: "strap", selectable: true },
         { key: "L", name: "防磨片", group: "sole", selectable: true, materialRule: "黑色/白色，样式：新/旧" },
         { key: "D", name: "CUFF", group: "hardware", selectable: true },
         { key: "M1", name: "上能量带", group: "strap", selectable: true, sourceKey: "M" },
@@ -103,6 +101,24 @@ window.SKATE_CIM_CONFIG = {
       groups: ["upper"],
       status: "published",
       updatedAt: "2026-05-07 11:20"
+    },
+    {
+      id: "fabric-fixed-straw",
+      materialKey: "fixed_straw",
+      name: "草席",
+      mode: "fixed_style_set",
+      color: "#c8aa74",
+      styles: [
+        { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.png" },
+        { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.png" },
+        { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.png" },
+        { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.png" },
+        { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.png" },
+        { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.png" }
+      ],
+      groups: ["upper"],
+      status: "published",
+      updatedAt: "2026-05-23 18:20"
     },
     {
       id: "fabric-carbon",
