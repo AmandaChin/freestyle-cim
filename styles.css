@@ -1031,6 +1031,12 @@ h1 {
   background: #fff;
 }
 
+.texture-button--sub {
+  margin-left: 18px;
+  min-height: 52px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
 .texture-preview {
   width: 46px;
   height: 36px;
