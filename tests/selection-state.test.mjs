@@ -8,9 +8,9 @@ import { spawn } from "node:child_process";
 const ROOT_DIR = path.resolve(import.meta.dirname, "..");
 const CHROME_BIN = process.env.CHROME_BIN || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const VISUAL_SELECTION_PARTS = {
-  side: ["A", "A1", "G", "L", "D", "N"],
-  forty_five: ["G", "L", "D", "N"],
-  front: ["G", "L"]
+  side: ["A", "A1", "G", "L", "M1", "M2", "O", "D", "N"],
+  forty_five: ["G", "L", "M1", "M2", "O", "D", "N"],
+  front: ["G", "L", "M1", "M2"]
 };
 const RESPONSIVE_VIEWPORTS = [
   { name: "desktop large", width: 1440, height: 1000 },

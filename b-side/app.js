@@ -45,13 +45,22 @@ const angleSeeds = [
 
 const partSeeds = [
   { key: "A", name: "鞋帮", group: "upper", selectable: true },
-  { key: "A1", name: "鞋身下摆", group: "upper", selectable: true },
+  { key: "A1", name: "鞋身下摆", group: "upper", selectable: true, sourceKey: "F1" },
+  { key: "B", name: "后提带", group: "strap", selectable: true },
+  { key: "C", name: "鞋舌", group: "upper", selectable: true },
+  { key: "C2", name: "皮垫套下片", group: "upper", selectable: true, sourceKey: "C2" },
   { key: "F", name: "下身鞋片", group: "upper", selectable: true },
   { key: "G", name: "上身鞋片", group: "upper", selectable: true },
-  { key: "H", name: "鞋头", group: "upper", selectable: true },
-  { key: "C", name: "鞋舌", group: "upper", selectable: true },
+  { key: "H", name: "鞋头下片", group: "upper", selectable: true },
+  { key: "I", name: "鞋眼片", group: "upper", selectable: true },
+  { key: "J", name: "鞋带", group: "strap", selectable: true },
+  { key: "K1", name: "扣带1", group: "strap", selectable: true, sourceKey: "K" },
+  { key: "K2", name: "扣带2", group: "strap", selectable: true, sourceKey: "K" },
+  { key: "L", name: "防磨片", group: "sole", selectable: true, materialRule: "黑色/白色，样式：新/旧" },
   { key: "D", name: "CUFF", group: "hardware", selectable: true },
-  { key: "M", name: "巴扣", group: "hardware", selectable: true },
+  { key: "M1", name: "上能量带", group: "strap", selectable: true, sourceKey: "M" },
+  { key: "M2", name: "下能量带", group: "strap", selectable: true, sourceKey: "N" },
+  { key: "O", name: "蘑菇钉", group: "hardware", selectable: true, sourceKey: "D1" },
   { key: "N", name: "鞋底", group: "sole", selectable: true }
 ];
 
@@ -107,6 +116,17 @@ function emptyLayerAsset(source = {}) {
   };
 }
 
+function normalizePart(part) {
+  return {
+    key: part.key,
+    name: part.name,
+    group: part.group || "upper",
+    selectable: part.selectable !== false,
+    ...(part.sourceKey ? { sourceKey: part.sourceKey } : {}),
+    ...(part.materialRule ? { materialRule: part.materialRule } : {})
+  };
+}
+
 function normalizePartKey(value) {
   return String(value || "")
     .trim()
@@ -138,12 +158,7 @@ function adminShoesFromShared() {
     status: item.status,
     defaultAngle: item.defaultAngleKey || "side",
     updatedAt: item.updatedAt || nowString(),
-    parts: (item.parts?.length ? item.parts : partSeeds).map((part) => ({
-      key: part.key,
-      name: part.name,
-      group: part.group || "upper",
-      selectable: part.selectable !== false
-    })),
+    parts: (item.parts?.length ? item.parts : partSeeds).map(normalizePart),
     angles: normalizeAngles(item.angles?.length ? item.angles : angleSeeds, item.parts?.length ? item.parts : partSeeds),
     notes: item.notes || item.description || ""
   }));
@@ -174,6 +189,77 @@ function adminReleaseFromShared() {
     },
     history: CIM_SHARED_CONFIG.release?.history || []
   };
+}
+
+function buildPublishedConfig() {
+  return {
+    schemaVersion: 1,
+    generatedAt: nowString(),
+    release: clone(state.release),
+    shoes: state.shoes
+      .filter((shoe) => shoe.status === "published")
+      .map((shoe) => ({
+        id: shoe.id,
+        shoeId: shoe.shoeId,
+        name: shoe.name,
+        code: shoe.code,
+        version: shoe.version,
+        status: shoe.status,
+        defaultAngleKey: shoe.defaultAngle,
+        defaultPartKey: shoe.defaultPartKey || "G",
+        updatedAt: shoe.updatedAt,
+        description: shoe.description || shoe.notes || "",
+        notes: shoe.notes || "",
+        homeLabel: shoe.homeLabel || "专业支撑款",
+        homeFeatures: shoe.homeFeatures || [shoe.code, "高帮支撑", "CIM 表格导出"],
+        angles: shoe.angles.map((angle) => ({
+          key: angle.key,
+          name: angle.name,
+          active: angle.active,
+          baseFile: angle.baseFile,
+          layerAssets: normalizeLayerAssets(angle.layerAssets || {})
+        })),
+        parts: shoe.parts.map(normalizePart)
+      })),
+    fabrics: state.fabrics.map((fabric) => ({
+      id: fabric.id,
+      materialKey: fabric.materialKey,
+      name: fabric.name,
+      mode: fabric.mode,
+      color: fabric.color,
+      ...(fabric.textureFile ? { textureFile: fabric.textureFile } : {}),
+      groups: fabric.groups,
+      status: fabric.status,
+      updatedAt: fabric.updatedAt
+    }))
+  };
+}
+
+function configSourceText(config = buildPublishedConfig()) {
+  return `window.SKATE_CIM_CONFIG = ${JSON.stringify(config, null, 2)};\n`;
+}
+
+function publishConfigToLocalPreview() {
+  localStorage.setItem("SKATE_CIM_PUBLISHED_CONFIG", JSON.stringify(buildPublishedConfig()));
+}
+
+function downloadText(fileName, text) {
+  const blob = new Blob([text], { type: "text/javascript;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportPublishedConfig() {
+  const text = configSourceText();
+  navigator.clipboard?.writeText(text).catch(() => {});
+  downloadText("cim-config.js", text);
+  toast("发布配置已导出，并已复制到剪贴板");
 }
 
 const defaultState = {
@@ -213,6 +299,7 @@ const els = {
   createTestButton: document.querySelector("#createTestButton"),
   stopTestButton: document.querySelector("#stopTestButton"),
   promoteButton: document.querySelector("#promoteButton"),
+  exportConfigButton: document.querySelector("#exportConfigButton"),
   testSummary: document.querySelector("#testSummary"),
   onlineSummary: document.querySelector("#onlineSummary"),
   publishDiff: document.querySelector("#publishDiff"),
@@ -812,12 +899,14 @@ function syncDraftPartsFromForm(form, draft) {
     const key = normalizePartKey(row.querySelector("[data-part-key-input]")?.value || originalKey);
     if (!key || seenKeys.has(key)) return;
     seenKeys.add(key);
-    nextParts.push({
-      key,
-      name: row.querySelector("[data-part-name-input]")?.value.trim() || key,
-      group: row.querySelector("[data-part-group-select]")?.value || "upper",
-      selectable: row.querySelector("[data-part-selectable]")?.checked !== false
-    });
+      nextParts.push({
+        key,
+        name: row.querySelector("[data-part-name-input]")?.value.trim() || key,
+        group: row.querySelector("[data-part-group-select]")?.value || "upper",
+        selectable: row.querySelector("[data-part-selectable]")?.checked !== false,
+        sourceKey: row.querySelector("[data-part-source-input]")?.value.trim() || "",
+        materialRule: row.querySelector("[data-part-rule-input]")?.value.trim() || ""
+      });
     keyPairs.push([originalKey, key]);
   });
   if (!nextParts.length) return;
@@ -853,12 +942,14 @@ function renderPartDefinitionList(form, draft) {
           <select class="select" data-part-group-select aria-label="裁片分组">
             ${partGroups.map((group) => `<option value="${group}" ${part.group === group ? "selected" : ""}>${group} · ${groupLabel(group)}</option>`).join("")}
           </select>
+          <input class="input" data-part-source-input value="${escapeHtml(part.sourceKey || "")}" placeholder="Excel key" aria-label="Excel key" />
+          <input class="input" data-part-rule-input value="${escapeHtml(part.materialRule || "")}" placeholder="材质规则" aria-label="材质规则" />
           <button class="danger-button part-remove-button" type="button" data-part-remove="${escapeHtml(part.key)}">删除</button>
         </div>`
     )
     .join("");
 
-  target.querySelectorAll("[data-part-name-input]").forEach((input) => {
+  target.querySelectorAll("[data-part-name-input], [data-part-source-input], [data-part-rule-input]").forEach((input) => {
     input.addEventListener("input", () => {
       syncDraftPartsFromForm(form, draft);
       renderAngleLayerEditor(form, draft);
@@ -1291,6 +1382,7 @@ function promoteRelease() {
       state.shoes.forEach((shoe) => {
         if (shoe.status === "testing" || shoe.status === "draft") shoe.status = "published";
       });
+      publishConfigToLocalPreview();
       persist();
       render();
       toast("正式版本已发布");
@@ -1401,6 +1493,7 @@ function bindEvents() {
   els.createTestButton.addEventListener("click", openTestModal);
   els.stopTestButton.addEventListener("click", stopTest);
   els.promoteButton.addEventListener("click", promoteRelease);
+  els.exportConfigButton.addEventListener("click", exportPublishedConfig);
   els.ratioSlider.addEventListener("input", () => {
     els.ratioText.textContent = `${els.ratioSlider.value}%`;
     if (state.release.testing) {

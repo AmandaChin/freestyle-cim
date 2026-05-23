@@ -2741,6 +2741,7 @@ body.drawer-open {
 
   .shoe-art {
     width: min(var(--shoe-fit-width, 84%), var(--shoe-max-width, 700px));
+    width: min(var(--shoe-fit-width, 84%), var(--shoe-max-width, 700px), 84cqw, calc(84cqh * 1.499 - 72px));
   }
 }
 
@@ -2752,6 +2753,7 @@ body.drawer-open {
 
   .shoe-art {
     width: min(var(--shoe-fit-width, 58%), var(--shoe-max-width, 460px));
+    width: min(var(--shoe-fit-width, 58%), var(--shoe-max-width, 460px), 58cqw, calc(58cqh * 1.499 - 48px));
   }
 }
 

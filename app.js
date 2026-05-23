@@ -2,7 +2,7 @@ const MVP_ACTIVE_PART_ID = "G";
 const FIXED_MATERIAL_ID = "fixed-image";
 const LAYER_ASSET_DIR = "./assets/mvp/layers/";
 const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
-const FULL_ANGLE_ASSET_VERSION = "20260518-front-v4";
+const FULL_ANGLE_ASSET_VERSION = "20260523-annotated-v1";
 const REAL_PRODUCT_ASSET_DIR = "./assets/skates/yjs-pro-cim/real-products/";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
 const MATERIAL_ASSET_VERSION = "20260516-leather-v1";
@@ -29,12 +29,12 @@ const YJS_PRO_REAL_PRODUCT_IMAGES = [
   { file: "black-purple-2.jpg", alt: "YJS-pro CIM 黑紫真实鞋款" }
 ];
 
-const FULL_ANGLE_PARTS = ["A", "A1", "F", "G", "H", "C", "C2", "I", "B", "J", "K1", "K2", "L"];
+const FULL_ANGLE_PARTS = ["A", "A1", "F", "G", "H", "C", "C2", "I", "B", "J", "K1", "K2"];
 
 const ANGLE_CONFIG = [
-  { id: "side", label: "侧面", meta: "侧面全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M: ["buckle-white", "buckle-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black"] } },
-  { id: "forty_five", label: "45度", meta: "45度全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M: ["buckle-white", "buckle-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black", "sole-black-gold"] } },
-  { id: "front", label: "正面", meta: "正面全角度 UI", parts: ["F", "G", "H", "C", "C2", "I", "J", "K1", "K2", "L"], fixed: { M: ["buckle-white", "buckle-black"] } }
+  { id: "side", label: "侧面", meta: "侧面全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M1: ["upper-strap-white", "upper-strap-black"], M2: ["lower-strap-white", "lower-strap-black"], L: { "pad-style-1": ["pad-new-white", "pad-new-black"], "pad-style-2": ["pad-old-white", "pad-old-black"] }, O: ["mushroom-nail-white", "mushroom-nail-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black"] } },
+  { id: "forty_five", label: "45度", meta: "45度全角度 UI", parts: FULL_ANGLE_PARTS, fixed: { D: ["cuff-black-gold-1", "cuff-black-gold-2", "cuff-silver", "cuff-red-black", "cuff-black-purple", "cuff-black"], M1: ["upper-strap-white", "upper-strap-black"], M2: ["lower-strap-white", "lower-strap-black"], L: { "pad-style-1": ["pad-new-white", "pad-new-black"], "pad-style-2": ["pad-old-white", "pad-old-black"] }, O: ["mushroom-nail-white", "mushroom-nail-black"], N: ["sole-silver", "sole-black-red", "sole-black-purple", "sole-black", "sole-black-gold"] } },
+  { id: "front", label: "正面", meta: "正面全角度 UI", parts: ["F", "G", "H", "C", "C2", "I", "J", "K1", "K2"], fixed: { M1: ["upper-strap-white", "upper-strap-black"], M2: ["lower-strap-white", "lower-strap-black"], L: { "pad-style-1": ["pad-new-white", "pad-new-black"], "pad-style-2": ["pad-old-white", "pad-old-black"] } } }
 ];
 
 function fullAngleAsset(path) {
@@ -54,7 +54,9 @@ function angleAssets(angleId) {
   const fixed = Object.fromEntries(
     Object.entries(angle.fixed || {}).map(([componentId, variants]) => [
       componentId,
-      Object.fromEntries(variants.map((variant) => [variant, fullAngleAsset(`${angle.id}/fixed/${componentId}/${variant}.png`)]))
+      Array.isArray(variants)
+        ? Object.fromEntries(variants.map((variant) => [variant, fullAngleAsset(`${angle.id}/fixed/${componentId}/${variant}.png`)]))
+        : Object.fromEntries(Object.values(variants).flatMap((styleVariants) => styleVariants.map((variant) => [variant, fullAngleAsset(`${angle.id}/fixed/${componentId}/${variant}.png`)])))
     ])
   );
   return {
@@ -79,7 +81,67 @@ const COMPONENT_TEMPLATE = [
   { id: "J", code: "J", en: "Lace", cn: "鞋带", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}lace.png`], renderOrder: 80 },
   { id: "K1", code: "K1", en: "Toe strap 1", cn: "扣带1", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-1.png`], renderOrder: 85 },
   { id: "K2", code: "K2", en: "Toe strap 2", cn: "扣带2", palette: "strap", color: "#ffffff", material: "webbing", masks: [`${LAYER_ASSET_DIR}toe-strap-2.png`], renderOrder: 90 },
-  { id: "L", code: "L", en: "Abrasive pad", cn: "防磨片", palette: "rubber", color: "#17171a", material: "matte", masks: [`${LAYER_ASSET_DIR}abrasive-pad.png`], renderOrder: 95 },
+  {
+    id: "L",
+    code: "L",
+    en: "Abrasive pad",
+    cn: "防磨片",
+    palette: "fixed",
+    material: "pad-style-1",
+    color: "#f6f3ec",
+    defaultVariant: "pad-style-1",
+    renderOrder: 95,
+    fixedColorOptions: [
+      { id: "pad-white", name: "白色", value: "#f6f3ec", swatch: "#f6f3ec", suffix: "white" },
+      { id: "pad-black", name: "黑色", value: "#17171a", swatch: "#17171a", suffix: "black" }
+    ],
+    fixedOptions: [
+      { id: "pad-style-1", name: "防磨片样式1", note: "新防磨片", sourcePrefix: "pad-new", swatch: "#f6f3ec", image: `${LAYER_ASSET_DIR}abrasive-pad.png` },
+      { id: "pad-style-2", name: "防磨片样式2", note: "旧防磨片", sourcePrefix: "pad-old", swatch: "#f2eee7", image: `${LAYER_ASSET_DIR}abrasive-pad.png` }
+    ]
+  },
+  {
+    id: "M1",
+    code: "M1",
+    en: "Upper energy strap",
+    cn: "上能量带",
+    palette: "fixed",
+    material: FIXED_MATERIAL_ID,
+    defaultVariant: "upper-strap-black",
+    renderOrder: 100,
+    fixedOptions: [
+      { id: "upper-strap-white", name: "白色上能量带", swatch: "#f7f7f8", image: `${LAYER_ASSET_DIR}buckle-white.png` },
+      { id: "upper-strap-black", name: "黑色上能量带", swatch: "#17171a", image: `${LAYER_ASSET_DIR}buckle-black.png` }
+    ]
+  },
+  {
+    id: "M2",
+    code: "M2",
+    en: "Lower energy strap",
+    cn: "下能量带",
+    palette: "fixed",
+    material: FIXED_MATERIAL_ID,
+    defaultVariant: "lower-strap-black",
+    renderOrder: 105,
+    fixedOptions: [
+      { id: "lower-strap-white", name: "白色下能量带", swatch: "#f7f7f8", image: `${LAYER_ASSET_DIR}buckle-white.png` },
+      { id: "lower-strap-black", name: "黑色下能量带", swatch: "#17171a", image: `${LAYER_ASSET_DIR}buckle-black.png` }
+    ]
+  },
+  {
+    id: "O",
+    code: "O",
+    en: "Mushroom nail",
+    cn: "蘑菇钉",
+    palette: "fixed",
+    material: FIXED_MATERIAL_ID,
+    defaultVariant: "mushroom-nail-black",
+    renderOrder: 130,
+    fixedOptions: [
+      { id: "mushroom-nail-white", name: "白色蘑菇钉", swatch: "#f7f7f8", image: `${LAYER_ASSET_DIR}eyelets.png` },
+      { id: "mushroom-nail-black", name: "黑色蘑菇钉", swatch: "#17171a", image: `${LAYER_ASSET_DIR}eyelets.png` }
+    ]
+  },
   {
     id: "D",
     code: "D",
@@ -96,20 +158,6 @@ const COMPONENT_TEMPLATE = [
       { id: "cuff-black-gold-2", name: "黑金色 CUFF 2", swatch: "linear-gradient(135deg, #302010 0 72%, #403020 100%)", image: `${LAYER_ASSET_DIR}cuff-black-gold-2.png` },
       { id: "cuff-black-purple", name: "黑紫色 CUFF", swatch: "linear-gradient(135deg, #281830 0 72%, #302038 100%)", image: `${LAYER_ASSET_DIR}cuff-black-purple.png` },
       { id: "cuff-black", name: "黑色 CUFF", swatch: "linear-gradient(135deg, #202020 0 72%, #303030 100%)", image: `${LAYER_ASSET_DIR}cuff-black.png` }
-    ]
-  },
-  {
-    id: "M",
-    code: "M",
-    en: "Buckle",
-    cn: "巴扣 / 芭扣",
-    palette: "fixed",
-    material: FIXED_MATERIAL_ID,
-    defaultVariant: "buckle-black",
-    renderOrder: 120,
-    fixedOptions: [
-      { id: "buckle-white", name: "白色巴扣", swatch: "#f7f7f8", image: `${LAYER_ASSET_DIR}buckle-white.png` },
-      { id: "buckle-black", name: "黑色巴扣", swatch: "#17171a", image: `${LAYER_ASSET_DIR}buckle-black.png` }
     ]
   },
   {
@@ -132,15 +180,12 @@ const COMPONENT_TEMPLATE = [
 
 const SHARED_PRODUCT_DETAILS = {
   fixedItems: [
-    { en: "Double strap", cn: "能量带", value: "黑色" },
-    { en: "Spider buckle", cn: "蜘蛛扣", value: "参考黑色公款" },
-    { en: "Boot stitch", cn: "主绣线", value: "参考黑色公款" }
+    { en: "Upper energy strap", cn: "上能量带", value: "黑色" },
+    { en: "Lower energy strap", cn: "下能量带", value: "黑色" },
+    { en: "Mushroom nail", cn: "蘑菇钉", value: "黑色" },
+    { en: "Spider buckle", cn: "蜘蛛扣", value: "参考黑色公款" }
   ],
-  padStyles: [
-    { id: "new", name: "新" },
-    { id: "old", name: "旧" },
-    { id: "brake", name: "刹车防磨片" }
-  ],
+  padStyles: [],
   embroiderySlots: [
     { id: "B1", code: "B1", en: "Back handle strap", cn: "后提带电绣", enabled: true },
     { id: "tongue", code: "C", en: "Tongue", cn: "鞋舌电绣片", enabled: true },
@@ -156,12 +201,84 @@ function buildComponents(overrides = {}) {
   }));
 }
 
-const CIM_SHARED_CONFIG = window.SKATE_CIM_CONFIG || {};
+const CIM_SHARED_CONFIG = (() => {
+  try {
+    const localConfig = JSON.parse(localStorage.getItem("SKATE_CIM_PUBLISHED_CONFIG") || "null");
+    if (localConfig?.schemaVersion && Array.isArray(localConfig.shoes)) return localConfig;
+  } catch {
+    localStorage.removeItem("SKATE_CIM_PUBLISHED_CONFIG");
+  }
+  return window.SKATE_CIM_CONFIG || {};
+})();
+const SHARED_SHOE_BY_ID = new Map(
+  (CIM_SHARED_CONFIG.shoes || []).flatMap((item) => [
+    [item.shoeId, item],
+    [item.id, item]
+  ])
+);
 const PUBLISHED_SHOE_IDS = new Set(
   (CIM_SHARED_CONFIG.shoes || [])
     .filter((item) => item.status === "published")
     .map((item) => item.shoeId)
 );
+
+function sharedShoeFor(item) {
+  return SHARED_SHOE_BY_ID.get(item.id) || SHARED_SHOE_BY_ID.get(item.shoeId);
+}
+
+function mergeSharedComponents(components, sharedShoe) {
+  if (!sharedShoe?.parts?.length) return components;
+  const sharedParts = new Map(sharedShoe.parts.map((part) => [part.key, part]));
+  return components.map((component) => {
+    const part = sharedParts.get(component.id);
+    if (!part) return component;
+    return {
+      ...component,
+      code: part.key || component.code,
+      cn: part.name || component.cn,
+      group: part.group || component.group,
+      editable: part.selectable === false ? false : component.editable,
+      materialRule: part.materialRule || component.materialRule,
+      sourceKey: part.sourceKey || component.sourceKey
+    };
+  });
+}
+
+function mergeSharedAngles(angles, sharedShoe) {
+  if (!sharedShoe?.angles?.length) return angles;
+  const angleById = new Map(angles.map((angle) => [angle.id, angle]));
+  const merged = sharedShoe.angles
+    .filter((angle) => angle.active !== false)
+    .map((angle) => {
+      const base = angleById.get(angle.key) || angleById.get(angle.id);
+      if (!base) return null;
+      return {
+        ...base,
+        label: angle.name || base.label,
+        meta: angle.notes || base.meta
+      };
+    })
+    .filter(Boolean);
+  return merged.length ? merged : angles;
+}
+
+function enrichProductFromShared(item) {
+  const sharedShoe = sharedShoeFor(item);
+  if (!sharedShoe) return item;
+  return {
+    ...item,
+    name: sharedShoe.name || item.name,
+    code: sharedShoe.code || item.code,
+    description: sharedShoe.description || item.description,
+    note: sharedShoe.notes || item.note,
+    homeLabel: sharedShoe.homeLabel || item.homeLabel,
+    homeFeatures: sharedShoe.homeFeatures || item.homeFeatures,
+    defaultAngle: sharedShoe.defaultAngleKey || item.defaultAngle,
+    editablePartId: sharedShoe.defaultPartKey || item.editablePartId,
+    angles: mergeSharedAngles(item.angles, sharedShoe),
+    components: mergeSharedComponents(item.components, sharedShoe)
+  };
+}
 
 const PRODUCT_CATALOG = [
   {
@@ -172,7 +289,7 @@ const PRODUCT_CATALOG = [
     homeTag: "Pro Custom",
     homeLabel: "专业支撑款",
     description: "高帮轮滑鞋上鞋定制，面向进阶训练与比赛配置，支持按标注裁片扩展颜色和皮料。",
-    note: "巴扣、鞋底、CUFF 使用切图指定固定色值；其余标注裁片支持颜色与皮料选择。",
+    note: "上/下能量带、防磨片、蘑菇钉、鞋底、CUFF 使用切图指定固定样式；其余标注裁片支持颜色与皮料选择。",
     homeFeatures: ["高帮支撑", "碳纤鞋壳", "确认单导出"],
     realProductImages: YJS_PRO_REAL_PRODUCT_IMAGES,
     accentA: "#f0b7c8",
@@ -185,12 +302,17 @@ const PRODUCT_CATALOG = [
       G: { color: "#f0b7c8", material: "pearl" },
       C2: { color: "#f0b7c8", material: "pearl" },
       D: { defaultVariant: "cuff-silver" },
-      M: { defaultVariant: "buckle-black" },
+      M1: { defaultVariant: "upper-strap-black" },
+      M2: { defaultVariant: "lower-strap-black" },
+      O: { defaultVariant: "mushroom-nail-black" },
+      L: { color: "#f6f3ec", material: "pad-style-1", defaultVariant: "pad-style-1" },
       N: { defaultVariant: "sole-silver" }
     }),
     ...SHARED_PRODUCT_DETAILS
   }
-].filter((item) => PUBLISHED_SHOE_IDS.size === 0 || PUBLISHED_SHOE_IDS.has(item.id));
+]
+  .map(enrichProductFromShared)
+  .filter((item) => PUBLISHED_SHOE_IDS.size === 0 || PUBLISHED_SHOE_IDS.has(item.id));
 
 const PALETTES = {
   leather: [
@@ -345,17 +467,18 @@ function cloneProductConfig(item) {
     components: Object.fromEntries(
       item.components.map((component) => {
         const fixedOption = defaultFixedOption(component);
+        const fixedColor = component.fixedColorOptions?.[0];
         return [
           component.id,
           {
-            color: fixedOption?.id || component.color,
+            color: fixedColor?.value || fixedOption?.id || component.color,
             variant: fixedOption?.id || "",
-            material: fixedOption ? FIXED_MATERIAL_ID : component.material
+            material: fixedColor ? fixedOption?.id : (fixedOption ? FIXED_MATERIAL_ID : component.material)
           }
         ];
       })
     ),
-    padStyle: item.padStyles[0].id,
+    padStyle: item.padStyles[0]?.id || "",
     embroidery: Object.fromEntries(
       item.embroiderySlots.map((slot) => [
         slot.id,
@@ -378,6 +501,7 @@ function componentConfigFor(item, id) {
 }
 
 function colorOptions(component) {
+  if (component.fixedColorOptions) return component.fixedColorOptions;
   if (component.fixedOptions) {
     return component.fixedOptions.map((option) => ({
       ...option,
@@ -388,6 +512,7 @@ function colorOptions(component) {
 }
 
 function materialsFor(component) {
+  if (component.fixedColorOptions) return component.fixedOptions;
   if (component.fixedOptions) return MATERIALS.filter((item) => item.id === FIXED_MATERIAL_ID);
   if (["A", "A1", "G"].includes(component.id)) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte" || item.id === "chinoiserie-pink" || item.id === "chinoiserie-white");
   if (component.editable) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte");
@@ -403,6 +528,7 @@ function materialById(id) {
 }
 
 function colorName(value, component = selectedComponent()) {
+  if (component?.fixedColorOptions) return component.fixedColorOptions.find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value;
   if (component?.fixedOptions) return fixedOption(component, { color: value, variant: value })?.name || value;
   return colorOptions(component).find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value;
 }
@@ -414,22 +540,36 @@ function defaultFixedOption(component) {
 
 function fixedOption(component, config = componentConfig(component.id)) {
   if (!component.fixedOptions) return null;
-  const fixedId = config?.variant || config?.color || component.defaultVariant;
+  const fixedId = component.fixedColorOptions ? (config?.material || config?.variant || component.defaultVariant) : (config?.variant || config?.color || component.defaultVariant);
   return component.fixedOptions.find((option) => option.id === fixedId) || defaultFixedOption(component);
 }
 
+function fixedImageId(component, option, config = componentConfig(component.id)) {
+  if (!component.fixedColorOptions) return option?.id || "";
+  const color = component.fixedColorOptions.find((item) => item.value.toLowerCase() === (config?.color || component.color || "").toLowerCase()) || component.fixedColorOptions[0];
+  return `${option.sourcePrefix}-${color.suffix}`;
+}
+
 function componentPreview(component, config = componentConfig(component.id)) {
+  if (component.fixedColorOptions) return config.color || component.color;
   const option = fixedOption(component, config);
   if (option) return option.swatch;
   return cssTexture(config.color, config.material);
 }
 
+function texturePreview(component, config, material) {
+  if (component.fixedColorOptions) return material.swatch || componentPreview(component, config);
+  return component.fixedOptions ? componentPreview(component, config) : cssTexture(config.color, material.id);
+}
+
 function componentColorValue(component, config = componentConfig(component.id)) {
+  if (component.fixedColorOptions) return config.color || component.color;
   const option = fixedOption(component, config);
   return option?.swatch || config.color;
 }
 
-function materialName(id) {
+function materialName(id, component = selectedComponent()) {
+  if (component?.fixedColorOptions) return fixedOption(component, { material: id, variant: id })?.name || id;
   return materialById(id).name;
 }
 
@@ -618,7 +758,8 @@ function fixedImageForAngle(component, config, angle) {
   const option = fixedOption(component, config);
   if (!option) return "";
   if (angle?.fixed && !angle.fixed[component.id]) return "";
-  return angle?.fixed?.[component.id]?.[option.id] || option.image;
+  const imageId = fixedImageId(component, option, config);
+  return angle?.fixed?.[component.id]?.[imageId] || option.image;
 }
 
 function hitSourcesForComponent(component, item = product(), angle = angleAssets(currentAngleConfig(item).id)) {
@@ -784,7 +925,6 @@ async function renderShoeSnapshot(item = product(), angleId = currentAngleConfig
       await drawSnapshotMaskedMaterial(context, width, height, mask, config);
     }
   }
-
   const stitch = await loadSnapshotImage(angle.stitch);
   if (stitch) {
     context.save();
@@ -1316,7 +1456,7 @@ function renderSwatches() {
   els.swatchGrid.innerHTML = colorOptions(component)
     .map(
       (color) => `
-        <button class="swatch-button" type="button" title="${color.name}" aria-label="${color.name}" aria-pressed="${color.value.toLowerCase() === (config.variant || config.color).toLowerCase()}" data-part-id="${component.id}" data-color="${color.value}" style="--swatch:${color.swatch || color.value};"></button>`
+        <button class="swatch-button" type="button" title="${color.name}" aria-label="${color.name}" aria-pressed="${color.value.toLowerCase() === (component.fixedColorOptions ? config.color : (config.variant || config.color)).toLowerCase()}" data-part-id="${component.id}" data-color="${color.value}" style="--swatch:${color.swatch || color.value};"></button>`
     )
     .join("");
 }
@@ -1328,7 +1468,7 @@ function renderTextures() {
     .map(
       (material) => `
       <button class="texture-button" type="button" data-part-id="${component.id}" data-material="${material.id}" aria-pressed="${material.id === config.material}">
-        <span class="texture-preview" style="--texture:${component.fixedOptions ? componentPreview(component, config) : cssTexture(config.color, material.id)};"></span>
+        <span class="texture-preview" style="--texture:${texturePreview(component, config, material)};"></span>
         <span>
           <strong>${material.name}</strong>
           <span>${material.note}</span>
@@ -1365,7 +1505,7 @@ function buildExportData(options = {}) {
         name: component.cn,
         color: colorName(config.color, component),
         colorValue: componentColorValue(component, config),
-        material: materialName(config.material)
+        material: materialName(config.material, component)
       };
     }),
     fixedItems: item.fixedItems,
@@ -1413,7 +1553,7 @@ function renderSummary() {
     selectedPart: component.code,
     color: colorName(config.color),
     colorValue: componentColorValue(component, config),
-    material: materialName(config.material)
+    material: materialName(config.material, component)
   };
 
   els.modelName.textContent = item.name;
@@ -1423,7 +1563,7 @@ function renderSummary() {
   els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${component.cn}` : "";
   els.selectedPartTitle.textContent = `正在编辑：${component.cn}`;
   els.selectedColorName.textContent = colorName(config.color);
-  els.selectedTextureName.textContent = materialName(config.material);
+  els.selectedTextureName.textContent = materialName(config.material, component);
   els.configPreview.textContent = JSON.stringify(output, null, 2);
 }
 
@@ -1672,16 +1812,8 @@ function renderConfirmModal() {
         <section class="confirm-section confirm-special-section">
           <div class="section-title">
             <h3>特殊定制</h3>
-            <span>电绣 / 防磨片 / 固定件</span>
+            <span>电绣 / 固定件</span>
           </div>
-          <label class="select-row">
-            <span>L1 防磨片款式</span>
-            <select data-pad-style>
-              ${product().padStyles
-                .map((style) => `<option value="${style.id}" ${style.name === data.padStyle ? "selected" : ""}>${style.name}</option>`)
-                .join("")}
-            </select>
-          </label>
           <div class="embroidery-list">
             ${product().embroiderySlots
               .map((slot) => {
@@ -2131,7 +2263,7 @@ function buildConfirmationSheetHtml(data) {
       <section class="sheet-section">
         <h2>特殊定制</h2>
         <div class="info-grid">
-          <div class="info-item"><span>L1 防磨片款式</span><strong>${escapeHtml(data.padStyle || "-")}</strong></div>
+          ${data.padStyle ? `<div class="info-item"><span>L1 防磨片款式</span><strong>${escapeHtml(data.padStyle)}</strong></div>` : ""}
         </div>
         <table aria-label="电绣定制">
           <thead>
@@ -2300,6 +2432,10 @@ function bindEvents() {
     const component = product().components.find((item) => item.id === partId) || selectedComponent();
     invalidatePendingShoeHit();
     state.selectedPartId = component.id;
+    if (component.fixedColorOptions) {
+      updatePartConfig(component.id, { color: button.dataset.color });
+      return;
+    }
     if (component.fixedOptions) {
       updatePartConfig(component.id, { color: button.dataset.color, variant: button.dataset.color, material: FIXED_MATERIAL_ID });
       return;

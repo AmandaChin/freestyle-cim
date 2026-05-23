@@ -29,8 +29,8 @@ window.SKATE_CIM_CONFIG = {
       homeLabel: "专业支撑款",
       homeFeatures: ["YJS-PRO", "高帮支撑", "CIM 表格导出"],
       angles: [
-        { key: "front", name: "正面", active: false, baseFile: "front/base.png", layerAssets: {} },
-        { key: "forty_five", name: "45度", active: false, baseFile: "forty_five/base.png", layerAssets: {} },
+        { key: "front", name: "正面", active: true, baseFile: "front/base.png", layerAssets: {} },
+        { key: "forty_five", name: "45度", active: true, baseFile: "forty_five/base.png", layerAssets: {} },
         {
           key: "side",
           name: "侧面",
@@ -52,28 +52,32 @@ window.SKATE_CIM_CONFIG = {
             K2: { maskFile: "side/K2/mask.png" },
             L: { maskFile: "side/L/mask.png" },
             D: { maskFile: "side/D/fixed.png" },
-            M: { maskFile: "side/M/fixed.png" },
+            M1: { maskFile: "side/M1/fixed.png" },
+            M2: { maskFile: "side/M2/fixed.png" },
+            O: { maskFile: "side/O/fixed.png" },
             N: { maskFile: "side/N/fixed.png" }
           }
         }
       ],
       parts: [
         { key: "A", name: "鞋帮", group: "upper", selectable: true },
-        { key: "A1", name: "鞋身下摆", group: "upper", selectable: true },
+        { key: "A1", name: "鞋身下摆", group: "upper", selectable: true, sourceKey: "F1" },
         { key: "F", name: "下身鞋片", group: "upper", selectable: true },
         { key: "G", name: "上身鞋片", group: "upper", selectable: true },
-        { key: "H", name: "鞋头", group: "upper", selectable: true },
+        { key: "H", name: "鞋头下片", group: "upper", selectable: true, materialRule: "部分可用（PU/TPU 不可用于鞋头）" },
         { key: "C", name: "鞋舌", group: "upper", selectable: true },
-        { key: "C2", name: "鞋舌裁片", group: "upper", selectable: true },
+        { key: "C2", name: "皮垫套下片", group: "upper", selectable: true, sourceKey: "C2" },
         { key: "I", name: "鞋眼片", group: "upper", selectable: true },
         { key: "I1", name: "鞋眼", group: "hardware", selectable: true },
         { key: "B", name: "后提带", group: "strap", selectable: true },
         { key: "J", name: "鞋带", group: "strap", selectable: true },
-        { key: "K1", name: "扣带1", group: "strap", selectable: true },
-        { key: "K2", name: "扣带2", group: "strap", selectable: true },
-        { key: "L", name: "防磨片", group: "sole", selectable: true },
+        { key: "K1", name: "扣带1", group: "strap", selectable: true, sourceKey: "K" },
+        { key: "K2", name: "扣带2", group: "strap", selectable: true, sourceKey: "K" },
+        { key: "L", name: "防磨片", group: "sole", selectable: true, materialRule: "黑色/白色，样式：新/旧" },
         { key: "D", name: "CUFF", group: "hardware", selectable: true },
-        { key: "M", name: "巴扣 / 芭扣", group: "hardware", selectable: true },
+        { key: "M1", name: "上能量带", group: "strap", selectable: true, sourceKey: "M" },
+        { key: "M2", name: "下能量带", group: "strap", selectable: true, sourceKey: "N" },
+        { key: "O", name: "蘑菇钉", group: "hardware", selectable: true, sourceKey: "D1" },
         { key: "N", name: "鞋底", group: "sole", selectable: true }
       ]
     }

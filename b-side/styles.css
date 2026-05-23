@@ -885,7 +885,7 @@ button:not(:disabled):hover,
 }
 
 .part-definition-row {
-  grid-template-columns: 18px 86px minmax(160px, 1fr) minmax(170px, 0.8fr) auto;
+  grid-template-columns: 18px 72px minmax(140px, 1fr) minmax(130px, 0.7fr) minmax(92px, 0.45fr) minmax(160px, 1fr) auto;
 }
 
 .part-key-input[readonly] {
