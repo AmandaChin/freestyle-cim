@@ -5,7 +5,7 @@ const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
 const FULL_ANGLE_ASSET_VERSION = "20260518-front-v4";
 const REAL_PRODUCT_ASSET_DIR = "./assets/skates/yjs-pro-cim/real-products/";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
-const MATERIAL_ASSET_VERSION = "20260516-leather-v1";
+const MATERIAL_ASSET_VERSION = "20260523-bear-test-v1";
 const HIT_ALPHA_THRESHOLD = 18;
 const SELECTION_RING_RADIUS = 14;
 const SELECTION_RING_STEP = 3;
@@ -233,10 +233,20 @@ const MATERIALS = [
   { id: "matte", name: "哑光皮", note: "低反光" },
   { id: "chinoiserie-pink", name: "中国风粉色", note: "固定花纹布料" },
   { id: "chinoiserie-white", name: "中国风白色", note: "固定花纹布料" },
+  { id: "fixed-straw", name: "草席", note: "固定贴图 · 点开选择样式" },
   { id: "carbon", name: "碳纤皮", note: "碳纤纹理" },
   { id: "webbing", name: "织带", note: "绑带质感" },
   { id: "hardware", name: "五金", note: "扣件质感" },
   { id: FIXED_MATERIAL_ID, name: "固定贴图", note: "按切图色值" }
+];
+
+const FIXED_STRAW_STYLES = [
+  { id: "fixed-straw-1336", name: "1336号皮料", parentId: "fixed-straw", file: "草席/1336.png" },
+  { id: "fixed-straw-1437", name: "1437号皮料", parentId: "fixed-straw", file: "草席/1437.png" },
+  { id: "fixed-straw-1518", name: "1518号皮料", parentId: "fixed-straw", file: "草席/1518.png" },
+  { id: "fixed-straw-1635", name: "1635号皮料", parentId: "fixed-straw", file: "草席/1635.png" },
+  { id: "fixed-straw-1741", name: "1741号皮料", parentId: "fixed-straw", file: "草席/1741.png" },
+  { id: "fixed-straw-2932", name: "2932号皮料", parentId: "fixed-straw", file: "草席/2932.png" }
 ];
 
 PRODUCT_CATALOG.forEach((item) => {
@@ -387,9 +397,13 @@ function colorOptions(component) {
   return PALETTES[component.palette] || PALETTES.leather;
 }
 
+function isColorControlVisible(component = selectedComponent(), config = componentConfig(component.id)) {
+  return !fixedStrawStyleByMaterial(config.material);
+}
+
 function materialsFor(component) {
   if (component.fixedOptions) return MATERIALS.filter((item) => item.id === FIXED_MATERIAL_ID);
-  if (["A", "A1", "G"].includes(component.id)) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte" || item.id === "chinoiserie-pink" || item.id === "chinoiserie-white");
+  if (["A", "A1", "G"].includes(component.id)) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte" || item.id === "chinoiserie-pink" || item.id === "chinoiserie-white" || item.id === "fixed-straw");
   if (component.editable) return MATERIALS.filter((item) => item.id === "smooth" || item.id === "mesh" || item.id === "pearl" || item.id === "matte");
   if (component.palette === "carbon") return MATERIALS.filter((item) => item.id === "carbon" || item.id === "matte");
   if (component.palette === "strap") return MATERIALS.filter((item) => item.id === "webbing" || item.id === "smooth");
@@ -399,7 +413,16 @@ function materialsFor(component) {
 }
 
 function materialById(id) {
-  return MATERIALS.find((item) => item.id === id) || MATERIALS[0];
+  return fixedStrawStyleByMaterial(id) || MATERIALS.find((item) => item.id === id) || MATERIALS[0];
+}
+
+function fixedStrawStyleByMaterial(id) {
+  return FIXED_STRAW_STYLES.find((item) => item.id === id) || null;
+}
+
+function fixedStrawStylePatch(styleId = FIXED_STRAW_STYLES[0].id) {
+  const style = fixedStrawStyleByMaterial(styleId) || FIXED_STRAW_STYLES[0];
+  return { material: style.id, variant: style.id };
 }
 
 function colorName(value, component = selectedComponent()) {
@@ -434,6 +457,12 @@ function materialName(id) {
 }
 
 function cssTexture(color, material) {
+  const fixedStrawStyle = fixedStrawStyleByMaterial(material);
+  if (fixedStrawStyle) {
+    // 草席新增资源是完整固定贴图，不再叠加色值，直接作为裁片纹理渲染。
+    return `url('${materialAsset(fixedStrawStyle.file)}') center / cover no-repeat`;
+  }
+
   switch (material) {
     case "chinoiserie-pink":
       return `linear-gradient(rgba(255,255,255,.08), rgba(255,255,255,.08)), url('${materialAsset("chinoiserie-pink.jpg")}') center / cover no-repeat`;
@@ -1313,6 +1342,13 @@ function renderParts() {
 function renderSwatches() {
   const component = selectedComponent();
   const config = componentConfig();
+  const colorBlock = els.swatchGrid.closest(".color-block");
+  const isVisible = isColorControlVisible(component, config);
+  if (colorBlock) colorBlock.hidden = !isVisible;
+  if (!isVisible) {
+    els.swatchGrid.innerHTML = "";
+    return;
+  }
   els.swatchGrid.innerHTML = colorOptions(component)
     .map(
       (color) => `
@@ -1325,18 +1361,33 @@ function renderTextures() {
   const component = selectedComponent();
   const config = componentConfig();
   els.textureList.innerHTML = materialsFor(component)
-    .map(
-      (material) => `
+    .map((material) => {
+      const isFixedStraw = material.id === "fixed-straw";
+      const isFixedStrawSelected = isFixedStraw && Boolean(fixedStrawStyleByMaterial(config.material));
+      return `
       <button class="texture-button" type="button" data-part-id="${component.id}" data-material="${material.id}" aria-pressed="${material.id === config.material}">
         <span class="texture-preview" style="--texture:${component.fixedOptions ? componentPreview(component, config) : cssTexture(config.color, material.id)};"></span>
         <span>
           <strong>${material.name}</strong>
           <span>${material.note}</span>
         </span>
-        <span class="texture-check">${material.id === config.material ? "✓" : ""}</span>
-      </button>`
-    )
+        <span class="texture-check">${material.id === config.material || isFixedStrawSelected ? "✓" : ""}</span>
+      </button>
+      ${isFixedStraw && isFixedStrawSelected ? renderFixedStrawStyles(component, config) : ""}`;
+    })
     .join("");
+}
+
+function renderFixedStrawStyles(component, config) {
+  return FIXED_STRAW_STYLES.map((style) => `
+    <button class="texture-button texture-button--sub" type="button" data-part-id="${component.id}" data-straw-style="${style.id}" aria-pressed="${style.id === config.material}">
+      <span class="texture-preview" style="--texture:${cssTexture(config.color, style.id)};"></span>
+      <span>
+        <strong>${style.name}</strong>
+        <span>草席固定贴图</span>
+      </span>
+      <span class="texture-check">${style.id === config.material ? "✓" : ""}</span>
+    </button>`).join("");
 }
 
 function renderShoe() {
@@ -2308,6 +2359,17 @@ function bindEvents() {
   });
 
   els.textureList.addEventListener("click", (event) => {
+    const strawStyleButton = event.target.closest("[data-straw-style]");
+    if (strawStyleButton) {
+      const partId = strawStyleButton.dataset.partId || state.selectedPartId;
+      invalidatePendingShoeHit();
+      if (state.config[state.productId]?.components?.[partId]) {
+        state.selectedPartId = partId;
+      }
+      updatePartConfig(state.selectedPartId, fixedStrawStylePatch(strawStyleButton.dataset.strawStyle));
+      return;
+    }
+
     const button = event.target.closest("[data-material]");
     if (!button) return;
     const partId = button.dataset.partId || state.selectedPartId;
@@ -2315,7 +2377,11 @@ function bindEvents() {
     if (state.config[state.productId]?.components?.[partId]) {
       state.selectedPartId = partId;
     }
-    updatePartConfig(state.selectedPartId, { material: button.dataset.material });
+    if (button.dataset.material === "fixed-straw") {
+      updatePartConfig(state.selectedPartId, fixedStrawStylePatch());
+      return;
+    }
+    updatePartConfig(state.selectedPartId, { material: button.dataset.material, variant: "" });
   });
 
   els.copyConfigButton?.addEventListener("click", copyConfig);
