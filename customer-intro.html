@@ -976,7 +976,7 @@
               </div>
               <div>
                 <h3>UE 布料贴图接入</h3>
-                <p>布料库收口为光面皮、哑光皮、草席和 UE 固定贴图布料组，新增 PU、TPU、PU TPU、鳞片四组子款式，并在 C 端按真实贴图直接预览。</p>
+                <p>布料库收口为光面皮、哑光皮、草席和 UE 固定贴图布料组，新增 PU、TPU、PU TPU、鳞片四组子款式，并在 C 端按真实贴图直接预览；手机端颜色侧栏同步修复窄屏裁剪。</p>
               </div>
             </article>
             <article class="timeline-card">
@@ -1178,7 +1178,7 @@
             title: "版本优化记录。",
             body: "以下记录聚焦客户能感知到的 C 端体验变化，便于对外介绍和内部复盘。",
             cards: [
-              ["UE 布料贴图接入", "布料库收口为光面皮、哑光皮、草席和 UE 固定贴图布料组，新增 PU、TPU、PU TPU、鳞片四组子款式，并在 C 端按真实贴图直接预览。"],
+              ["UE 布料贴图接入", "布料库收口为光面皮、哑光皮、草席和 UE 固定贴图布料组，新增 PU、TPU、PU TPU、鳞片四组子款式，并在 C 端按真实贴图直接预览；手机端颜色侧栏同步修复窄屏裁剪。"],
               ["手机端确认预览更稳定", "效果确认页改用 Canvas 按当前配置生成静态 PNG 快照，确认单复用三视角 PNG 效果图，返回表单后再次确认会重新生成。"],
               ["确认单更适合交付", "导出改为 HTML 确认单，内嵌最终鞋子效果 UI、配色表格、特殊定制信息和上传参考图，并支持浏览器打印或另存 PDF。"],
               ["裁片选择栏更清爽", "移除裁片缩略图，仅保留名称和颜色预览，编号保留在按钮提示中，同时收紧按钮宽度，让横向列表可以展示更多裁片。"],
@@ -1270,6 +1270,7 @@
             title: "Version update history.",
             body: "These notes focus on customer-visible improvements in the C-end experience, useful for external introduction and internal review.",
             cards: [
+              ["More stable mobile color sidebar", "The color sidebar now uses a proportional layout with a minimum usable width. Color buttons keep tappable size and avoid right-edge clipping on narrow screens."],
               ["More stable mobile preview confirmation", "The effect confirmation page now uses Canvas to generate static PNG snapshots from the current configuration. The confirmation sheet reuses three-angle PNG previews, and returning to the form regenerates fresh snapshots."],
               ["Confirmation sheets are easier to hand off", "Export now generates an HTML confirmation sheet with final shoe preview, color table, special customization details, and uploaded references. It can be printed or saved as PDF from the browser."],
               ["Cleaner part selection rail", "Part thumbnails were removed. The rail keeps names and color previews, keeps codes in button hints, and narrows button width so more parts fit horizontally."],

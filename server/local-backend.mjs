@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_DATA_DIR = path.join(PROJECT_ROOT, ".local-data");
+const SHARED_SCHEMA_PATH = path.join(PROJECT_ROOT, "shared", "yjs-pro-cim-schema.js");
 const SHARED_CONFIG_PATH = path.join(PROJECT_ROOT, "b-side", "data", "cim-config.js");
 const DEFAULT_ADMIN_EMAIL = "admin@skate-cim.local";
 const DEFAULT_ADMIN_PASSWORD = "admin123";
@@ -35,10 +36,15 @@ function verifyPassword(password, storedHash) {
 }
 
 async function loadSeedConfig() {
-  const source = await readFile(SHARED_CONFIG_PATH, "utf8");
-  const match = source.match(/window\.SKATE_CIM_CONFIG\s*=\s*([\s\S]*);\s*$/);
-  if (!match) throw new Error("Cannot parse b-side/data/cim-config.js");
-  return JSON.parse(JSON.stringify(Function(`return (${match[1]});`)()));
+  const [schemaSource, configSource] = await Promise.all([
+    readFile(SHARED_SCHEMA_PATH, "utf8"),
+    readFile(SHARED_CONFIG_PATH, "utf8")
+  ]);
+  const browserGlobals = { window: {} };
+  Function("window", schemaSource)(browserGlobals.window);
+  Function("window", configSource)(browserGlobals.window);
+  if (!browserGlobals.window.SKATE_CIM_CONFIG) throw new Error("Cannot parse b-side/data/cim-config.js");
+  return deepClone(browserGlobals.window.SKATE_CIM_CONFIG);
 }
 
 function ensureSchema(db) {

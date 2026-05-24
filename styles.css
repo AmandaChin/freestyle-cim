@@ -2293,7 +2293,7 @@ body.drawer-open {
 
   .workspace {
     display: grid;
-    grid-template-columns: minmax(0, 7fr) minmax(92px, 3fr);
+    grid-template-columns: minmax(0, 1fr) minmax(118px, 32%);
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 8px;
     height: calc(100dvh - 91px);
@@ -2495,8 +2495,8 @@ body.drawer-open {
   }
 
   .swatch-button {
-    min-width: 26px;
-    min-height: 26px;
+    min-width: 30px;
+    min-height: 30px;
   }
 
   .texture-list {
@@ -2840,14 +2840,14 @@ body.drawer-open {
 /* Landscape drawer color row: keep colors and material header separated. */
 @media (max-width: 900px) and (max-height: 520px) {
   .swatch-grid {
-    grid-template-columns: repeat(8, minmax(28px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
     max-height: 52px;
     padding-right: 10px;
     padding-left: 10px;
   }
 
   .swatch-button {
-    min-width: 28px;
-    min-height: 28px;
+    min-width: 30px;
+    min-height: 30px;
   }
 }
