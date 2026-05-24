@@ -1,6 +1,7 @@
 const STORAGE_KEY = "skate-cim-bside-host-state-v3";
 const SHOE_SCHEMA = window.SKATE_CIM_SCHEMA;
 const SCHEMA_UTILS = window.SKATE_CIM_SCHEMA_UTILS;
+const API_BASE = "/api";
 
 const icons = {
   shoes: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15.5c2.2 0 3.8-.2 5.6-1.8l1.7-1.5 2.9 2.3c1.4 1.1 3.1 1.7 4.9 1.7H21v2.3H3z"></path><path d="M9 10.5l.6-3.5 3.3 1.3"></path></svg>',
@@ -164,8 +165,7 @@ function buildLayerAssetPath(angleKey, partKey, fieldKey, fileName) {
   return `${angleKey}/${partKey}/${safeName || field?.fileName || "asset.png"}`;
 }
 
-function adminShoesFromShared() {
-  const source = Array.isArray(CIM_SHARED_CONFIG.shoes) ? CIM_SHARED_CONFIG.shoes : [];
+function adminShoesFromSource(source) {
   const published = source.filter((item) => item.status === "published");
   return published.map((item) => ({
     id: item.id || `shoe-${item.shoeId}`,
@@ -182,8 +182,11 @@ function adminShoesFromShared() {
   }));
 }
 
-function adminFabricsFromShared() {
-  const source = Array.isArray(CIM_SHARED_CONFIG.fabrics) ? CIM_SHARED_CONFIG.fabrics : [];
+function adminShoesFromShared() {
+  return adminShoesFromSource(Array.isArray(CIM_SHARED_CONFIG.shoes) ? CIM_SHARED_CONFIG.shoes : []);
+}
+
+function adminFabricsFromSource(source) {
   return source.map((item) => ({
     id: item.id || `fabric-${item.materialKey}`,
     materialKey: item.materialKey,
@@ -198,15 +201,19 @@ function adminFabricsFromShared() {
   }));
 }
 
-function adminReleaseFromShared() {
+function adminFabricsFromShared() {
+  return adminFabricsFromSource(Array.isArray(CIM_SHARED_CONFIG.fabrics) ? CIM_SHARED_CONFIG.fabrics : []);
+}
+
+function adminReleaseFromSource(release) {
   return {
-    testing: CIM_SHARED_CONFIG.release?.testing || null,
-    online: CIM_SHARED_CONFIG.release?.online || {
+    testing: release?.testing || null,
+    online: release?.online || {
       version: "v1.0.0",
       publishedAt: nowString(),
       status: "正常"
     },
-    history: CIM_SHARED_CONFIG.release?.history || []
+    history: release?.history || []
   };
 }
 
@@ -291,6 +298,10 @@ function exportPublishedConfig() {
   toast("发布配置已导出，并已复制到剪贴板");
 }
 
+function adminReleaseFromShared() {
+  return adminReleaseFromSource(CIM_SHARED_CONFIG.release || {});
+}
+
 const defaultState = {
   theme: "light",
   collapsed: false,
@@ -340,6 +351,9 @@ const els = {
 };
 
 let state = loadState();
+let currentAdmin = null;
+let bootedFromApi = false;
+let draftSaveTimer = 0;
 
 function loadState() {
   try {
@@ -368,6 +382,112 @@ function clone(value) {
 
 function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (bootedFromApi) {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = window.setTimeout(() => {
+      saveDraftToServer().catch((error) => toast(error.message || "草稿保存失败"));
+    }, 250);
+  }
+}
+
+function sharedConfigFromState(source = state) {
+  return {
+    schemaVersion: CIM_SHARED_CONFIG.schemaVersion || 1,
+    release: source.release,
+    shoes: source.shoes,
+    fabrics: source.fabrics
+  };
+}
+
+function stateFromSharedConfig(config) {
+  return mergeDefaults({
+    ...clone(state),
+    shoes: adminShoesFromSource(config.shoes || []),
+    fabrics: adminFabricsFromSource(config.fabrics || []),
+    release: adminReleaseFromSource(config.release || {})
+  });
+}
+
+async function apiJson(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    ...options
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload.message || `请求失败：${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+async function saveDraftToServer() {
+  await apiJson("/admin/config/draft", {
+    method: "PUT",
+    body: JSON.stringify(sharedConfigFromState())
+  });
+}
+
+async function bootstrapFromServer() {
+  try {
+    const me = await apiJson("/admin/me");
+    currentAdmin = me.admin;
+    const config = await apiJson("/admin/config/draft");
+    state = stateFromSharedConfig(config);
+    bootedFromApi = true;
+    persist();
+    return true;
+  } catch (error) {
+    if (error.status === 401) return false;
+    toast(error.message || "后台服务连接失败");
+    return false;
+  }
+}
+
+async function signIn(email, password) {
+  const result = await apiJson("/admin/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
+  currentAdmin = result.admin;
+  return bootstrapFromServer();
+}
+
+function renderLogin() {
+  document.body.innerHTML = `
+    <main class="login-screen">
+      <form class="login-card" id="loginForm">
+        <p class="admin-eyebrow">Admin Access</p>
+        <h1>Skate CIM 配置后台</h1>
+        <p>只有管理员白名单内账号可以进入并发布 C 端配置。</p>
+        <label class="field">
+          <span>管理员邮箱</span>
+          <input class="input" id="loginEmail" type="email" value="admin@skate-cim.local" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input class="input" id="loginPassword" type="password" value="admin123" autocomplete="current-password" required />
+        </label>
+        <button class="primary-button" type="submit">登录后台</button>
+        <div class="login-error" id="loginError" role="status"></div>
+      </form>
+    </main>`;
+  document.querySelector("#loginForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const error = document.querySelector("#loginError");
+    error.textContent = "";
+    try {
+      const ok = await signIn(document.querySelector("#loginEmail").value, document.querySelector("#loginPassword").value);
+      if (ok) window.location.reload();
+    } catch (loginError) {
+      error.textContent = loginError.message || "登录失败";
+    }
+  });
 }
 
 function resetDemo() {
@@ -705,8 +825,8 @@ function confirmModal({ title = "确认操作", message, confirmText = "确认",
     title,
     submitText: confirmText,
     body: `<div class="confirm-message">${message}</div>`,
-    onSubmit(_form, close) {
-      onConfirm();
+    async onSubmit(_form, close) {
+      await onConfirm();
       close();
     }
   });
@@ -1452,11 +1572,13 @@ function promoteRelease() {
     message: `确认将 ${escapeHtml(state.release.testing.version)} 切换为正式 Published 指针？`,
     confirmText: "确认发布",
     tone: "primary",
-    onConfirm() {
+    async onConfirm() {
+      const publishNote = state.release.testing?.notes || "B 端正式发布";
+      if (bootedFromApi) await saveDraftToServer();
       state.release.history.unshift({
         version: state.release.online.version,
         publishedAt: state.release.online.publishedAt,
-        operator: "Admin"
+        operator: currentAdmin?.email || "Admin"
       });
       state.release.history = state.release.history.slice(0, 6);
       state.release.online = {
@@ -1470,6 +1592,16 @@ function promoteRelease() {
       });
       publishConfigToLocalPreview();
       persist();
+      if (bootedFromApi) {
+        await saveDraftToServer();
+        const result = await apiJson("/admin/publish", {
+          method: "POST",
+          body: JSON.stringify({ note: publishNote })
+        });
+        state.release.online.version = result.version;
+        state.release.online.publishedAt = result.publishedAt;
+        persist();
+      }
       render();
       toast("正式版本已发布");
     }
@@ -1598,7 +1730,12 @@ function bindEvents() {
   });
 }
 
-function init() {
+async function init() {
+  const authenticated = await bootstrapFromServer();
+  if (!authenticated) {
+    renderLogin();
+    return;
+  }
   els.shoeSearch.value = state.filters.shoeSearch;
   els.shoeStatusFilter.value = state.filters.shoeStatus;
   els.fabricSearch.value = state.filters.fabricSearch;

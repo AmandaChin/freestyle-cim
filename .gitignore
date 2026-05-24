@@ -3,3 +3,4 @@ node_modules/
 .worktrees/
 seba_public_assets_*/
 seba_public_assets_*.zip
+.local-data/

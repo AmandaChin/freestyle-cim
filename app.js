@@ -173,8 +173,8 @@ PRODUCT_CATALOG.forEach((item) => {
   });
 });
 
-const DEFAULT_PRODUCT_ID = PRODUCT_CATALOG.find((item) => item.id === "yjs-pro-cim-upper")?.id || PRODUCT_CATALOG[0].id;
-const DEFAULT_PRODUCT = PRODUCT_CATALOG.find((item) => item.id === DEFAULT_PRODUCT_ID);
+let DEFAULT_PRODUCT_ID = PRODUCT_CATALOG.find((item) => item.id === "yjs-pro-cim-upper")?.id || PRODUCT_CATALOG[0].id;
+let DEFAULT_PRODUCT = PRODUCT_CATALOG.find((item) => item.id === DEFAULT_PRODUCT_ID);
 const hitCanvasCache = new Map();
 const snapshotImageCache = new Map();
 const selectionRingCache = new Map();
@@ -199,6 +199,41 @@ const state = {
   },
   config: {}
 };
+
+function applyPublishedConfig(config) {
+  const publishedShoes = Array.isArray(config?.shoes) ? config.shoes.filter((item) => item.status === "published") : [];
+  if (!publishedShoes.length) return;
+  PRODUCT_CATALOG = PRODUCT_CATALOG
+    .map((productItem) => {
+      const adminItem = publishedShoes.find((item) => item.shoeId === productItem.id);
+      if (!adminItem) return productItem;
+      return {
+        ...productItem,
+        name: adminItem.name || productItem.name,
+        code: adminItem.code || productItem.code,
+        homeLabel: adminItem.homeLabel || productItem.homeLabel,
+        description: adminItem.description || adminItem.notes || productItem.description,
+        homeFeatures: adminItem.homeFeatures || productItem.homeFeatures,
+        defaultAngle: adminItem.defaultAngleKey || adminItem.defaultAngle || productItem.defaultAngle,
+        editablePartId: adminItem.defaultPartKey || productItem.editablePartId
+      };
+    })
+    .filter((productItem) => publishedShoes.some((item) => item.shoeId === productItem.id));
+  DEFAULT_PRODUCT_ID = PRODUCT_CATALOG.find((item) => item.id === state.productId)?.id || PRODUCT_CATALOG[0]?.id || DEFAULT_PRODUCT_ID;
+  DEFAULT_PRODUCT = PRODUCT_CATALOG.find((item) => item.id === DEFAULT_PRODUCT_ID) || PRODUCT_CATALOG[0];
+  state.productId = DEFAULT_PRODUCT_ID;
+  state.selectedPartId = activePartId(DEFAULT_PRODUCT);
+}
+
+async function loadPublishedConfig() {
+  try {
+    const response = await fetch("/api/public/config", { cache: "no-store" });
+    if (!response.ok) return;
+    applyPublishedConfig(await response.json());
+  } catch {
+    // 静态预览时没有本地 API，继续使用内置配置，保证 C 端仍可离线打开。
+  }
+}
 
 const els = {
   homeView: document.querySelector("#homeView"),
@@ -2471,7 +2506,8 @@ function bindEvents() {
   });
 }
 
-function init() {
+async function init() {
+  await loadPublishedConfig();
   PRODUCT_CATALOG.forEach((item) => {
     state.config[item.id] = cloneProductConfig(item);
   });
