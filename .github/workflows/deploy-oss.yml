@@ -31,27 +31,12 @@ jobs:
           test -n "$OSS_ACCESS_KEY_ID"
           test -n "$OSS_ACCESS_KEY_SECRET"
 
-      - name: Install ossutil
-        run: |
-          set -euo pipefail
-          curl -fsSL https://gosspublic.alicdn.com/ossutil/install.sh -o /tmp/install-ossutil.sh
-          sudo bash /tmp/install-ossutil.sh || status=$?
-          if [ "${status:-0}" -ne 0 ] && [ "${status:-0}" -ne 3 ]; then
-            exit "$status"
-          fi
-          ossutil version
-
-      - name: Configure ossutil
-        run: |
-          set -euo pipefail
-          cat > ~/.ossutilconfig <<EOF
-          [Credentials]
-          language = EN
-          endpoint = ${OSS_ENDPOINT}
-          accessKeyID = ${OSS_ACCESS_KEY_ID}
-          accessKeySecret = ${OSS_ACCESS_KEY_SECRET}
-          EOF
-          chmod 600 ~/.ossutilconfig
+      - name: Setup ossutil
+        uses: manyuanrong/setup-ossutil@v2.0
+        with:
+          endpoint: ${{ env.OSS_ENDPOINT }}
+          access-key-id: ${{ env.OSS_ACCESS_KEY_ID }}
+          access-key-secret: ${{ env.OSS_ACCESS_KEY_SECRET }}
 
       - name: Prepare static files
         run: |
