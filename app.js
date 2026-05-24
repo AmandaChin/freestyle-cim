@@ -5,7 +5,7 @@ const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
 const FULL_ANGLE_ASSET_VERSION = "20260523-annotated-v1";
 const REAL_PRODUCT_ASSET_DIR = "./assets/skates/yjs-pro-cim/real-products/";
 const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
-const MATERIAL_ASSET_VERSION = "20260523-bear-test-v1";
+const MATERIAL_ASSET_VERSION = "20260524-ue-fabric-v1";
 const HIT_ALPHA_THRESHOLD = 18;
 const SELECTION_RING_RADIUS = 14;
 const SELECTION_RING_STEP = 3;
@@ -126,28 +126,41 @@ const PRODUCT_CATALOG = [productFromSchema(SHOE_SCHEMA)].filter((item) => {
   return publishedShoes.some((shoe) => shoe.shoeId === item.id || shoe.id === item.id || shoe.id === `shoe-${item.id}`);
 });
 
-const STATIC_FIXED_STRAW_STYLES = [
-  { id: "fixed-straw-1336", name: "1336号皮料", parentId: "fixed-straw", file: "草席/1336.png" },
-  { id: "fixed-straw-1437", name: "1437号皮料", parentId: "fixed-straw", file: "草席/1437.png" },
-  { id: "fixed-straw-1518", name: "1518号皮料", parentId: "fixed-straw", file: "草席/1518.png" },
-  { id: "fixed-straw-1635", name: "1635号皮料", parentId: "fixed-straw", file: "草席/1635.png" },
-  { id: "fixed-straw-1741", name: "1741号皮料", parentId: "fixed-straw", file: "草席/1741.png" },
-  { id: "fixed-straw-2932", name: "2932号皮料", parentId: "fixed-straw", file: "草席/2932.png" }
-];
+const STATIC_FABRIC_STYLE_SETS = {
+  "fixed-straw": [
+    { id: "fixed-straw-1336", name: "1336号皮料", parentId: "fixed-straw", file: "草席/1336.png" },
+    { id: "fixed-straw-1437", name: "1437号皮料", parentId: "fixed-straw", file: "草席/1437.png" },
+    { id: "fixed-straw-1518", name: "1518号皮料", parentId: "fixed-straw", file: "草席/1518.png" },
+    { id: "fixed-straw-1635", name: "1635号皮料", parentId: "fixed-straw", file: "草席/1635.png" },
+    { id: "fixed-straw-1741", name: "1741号皮料", parentId: "fixed-straw", file: "草席/1741.png" },
+    { id: "fixed-straw-2932", name: "2932号皮料", parentId: "fixed-straw", file: "草席/2932.png" }
+  ]
+};
 
-function fixedStrawStylesFromSharedConfig() {
-  const fabric = (CIM_SHARED_CONFIG.fabrics || []).find((item) => item.materialKey === "fixed_straw" || item.id === "fabric-fixed-straw");
-  if (!Array.isArray(fabric?.styles) || !fabric.styles.length) return [];
-  return fabric.styles.map((style) => ({
-    id: style.id,
-    name: style.name,
-    parentId: "fixed-straw",
-    file: style.file
-  }));
+function materialIdFromFabric(fabric) {
+  if (fabric.materialKey === "fixed_straw") return "fixed-straw";
+  return fabric.materialKey;
 }
 
-const SHARED_FIXED_STRAW_STYLES = fixedStrawStylesFromSharedConfig();
-const FIXED_STRAW_STYLES = SHARED_FIXED_STRAW_STYLES.length ? SHARED_FIXED_STRAW_STYLES : STATIC_FIXED_STRAW_STYLES;
+function fabricStyleSetsFromSharedConfig() {
+  const sets = {};
+  (CIM_SHARED_CONFIG.fabrics || [])
+    .filter((fabric) => fabric.mode === "fixed_style_set" && Array.isArray(fabric.styles) && fabric.styles.length)
+    .forEach((fabric) => {
+      const parentId = materialIdFromFabric(fabric);
+      sets[parentId] = fabric.styles.map((style) => ({
+        id: style.id,
+        name: style.name,
+        parentId,
+        parentName: fabric.name,
+        file: style.file
+      }));
+    });
+  return sets;
+}
+
+const SHARED_FABRIC_STYLE_SETS = fabricStyleSetsFromSharedConfig();
+const FABRIC_STYLE_SETS = { ...STATIC_FABRIC_STYLE_SETS, ...SHARED_FABRIC_STYLE_SETS };
 
 PRODUCT_CATALOG.forEach((item) => {
   item.components.forEach((component) => {
@@ -304,7 +317,7 @@ function colorOptions(component) {
 }
 
 function isColorControlVisible(component = selectedComponent(), config = componentConfig(component.id)) {
-  return !fixedStrawStyleByMaterial(config.material);
+  return !fabricStyleByMaterial(config.material);
 }
 
 function materialsFor(component) {
@@ -312,15 +325,20 @@ function materialsFor(component) {
 }
 
 function materialById(id) {
-  return fixedStrawStyleByMaterial(id) || activeShoeSchema().materials.find((item) => item.id === id) || activeShoeSchema().materials[0];
+  return fabricStyleByMaterial(id) || activeShoeSchema().materials.find((item) => item.id === id) || activeShoeSchema().materials[0];
 }
 
-function fixedStrawStyleByMaterial(id) {
-  return FIXED_STRAW_STYLES.find((item) => item.id === id) || null;
+function fabricStyleSetByMaterial(id) {
+  return FABRIC_STYLE_SETS[id] || [];
 }
 
-function fixedStrawStylePatch(styleId = FIXED_STRAW_STYLES[0].id) {
-  const style = fixedStrawStyleByMaterial(styleId) || FIXED_STRAW_STYLES[0];
+function fabricStyleByMaterial(id) {
+  return Object.values(FABRIC_STYLE_SETS).flat().find((item) => item.id === id) || null;
+}
+
+function fabricStyleSetPatch(parentId, styleId = "") {
+  const styles = fabricStyleSetByMaterial(parentId);
+  const style = styles.find((item) => item.id === styleId) || styles[0];
   return { material: style.id, variant: style.id };
 }
 
@@ -360,15 +378,15 @@ function texturePreview(component, config, material) {
 }
 
 function isSelectedMaterial(component, config, material) {
-  if (material.id === "fixed-straw") return Boolean(fixedStrawStyleByMaterial(config.material));
+  if (fabricStyleSetByMaterial(material.id).length) return fabricStyleSetByMaterial(material.id).some((style) => style.id === config.material);
   return material.id === config.material;
 }
 
 function shouldExpandMaterial(component, config, material) {
   if (!isSelectedMaterial(component, config, material)) return false;
-  if (material.id === "fixed-straw") return true;
+  if (fabricStyleSetByMaterial(material.id).length) return true;
   if (component.fixedOptions) return true;
-  return !material.id.startsWith("chinoiserie-");
+  return true;
 }
 
 function componentColorValue(component, config = componentConfig(component.id)) {
@@ -383,23 +401,13 @@ function materialName(id, component = selectedComponent()) {
 }
 
 function cssTexture(color, material) {
-  const fixedStrawStyle = fixedStrawStyleByMaterial(material);
-  if (fixedStrawStyle) {
-    // 草席新增资源是完整固定贴图，不再叠加色值，直接作为裁片纹理渲染。
-    return `url('${materialAsset(fixedStrawStyle.file)}') center / cover no-repeat`;
+  const fabricStyle = fabricStyleByMaterial(material);
+  if (fabricStyle) {
+    // 固定贴图子款式本身已经包含颜色和纹理，不再叠加色值。
+    return `url('${materialAsset(fabricStyle.file)}') center / cover no-repeat`;
   }
 
   switch (material) {
-    case "chinoiserie-pink":
-      return `linear-gradient(rgba(255,255,255,.08), rgba(255,255,255,.08)), url('${materialAsset("chinoiserie-pink.jpg")}') center / cover no-repeat`;
-    case "chinoiserie-white":
-      return `linear-gradient(rgba(255,255,255,.04), rgba(255,255,255,.04)), url('${materialAsset("chinoiserie-white.jpg")}') center / cover no-repeat`;
-    case "carbon":
-      return `repeating-linear-gradient(45deg, rgba(255,255,255,.34) 0 3px, rgba(0,0,0,.22) 3px 6px), ${color}`;
-    case "pearl":
-      return `radial-gradient(circle at 20% 18%, rgba(255,255,255,.82), transparent 34%), linear-gradient(145deg, ${color}, rgba(255,255,255,.5))`;
-    case "mesh":
-      return `repeating-linear-gradient(45deg, rgba(255,255,255,.26) 0 2px, rgba(0,0,0,.08) 2px 4px), repeating-linear-gradient(-45deg, rgba(255,255,255,.18) 0 2px, rgba(0,0,0,.06) 2px 4px), ${color}`;
     case "webbing":
       return `repeating-linear-gradient(90deg, rgba(255,255,255,.36) 0 2px, rgba(0,0,0,.08) 2px 4px), ${color}`;
     case "hardware":
@@ -417,10 +425,6 @@ function svgPattern(id) {
   const base = `<rect width="12" height="12" fill="${color}"/>`;
 
   switch (material) {
-    case "carbon":
-      return `${base}<path d="M-2 4 L4 -2 M2 12 L14 0 M8 14 L14 8" stroke="#fff" stroke-opacity=".34" stroke-width="2"/><path d="M-2 8 L8 -2 M4 14 L14 4" stroke="#000" stroke-opacity=".18" stroke-width="2"/>`;
-    case "pearl":
-      return `${base}<circle cx="2" cy="2" r="6" fill="#fff" opacity=".48"/><path d="M0 12 C4 5 8 4 12 0" stroke="#fff" stroke-opacity=".22" stroke-width="2"/>`;
     case "webbing":
       return `${base}<path d="M0 3 H12 M0 9 H12" stroke="#fff" stroke-opacity=".28" stroke-width="1.6"/><path d="M3 0 V12 M9 0 V12" stroke="#000" stroke-opacity=".12" stroke-width="1"/>`;
     case "hardware":
@@ -620,45 +624,23 @@ function drawRepeatingLines(context, width, height, step, color, alpha, directio
 }
 
 async function paintSnapshotMaterial(context, width, height, color, material) {
+  const fabricStyle = fabricStyleByMaterial(material);
+  if (fabricStyle) {
+    // 确认页快照使用 Canvas 重新合成，固定贴图布料必须在这里重画，不能依赖 CSS background。
+    const image = await loadSnapshotImage(materialAsset(fabricStyle.file));
+    if (image) {
+      const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+      const drawWidth = image.naturalWidth * scale;
+      const drawHeight = image.naturalHeight * scale;
+      context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+    }
+    return;
+  }
+
   context.fillStyle = color;
   context.fillRect(0, 0, width, height);
 
   switch (material) {
-    case "chinoiserie-pink":
-    case "chinoiserie-white": {
-      const fileName = material === "chinoiserie-pink" ? "chinoiserie-pink.jpg" : "chinoiserie-white.jpg";
-      const image = await loadSnapshotImage(materialAsset(fileName));
-      if (image) {
-        const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
-        const drawWidth = image.naturalWidth * scale;
-        const drawHeight = image.naturalHeight * scale;
-        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
-      }
-      context.fillStyle = material === "chinoiserie-pink" ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.04)";
-      context.fillRect(0, 0, width, height);
-      break;
-    }
-    case "carbon":
-      drawRepeatingLines(context, width, height, 12, "#fff", 0.24, 1);
-      drawRepeatingLines(context, width, height, 12, "#000", 0.18, -1);
-      break;
-    case "pearl": {
-      const pearl = context.createRadialGradient(width * 0.2, height * 0.18, 0, width * 0.2, height * 0.18, width * 0.36);
-      pearl.addColorStop(0, "rgba(255,255,255,.82)");
-      pearl.addColorStop(1, "rgba(255,255,255,0)");
-      context.fillStyle = pearl;
-      context.fillRect(0, 0, width, height);
-      const shine = context.createLinearGradient(0, 0, width, height);
-      shine.addColorStop(0, "rgba(255,255,255,.28)");
-      shine.addColorStop(1, "rgba(255,255,255,0)");
-      context.fillStyle = shine;
-      context.fillRect(0, 0, width, height);
-      break;
-    }
-    case "mesh":
-      drawRepeatingLines(context, width, height, 8, "#fff", 0.2, 1);
-      drawRepeatingLines(context, width, height, 8, "#000", 0.08, -1);
-      break;
     case "webbing":
       context.fillStyle = "rgba(255,255,255,.22)";
       for (let x = 0; x < width; x += 8) context.fillRect(x, 0, 3, height);
@@ -1275,7 +1257,7 @@ function renderSwatches() {
 
 function renderMaterialSubChoices(component, config, material) {
   if (!shouldExpandMaterial(component, config, material)) return "";
-  if (material.id === "fixed-straw") return renderFixedStrawStyles(component, config);
+  if (fabricStyleSetByMaterial(material.id).length) return renderFabricSetStyles(component, config, material);
   const title = component.fixedColorOptions ? "颜色" : (component.fixedOptions ? "选项" : "颜色");
   return renderInlineSwatches(component, config, title);
 }
@@ -1314,13 +1296,13 @@ function renderTextures() {
     .join("");
 }
 
-function renderFixedStrawStyles(component, config) {
-  return FIXED_STRAW_STYLES.map((style) => `
-    <button class="texture-button texture-button--sub" type="button" data-part-id="${component.id}" data-straw-style="${style.id}" aria-pressed="${style.id === config.material}">
+function renderFabricSetStyles(component, config, material) {
+  return fabricStyleSetByMaterial(material.id).map((style) => `
+    <button class="texture-button texture-button--sub" type="button" data-part-id="${component.id}" data-fabric-style-parent="${material.id}" data-fabric-style="${style.id}" aria-pressed="${style.id === config.material}">
       <span class="texture-preview" style="--texture:${cssTexture(config.color, style.id)};"></span>
       <span>
         <strong>${style.name}</strong>
-        <span>草席固定贴图</span>
+        <span>${material.name}固定贴图</span>
       </span>
       <span class="texture-check">${style.id === config.material ? "✓" : ""}</span>
     </button>`).join("");
@@ -2299,14 +2281,14 @@ function bindEvents() {
       return;
     }
 
-    const strawStyleButton = event.target.closest("[data-straw-style]");
-    if (strawStyleButton) {
-      const partId = strawStyleButton.dataset.partId || state.selectedPartId;
+    const fabricStyleButton = event.target.closest("[data-fabric-style]");
+    if (fabricStyleButton) {
+      const partId = fabricStyleButton.dataset.partId || state.selectedPartId;
       invalidatePendingShoeHit();
       if (state.config[state.productId]?.components?.[partId]) {
         state.selectedPartId = partId;
       }
-      updatePartConfig(state.selectedPartId, fixedStrawStylePatch(strawStyleButton.dataset.strawStyle));
+      updatePartConfig(state.selectedPartId, fabricStyleSetPatch(fabricStyleButton.dataset.fabricStyleParent, fabricStyleButton.dataset.fabricStyle));
       return;
     }
 
@@ -2317,8 +2299,8 @@ function bindEvents() {
     if (state.config[state.productId]?.components?.[partId]) {
       state.selectedPartId = partId;
     }
-    if (button.dataset.material === "fixed-straw") {
-      updatePartConfig(state.selectedPartId, fixedStrawStylePatch());
+    if (fabricStyleSetByMaterial(button.dataset.material).length) {
+      updatePartConfig(state.selectedPartId, fabricStyleSetPatch(button.dataset.material));
       return;
     }
     updatePartConfig(state.selectedPartId, { material: button.dataset.material, variant: "" });

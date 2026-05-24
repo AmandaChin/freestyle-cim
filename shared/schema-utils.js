@@ -81,15 +81,28 @@
 
   function mergePublishedShoe(schema, publishedShoe) {
     if (!publishedShoe) return clone(schema);
+    const mergeById = (baseItems = [], overrideItems = []) => {
+      const merged = new Map(clone(baseItems).map((item) => [item.id || item.key, item]));
+      clone(overrideItems).forEach((item) => merged.set(item.id || item.key, item));
+      return [...merged.values()];
+    };
+    const mergeParts = (baseParts = [], overrideParts = []) => {
+      const merged = new Map(clone(baseParts).map((part) => [part.key, part]));
+      clone(overrideParts).forEach((part) => {
+        const base = merged.get(part.key) || {};
+        merged.set(part.key, { ...base, ...part, materialIds: base.materialIds || part.materialIds });
+      });
+      return [...merged.values()];
+    };
     const merged = {
       ...clone(schema),
       ...clone(publishedShoe),
       assets: { ...clone(schema.assets || {}), ...clone(publishedShoe.assets || {}) },
       palettes: publishedShoe.palettes ? clone(publishedShoe.palettes) : clone(schema.palettes || {}),
-      materials: publishedShoe.materials?.length ? clone(publishedShoe.materials) : clone(schema.materials || []),
+      materials: publishedShoe.materials?.length ? mergeById(schema.materials || [], publishedShoe.materials) : clone(schema.materials || []),
       fixedStyleSets: publishedShoe.fixedStyleSets ? clone(publishedShoe.fixedStyleSets) : clone(schema.fixedStyleSets || {}),
       fixedVariants: publishedShoe.fixedVariants ? clone(publishedShoe.fixedVariants) : clone(schema.fixedVariants || {}),
-      parts: publishedShoe.parts?.length ? clone(publishedShoe.parts) : clone(schema.parts || []),
+      parts: publishedShoe.parts?.length ? mergeParts(schema.parts || [], publishedShoe.parts) : clone(schema.parts || []),
       angles: publishedShoe.angles?.length ? clone(publishedShoe.angles) : clone(schema.angles || [])
     };
     return merged;
