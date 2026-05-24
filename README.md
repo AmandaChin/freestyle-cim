@@ -22,6 +22,22 @@ python3 -m http.server 8081
 
 打开 `http://127.0.0.1:8081/` 预览 C 端定制页。
 
+## 自动发布到阿里云 OSS
+
+仓库已配置 GitHub Actions：每次 push 到 `main` 分支，会把当前静态站文件同步到阿里云 OSS。同步使用 `ossutil sync --delete`，OSS 侧会删除本仓库静态站中已不存在的旧文件。
+
+需要在 GitHub 仓库 `Settings -> Secrets and variables -> Actions -> Repository secrets` 配置：
+
+| Secret | 说明 |
+| --- | --- |
+| `ALIYUN_ACCESS_KEY_ID` | 阿里云 RAM 用户 AccessKey ID |
+| `ALIYUN_ACCESS_KEY_SECRET` | 阿里云 RAM 用户 AccessKey Secret |
+| `ALIYUN_OSS_BUCKET` | OSS Bucket 名称，不带 `oss://` |
+| `ALIYUN_OSS_ENDPOINT` | Bucket 所在地域 Endpoint，例如 `https://oss-cn-hangzhou.aliyuncs.com` |
+| `ALIYUN_OSS_PREFIX` | 可选；发布到 Bucket 子目录时填写，例如 `skate-cim/` |
+
+RAM 用户最小权限建议只授予目标 Bucket 或目标 Prefix 的 `oss:ListObjects`、`oss:PutObject`、`oss:DeleteObject`。如果启用了 `ALIYUN_OSS_PREFIX`，请确认权限 Resource 也限制在相同前缀，避免误删 Bucket 其他目录。
+
 ## 版本迭代
 
 | 版本 | 日期 | 说明 |
