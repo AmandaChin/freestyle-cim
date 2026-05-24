@@ -189,7 +189,7 @@ function adminFabricsFromShared() {
     materialKey: item.materialKey,
     name: item.name,
     mode: item.mode,
-    color: item.color || "#8f9298",
+    color: item.color || "",
     textureFile: item.textureFile || null,
     styles: Array.isArray(item.styles) ? item.styles.map((style) => ({ ...style })) : [],
     groups: item.groups || ["upper"],
@@ -252,7 +252,7 @@ function buildPublishedConfig() {
       materialKey: fabric.materialKey,
       name: fabric.name,
       mode: fabric.mode,
-      color: fabric.color,
+      ...(fabric.color ? { color: fabric.color } : {}),
       ...(fabric.textureFile ? { textureFile: fabric.textureFile } : {}),
       ...(fabric.mode === "fixed_style_set" && Array.isArray(fabric.styles) && fabric.styles.length
         ? { styles: fabric.styles.map((style) => ({ id: style.id, name: style.name, file: style.file })) }
@@ -565,6 +565,9 @@ function renderFabricMetrics() {
 }
 
 function fabricPreview(item) {
+  if (item.mode === "fixed_style_set" && item.styles?.[0]?.file) {
+    return `<span class="fabric-preview" style="background:url('../assets/mvp/materials/${escapeHtml(item.styles[0].file)}') center / cover no-repeat;"></span>`;
+  }
   if (item.mode === "solid_mask") {
     return `<span class="fabric-preview" style="background:${escapeHtml(item.color || "#8f9298")};"></span>`;
   }
@@ -597,7 +600,7 @@ function renderFabrics() {
               ${fabricPreview(item)}
               <div>
                 <div class="entity-title">${escapeHtml(item.name)}</div>
-                <div class="entity-subtext">${escapeHtml(item.materialKey)} · ${escapeHtml(item.textureFile?.name || item.color || "未上传贴图")}</div>
+                <div class="entity-subtext">${escapeHtml(item.materialKey)} · ${escapeHtml(item.textureFile?.name || item.styles?.[0]?.file || item.color || "未上传贴图")}</div>
               </div>
             </div>
             <div><span class="badge ${item.mode}">${escapeHtml(item.mode)}</span></div>

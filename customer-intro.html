@@ -824,7 +824,7 @@
                   <span>种效果视角，支持侧面、45 度和正面预览。</span>
                 </div>
                 <div class="stat">
-                  <strong id="currentVersion">0.1.1</strong>
+                  <strong id="currentVersion">0.1.2</strong>
                   <span>当前 C 端版本，持续优化手机和桌面端体验。</span>
                 </div>
               </div>
@@ -893,7 +893,7 @@
             <article class="feature-card">
               <span class="icon" aria-hidden="true">4</span>
               <h3>颜色与材质选择</h3>
-              <p>内置奶油白、樱花粉、银灰、黑色等颜色，并支持光面皮、网布、珍珠皮、哑光皮和中国风布料。</p>
+              <p>保留光面皮、哑光皮和草席，并接入 PU、TPU、PU TPU、鳞片等 UE 固定贴图布料组。</p>
             </article>
             <article class="feature-card">
               <span class="icon" aria-hidden="true">5</span>
@@ -954,10 +954,10 @@
             <aside class="release-panel" aria-label="当前版本">
               <div>
                 <div class="release-label">Current Release</div>
-                <div class="release-number" id="releaseNumber">0.1.1</div>
+                <div class="release-number" id="releaseNumber">0.1.2</div>
               </div>
               <p id="releaseNote">
-                当前版本把鞋子效果固定为 Canvas 生成的 PNG 快照，手机端确认和交付更稳定。
+                当前版本接入 UE 固定贴图布料组，C 端可以按布料子款式直接预览真实贴图效果。
               </p>
             </aside>
           </div>
@@ -969,6 +969,16 @@
             <p>以下记录聚焦客户能感知到的 C 端体验变化，便于对外介绍和内部复盘。</p>
           </div>
           <div class="timeline">
+            <article class="timeline-card">
+              <div>
+                <span class="version-pill">0.1.2</span>
+                <span class="timeline-meta">2026-05-24</span>
+              </div>
+              <div>
+                <h3>UE 布料贴图接入</h3>
+                <p>布料库收口为光面皮、哑光皮、草席和 UE 固定贴图布料组，新增 PU、TPU、PU TPU、鳞片四组子款式，并在 C 端按真实贴图直接预览。</p>
+              </div>
+            </article>
             <article class="timeline-card">
               <div>
                 <span class="version-pill">0.1.1</span>
@@ -1072,19 +1082,21 @@
       </main>
     </div>
 
-    <script src="./version.js?v=0.1.1"></script>
+    <script src="./version.js?v=0.1.2"></script>
     <script>
       const release = window.SKATE_CIM_RELEASE || {};
-      const version = window.SKATE_CIM_VERSION || release.version || "0.1.1";
+      const version = window.SKATE_CIM_VERSION || release.version || "0.1.2";
       const languageStorageKey = "skate-cim-intro-language";
 
       const versionNotes = {
         zh: {
+          "0.1.2": "布料库收口为光面皮、哑光皮、草席和 UE 固定贴图布料组；新增 PU、TPU、PU TPU、鳞片四组子款式；C 端选择固定贴图后隐藏颜色选择并直接预览真实贴图效果。",
           "0.1.1": "确认鞋子效果页改为用 Canvas 按当前配置生成静态 PNG 快照；HTML 确认单复用三视角 PNG 效果图；返回表单后再次确认会重新生成快照，降低手机端预览刷新回首页的风险。",
           "0.0.9": "确认流程改为生成 HTML 确认单，规避移动端 Excel 下载兼容性问题；确认单内嵌最终鞋子效果 UI、配色表格、特殊定制信息和上传参考图；确认单支持浏览器直接打印或另存为 PDF。",
           default: "当前版本持续优化 C 端定制、确认和交付体验。"
         },
         en: {
+          "0.1.2": "The fabric library now keeps smooth leather, matte leather, straw, and UE fixed texture fabric sets. PU, TPU, PU TPU, and scale texture groups expand into child styles, and the C-end preview renders the real texture directly.",
           "0.1.1": "The effect confirmation page now generates static PNG snapshots with Canvas from the current configuration. The HTML confirmation sheet reuses the three-angle PNG previews, and returning to the form regenerates fresh snapshots on the next confirmation.",
           "0.0.9": "The confirmation flow now exports an HTML confirmation sheet, avoiding mobile Excel download issues. The sheet includes the final shoe preview, color table, special customization details, uploaded references, and can be printed or saved as PDF from the browser.",
           default: "The current release continues to improve the customer customization, confirmation, and handoff experience."
@@ -1133,7 +1145,7 @@
               ["选择发布鞋款", "首页展示已发布的 YJS-pro CIM 鞋款，客户先理解产品定位，再进入具体定制。"],
               ["多角度预览", "定制区支持侧面、45 度和正面效果图，客户可以从关键视角确认整体搭配。"],
               ["裁片级编辑", "客户可以点击鞋图或底部裁片栏选择部件，逐个调整鞋帮、鞋片、鞋头、鞋舌、扣带和防磨片。"],
-              ["颜色与材质选择", "内置奶油白、樱花粉、银灰、黑色等颜色，并支持光面皮、网布、珍珠皮、哑光皮和中国风布料。"],
+              ["颜色与材质选择", "保留光面皮、哑光皮和草席，并接入 PU、TPU、PU TPU、鳞片等 UE 固定贴图布料组。"],
               ["固定部件选项", "CUFF、巴扣、鞋底等使用真实切图选项，避免用纯色块替代关键五金和鞋底效果。"],
               ["确认单生成", "保存方案后填写客户信息、上传 Logo 或参考图，并生成包含最终效果图和配置明细的确认单。"]
             ]
@@ -1166,6 +1178,7 @@
             title: "版本优化记录。",
             body: "以下记录聚焦客户能感知到的 C 端体验变化，便于对外介绍和内部复盘。",
             cards: [
+              ["UE 布料贴图接入", "布料库收口为光面皮、哑光皮、草席和 UE 固定贴图布料组，新增 PU、TPU、PU TPU、鳞片四组子款式，并在 C 端按真实贴图直接预览。"],
               ["手机端确认预览更稳定", "效果确认页改用 Canvas 按当前配置生成静态 PNG 快照，确认单复用三视角 PNG 效果图，返回表单后再次确认会重新生成。"],
               ["确认单更适合交付", "导出改为 HTML 确认单，内嵌最终鞋子效果 UI、配色表格、特殊定制信息和上传参考图，并支持浏览器打印或另存 PDF。"],
               ["裁片选择栏更清爽", "移除裁片缩略图，仅保留名称和颜色预览，编号保留在按钮提示中，同时收紧按钮宽度，让横向列表可以展示更多裁片。"],
