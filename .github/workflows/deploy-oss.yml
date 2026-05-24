@@ -34,7 +34,11 @@ jobs:
       - name: Install ossutil
         run: |
           set -euo pipefail
-          curl -fsSL https://gosspublic.alicdn.com/ossutil/install.sh | sudo bash
+          curl -fsSL https://gosspublic.alicdn.com/ossutil/install.sh -o /tmp/install-ossutil.sh
+          sudo bash /tmp/install-ossutil.sh || status=$?
+          if [ "${status:-0}" -ne 0 ] && [ "${status:-0}" -ne 3 ]; then
+            exit "$status"
+          fi
           ossutil version
 
       - name: Configure ossutil
