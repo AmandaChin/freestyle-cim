@@ -66,4 +66,7 @@ jobs:
           if [ -n "$PREFIX" ]; then
             PREFIX="${PREFIX%/}/"
           fi
-          ossutil sync "$DIST" "oss://${OSS_BUCKET}/${PREFIX}" --delete -f
+          TARGET="oss://${OSS_BUCKET}/${PREFIX}"
+          echo "Syncing static files to ${TARGET}"
+          ossutil ls "$TARGET" >/dev/null
+          ossutil cp -r -f "$DIST" "$TARGET"
