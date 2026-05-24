@@ -314,6 +314,8 @@ async function main() {
         await page.evaluate(`(() => {
           document.querySelector('[data-customer="name"]').value = '测试用户';
           document.querySelector('[data-customer="name"]').dispatchEvent(new Event('input', { bubbles: true }));
+          document.querySelector('[data-customer="phone"]').value = '13800138000';
+          document.querySelector('[data-customer="phone"]').dispatchEvent(new Event('input', { bubbles: true }));
           const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='), (char) => char.charCodeAt(0));
           const file = new File([bytes], 'logo.png', { type: 'image/png' });
           const transfer = new DataTransfer();
@@ -326,6 +328,7 @@ async function main() {
 
         const formData = await page.evaluate("window.buildExportData()");
         assert(formData.customer.name === "测试用户", `${viewport.name}: customer form input should update export data`);
+        assert(formData.customer.phone === "13800138000", `${viewport.name}: customer phone input should update export data`);
         assert(formData.embroidery.some((item) => item.image?.name === "logo.png"), `${viewport.name}: uploaded special customization image should be exported as file metadata`);
 
         await page.tap("[data-review-effect]");
@@ -348,6 +351,7 @@ async function main() {
         assert(confirmationHtml.includes("最终效果图"), `${viewport.name}: confirmation sheet should include the selected UI preview`);
         assert(confirmationHtml.includes("data:image/png") && !confirmationHtml.includes("mvp-shoe-frame"), `${viewport.name}: confirmation sheet should embed static PNG previews instead of live shoe markup`);
         assert(confirmationHtml.includes("测试用户"), `${viewport.name}: confirmation sheet should include customer data`);
+        assert(confirmationHtml.includes("13800138000"), `${viewport.name}: confirmation sheet should include customer phone`);
         assert(confirmationHtml.includes("配色选型"), `${viewport.name}: confirmation sheet should keep the original confirmation table data`);
         assert(confirmationHtml.includes("logo.png") && confirmationHtml.includes("data:image/png;base64,"), `${viewport.name}: confirmation sheet should include uploaded reference images`);
 
@@ -356,6 +360,7 @@ async function main() {
         assert(await page.evaluate("document.body.dataset.view === 'builder'"), `${viewport.name}: returning to form should stay in builder instead of home`);
         assert(await page.evaluate("!document.querySelector('#effectPickerModal.is-visible')"), `${viewport.name}: returning to form should close effect confirmation`);
         assert(await page.evaluate("document.querySelector('[data-customer=\"name\"]')?.value === '测试用户'"), `${viewport.name}: returning to form should preserve customer input`);
+        assert(await page.evaluate("document.querySelector('[data-customer=\"phone\"]')?.value === '13800138000'"), `${viewport.name}: returning to form should preserve customer phone input`);
 
         await page.tap("[data-review-effect]");
         await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");

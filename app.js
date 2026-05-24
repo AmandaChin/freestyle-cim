@@ -192,6 +192,7 @@ const state = {
   isCustomizerOpen: false,
   customer: {
     name: "",
+    phone: "",
     date: new Date().toISOString().slice(0, 10),
     footLength: "",
     size: ""
@@ -1613,6 +1614,7 @@ function renderConfirmModal() {
           </div>
           <div class="field-grid">
             <label>姓名<input data-customer="name" value="${escapeHtml(state.customer.name)}" placeholder="name" /></label>
+            <label>电话<input data-customer="phone" type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
             <label>日期<input data-customer="date" type="date" value="${escapeHtml(state.customer.date)}" /></label>
             <label>脚长<input data-customer="footLength" value="${escapeHtml(state.customer.footLength)}" placeholder="foot length" /></label>
             <label>尺码<input data-customer="size" value="${escapeHtml(state.customer.size)}" placeholder="size" /></label>
@@ -2015,6 +2017,7 @@ function buildConfirmationSheetHtml(data) {
   const embroideryImages = data.embroidery.filter((entry) => entry.image?.dataUrl);
   const customerRows = [
     ["姓名", data.customer.name || "-"],
+    ["电话", data.customer.phone || "-"],
     ["日期", data.customer.date || "-"],
     ["脚长", data.customer.footLength || "-"],
     ["尺码", data.customer.size || "-"]
