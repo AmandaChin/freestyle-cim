@@ -14,7 +14,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      OSSUTIL_VERSION: 1.7.19
       OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
       OSS_ENDPOINT: ${{ secrets.ALIYUN_OSS_ENDPOINT }}
       OSS_PREFIX: ${{ secrets.ALIYUN_OSS_PREFIX }}
@@ -35,12 +34,7 @@ jobs:
       - name: Install ossutil
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/bin"
-          curl -fsSL -o /tmp/ossutil.zip "https://gosspublic.alicdn.com/ossutil/${OSSUTIL_VERSION}/ossutil-v${OSSUTIL_VERSION}-linux-amd64.zip"
-          unzip -q /tmp/ossutil.zip -d /tmp/ossutil
-          install -m 0755 "$(find /tmp/ossutil -type f -name 'ossutil*' -perm -111 | head -n 1)" "$RUNNER_TEMP/bin/ossutil"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-          export PATH="$RUNNER_TEMP/bin:$PATH"
+          curl -fsSL https://gosspublic.alicdn.com/ossutil/install.sh | sudo bash
           ossutil version
 
       - name: Configure ossutil
