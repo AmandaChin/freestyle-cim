@@ -372,6 +372,7 @@ async function main() {
         await assertEffectModalLayout(page, viewport);
         await page.evaluate(`(() => {
           window.__confirmationSheetWrites = [];
+          window.__confirmationOpenCount = 0;
           const fakeDocument = {
             open() {},
             write(html) {
@@ -379,14 +380,38 @@ async function main() {
             },
             close() {}
           };
-          window.open = () => ({
-            document: fakeDocument,
-            closed: false,
-            focus() {}
-          });
+          window.open = () => {
+            window.__confirmationOpenCount += 1;
+            return {
+              document: fakeDocument,
+              closed: false,
+              focus() {}
+            };
+          };
+          window.__confirmationBuildReleases = [];
+          const originalBuildConfirmationSheetHtml = window.buildConfirmationSheetHtml;
+          window.buildConfirmationSheetHtml = (data) => {
+            const html = originalBuildConfirmationSheetHtml(data);
+            return new Promise((resolve) => {
+              window.__confirmationBuildReleases.push(() => resolve(html));
+            });
+          };
         })()`);
         await page.click("[data-download-sheet]");
+        await page.waitFor("document.querySelector('[data-download-sheet]')?.textContent.includes('生成中')");
+        assert(await page.evaluate("window.__confirmationOpenCount === 0"), `${viewport.name}: final action should not open a blank tab before the sheet is ready`);
+        assert(await page.evaluate("Boolean(document.querySelector('#effectPickerModal.is-visible [data-back-confirm]:not([disabled])'))"), `${viewport.name}: generating confirmation sheet should still allow returning to the form`);
+        await page.click("[data-back-confirm]");
+        await page.waitFor("document.querySelector('#confirmModal.is-visible #confirmTitle')?.textContent === '填写定制信息'");
+        assert(await page.evaluate("window.__confirmationOpenCount === 0"), `${viewport.name}: returning during generation should cancel the pending sheet open`);
+
+        await page.tap("[data-review-effect]");
+        await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
+        await page.click("[data-download-sheet]");
+        await page.waitFor("(window.__confirmationBuildReleases?.length || 0) >= 2");
+        await page.evaluate("window.__confirmationBuildReleases.at(-1)()");
         await page.waitFor("window.__confirmationSheetWrites?.some((html) => html.includes('最终效果图'))");
+        assert(await page.evaluate("window.__confirmationOpenCount === 1"), `${viewport.name}: final action should open the confirmation page after HTML is ready`);
         assert(await page.evaluate("window.__confirmationSheetWrites.at(-1).includes('data:image/png')"), `${viewport.name}: final action should open the HTML confirmation sheet with static PNG previews`);
         assert(await page.evaluate("document.body.dataset.view === 'builder'"), `${viewport.name}: generating the confirmation sheet should keep the customization page state`);
       } finally {

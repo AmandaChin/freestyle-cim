@@ -182,6 +182,8 @@ let shoeHitRequestId = 0;
 let shoeFitObserver = null;
 let effectSnapshotRecord = null;
 let effectSnapshotRequestId = 0;
+let confirmationSheetRequestId = 0;
+let isConfirmationSheetGenerating = false;
 
 const state = {
   view: "home",
@@ -788,6 +790,11 @@ async function buildEffectSnapshotRecord(item = product()) {
 function clearEffectSnapshots() {
   effectSnapshotRecord = null;
   effectSnapshotRequestId += 1;
+}
+
+function cancelConfirmationSheetGeneration() {
+  confirmationSheetRequestId += 1;
+  isConfirmationSheetGenerating = false;
 }
 
 function effectSnapshotsReady(item = product()) {
@@ -1513,6 +1520,7 @@ async function openEffectPickerModal() {
 
 function closeEffectPickerModal() {
   document.querySelector("#effectPickerModal")?.classList.remove("is-visible");
+  cancelConfirmationSheetGeneration();
   clearEffectSnapshots();
 }
 
@@ -1599,8 +1607,9 @@ function renderEffectPickerModal() {
       </div>
 
       <footer class="confirm-actions">
+        ${isConfirmationSheetGenerating ? `<span class="confirm-action-status">正在生成确认单，可返回修改</span>` : ""}
         <button class="glass-button" type="button" data-back-confirm>返回表单</button>
-        <button class="primary-button" type="button" data-download-sheet>生成确认单</button>
+        <button class="primary-button" type="button" data-download-sheet ${isConfirmationSheetGenerating ? "disabled aria-busy=\"true\"" : ""}>${isConfirmationSheetGenerating ? "生成中..." : "生成确认单"}</button>
       </footer>
     </section>
   `;
@@ -2193,30 +2202,51 @@ function downloadConfirmationSheetFallback(html, fileName) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-async function downloadSheet() {
-  const sheetWindow = window.open("", "_blank");
-  if (sheetWindow && !sheetWindow.closed) {
-    sheetWindow.document.open();
-    sheetWindow.document.write("<!doctype html><title>正在生成确认单</title><p>正在生成确认单...</p>");
-    sheetWindow.document.close();
-  }
+async function buildConfirmationSheetDocument() {
   if (!effectSnapshotsReady(product())) {
     effectSnapshotRecord = await buildEffectSnapshotRecord(product());
   }
   const data = buildExportData({ includeImageData: true, includeEffectSnapshots: true });
-  const html = buildConfirmationSheetHtml(data);
-  if (sheetWindow && !sheetWindow.closed) {
-    sheetWindow.document.open();
-    sheetWindow.document.write(html);
-    sheetWindow.document.close();
-    sheetWindow.focus();
-  } else {
-    downloadConfirmationSheetFallback(html, confirmationSheetFileName(data));
-    toast("浏览器拦截新窗口，已下载 HTML 确认单");
+  return {
+    data,
+    html: await buildConfirmationSheetHtml(data)
+  };
+}
+
+async function downloadSheet() {
+  if (isConfirmationSheetGenerating) return;
+  const requestId = confirmationSheetRequestId + 1;
+  confirmationSheetRequestId = requestId;
+  isConfirmationSheetGenerating = true;
+  refreshEffectPickerModal();
+
+  try {
+    const { data, html } = await buildConfirmationSheetDocument();
+    if (requestId !== confirmationSheetRequestId) return;
+    const sheetWindow = window.open("", "_blank");
+    if (requestId !== confirmationSheetRequestId) return;
+    if (sheetWindow && !sheetWindow.closed) {
+      sheetWindow.document.open();
+      sheetWindow.document.write(html);
+      sheetWindow.document.close();
+      sheetWindow.focus();
+    } else {
+      downloadConfirmationSheetFallback(html, confirmationSheetFileName(data));
+      toast("浏览器拦截新窗口，已下载 HTML 确认单");
+    }
+    closeConfirmModal();
+    closeEffectPickerModal();
+    toast("确认单已生成");
+  } catch {
+    if (requestId === confirmationSheetRequestId) {
+      toast("确认单生成失败，请重新生成");
+    }
+  } finally {
+    if (requestId === confirmationSheetRequestId) {
+      isConfirmationSheetGenerating = false;
+      refreshEffectPickerModal();
+    }
   }
-  closeConfirmModal();
-  closeEffectPickerModal();
-  toast("确认单已生成");
 }
 
 function copyConfig() {
