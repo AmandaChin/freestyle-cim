@@ -28,12 +28,12 @@ const renderModes = {
 };
 
 const fixedStrawStyleSeeds = [
-  { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.png" },
-  { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.png" },
-  { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.png" },
-  { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.png" },
-  { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.png" },
-  { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.png" }
+  { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.webp" },
+  { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.webp" },
+  { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.webp" },
+  { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.webp" },
+  { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.webp" },
+  { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.webp" }
 ];
 
 const shoeStatus = {
@@ -1399,7 +1399,7 @@ function fabricStyleRow(style = {}) {
     <div class="fabric-style-row" data-fabric-style-row>
       <input class="input" data-style-id value="${escapeHtml(style.id || "")}" placeholder="style id" />
       <input class="input" data-style-name value="${escapeHtml(style.name || "")}" placeholder="样式名称" />
-      <input class="input" data-style-file value="${escapeHtml(style.file || "")}" placeholder="贴图路径，如 草席/1336.png" />
+      <input class="input" data-style-file value="${escapeHtml(style.file || "")}" placeholder="贴图路径，如 草席/1336.webp" />
       <button class="danger-button" type="button" data-style-remove>删除</button>
     </div>`;
 }

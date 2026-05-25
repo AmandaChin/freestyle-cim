@@ -126,7 +126,7 @@ try {
   assert(state.selectedTexture === "183号皮料", `selected texture should be 183号皮料, got ${JSON.stringify(state)}`);
   assert(state.colorBlockHidden, `color block should be hidden for UE image fabric, got ${JSON.stringify(state)}`);
   assert(state.subitems === 5, `PU should expose 5 subitems, got ${JSON.stringify(state)}`);
-  assert(state.texture.includes("PU/183.png"), `shoe layer should use PU/183.png, got ${JSON.stringify(state)}`);
+  assert(state.texture.includes("PU/183.webp"), `shoe layer should use PU/183.webp, got ${JSON.stringify(state)}`);
   const screenshot = await page.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, page.sessionId);
   const screenshotPath = "/private/tmp/skate-cim-ue-fabric-ui.png";
   await writeFile(screenshotPath, Buffer.from(screenshot.data, "base64"));
