@@ -128,12 +128,12 @@ const PRODUCT_CATALOG = [productFromSchema(SHOE_SCHEMA)].filter((item) => {
 
 const STATIC_FABRIC_STYLE_SETS = {
   "fixed-straw": [
-    { id: "fixed-straw-1336", name: "1336号皮料", parentId: "fixed-straw", file: "草席/1336.png" },
-    { id: "fixed-straw-1437", name: "1437号皮料", parentId: "fixed-straw", file: "草席/1437.png" },
-    { id: "fixed-straw-1518", name: "1518号皮料", parentId: "fixed-straw", file: "草席/1518.png" },
-    { id: "fixed-straw-1635", name: "1635号皮料", parentId: "fixed-straw", file: "草席/1635.png" },
-    { id: "fixed-straw-1741", name: "1741号皮料", parentId: "fixed-straw", file: "草席/1741.png" },
-    { id: "fixed-straw-2932", name: "2932号皮料", parentId: "fixed-straw", file: "草席/2932.png" }
+    { id: "fixed-straw-1336", name: "1336号皮料", parentId: "fixed-straw", file: "草席/1336.webp" },
+    { id: "fixed-straw-1437", name: "1437号皮料", parentId: "fixed-straw", file: "草席/1437.webp" },
+    { id: "fixed-straw-1518", name: "1518号皮料", parentId: "fixed-straw", file: "草席/1518.webp" },
+    { id: "fixed-straw-1635", name: "1635号皮料", parentId: "fixed-straw", file: "草席/1635.webp" },
+    { id: "fixed-straw-1741", name: "1741号皮料", parentId: "fixed-straw", file: "草席/1741.webp" },
+    { id: "fixed-straw-2932", name: "2932号皮料", parentId: "fixed-straw", file: "草席/2932.webp" }
   ]
 };
 

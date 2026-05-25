@@ -139,12 +139,12 @@ window.SKATE_CIM_CONFIG = {
       name: "草席",
       mode: "fixed_style_set",
       styles: [
-        { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.png" },
-        { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.png" },
-        { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.png" },
-        { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.png" },
-        { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.png" },
-        { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.png" }
+        { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.webp" },
+        { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.webp" },
+        { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.webp" },
+        { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.webp" },
+        { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.webp" },
+        { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.webp" }
       ],
       groups: ["upper"],
       status: "published",
@@ -156,11 +156,11 @@ window.SKATE_CIM_CONFIG = {
       name: "PU",
       mode: "fixed_style_set",
       styles: [
-        { id: "ue-pu-183", name: "183号皮料", file: "PU/183.png" },
-        { id: "ue-pu-199", name: "199号皮料", file: "PU/199.png" },
-        { id: "ue-pu-201", name: "201号皮料", file: "PU/201.png" },
-        { id: "ue-pu-215", name: "215号皮料", file: "PU/215.png" },
-        { id: "ue-pu-232", name: "232号皮料", file: "PU/232.png" }
+        { id: "ue-pu-183", name: "183号皮料", file: "PU/183.webp" },
+        { id: "ue-pu-199", name: "199号皮料", file: "PU/199.webp" },
+        { id: "ue-pu-201", name: "201号皮料", file: "PU/201.webp" },
+        { id: "ue-pu-215", name: "215号皮料", file: "PU/215.webp" },
+        { id: "ue-pu-232", name: "232号皮料", file: "PU/232.webp" }
       ],
       groups: ["upper"],
       status: "published",
@@ -172,10 +172,10 @@ window.SKATE_CIM_CONFIG = {
       name: "TPU",
       mode: "fixed_style_set",
       styles: [
-        { id: "ue-tpu-2623", name: "2623号皮料", file: "TPU/2623.png" },
-        { id: "ue-tpu-2840", name: "2840号皮料", file: "TPU/2840.png" },
-        { id: "ue-tpu-2925", name: "2925号皮料", file: "TPU/2925.png" },
-        { id: "ue-tpu-3029", name: "3029号皮料", file: "TPU/3029.png" }
+        { id: "ue-tpu-2623", name: "2623号皮料", file: "TPU/2623.webp" },
+        { id: "ue-tpu-2840", name: "2840号皮料", file: "TPU/2840.webp" },
+        { id: "ue-tpu-2925", name: "2925号皮料", file: "TPU/2925.webp" },
+        { id: "ue-tpu-3029", name: "3029号皮料", file: "TPU/3029.webp" }
       ],
       groups: ["upper"],
       status: "published",
@@ -187,14 +187,14 @@ window.SKATE_CIM_CONFIG = {
       name: "PU TPU",
       mode: "fixed_style_set",
       styles: [
-        { id: "ue-pu-tpu-1741", name: "1741号皮料", file: "PU TPU/1741.png" },
-        { id: "ue-pu-tpu-201", name: "201号皮料", file: "PU TPU/201.png" },
-        { id: "ue-pu-tpu-215", name: "215号皮料", file: "PU TPU/215.png" },
-        { id: "ue-pu-tpu-232", name: "232号皮料", file: "PU TPU/232.png" },
-        { id: "ue-pu-tpu-2623", name: "2623号皮料", file: "PU TPU/2623.png" },
-        { id: "ue-pu-tpu-2840", name: "2840号皮料", file: "PU TPU/2840.png" },
-        { id: "ue-pu-tpu-2925", name: "2925号皮料", file: "PU TPU/2925.png" },
-        { id: "ue-pu-tpu-3029", name: "3029号皮料", file: "PU TPU/3029.png" }
+        { id: "ue-pu-tpu-1741", name: "1741号皮料", file: "PU TPU/1741.webp" },
+        { id: "ue-pu-tpu-201", name: "201号皮料", file: "PU TPU/201.webp" },
+        { id: "ue-pu-tpu-215", name: "215号皮料", file: "PU TPU/215.webp" },
+        { id: "ue-pu-tpu-232", name: "232号皮料", file: "PU TPU/232.webp" },
+        { id: "ue-pu-tpu-2623", name: "2623号皮料", file: "PU TPU/2623.webp" },
+        { id: "ue-pu-tpu-2840", name: "2840号皮料", file: "PU TPU/2840.webp" },
+        { id: "ue-pu-tpu-2925", name: "2925号皮料", file: "PU TPU/2925.webp" },
+        { id: "ue-pu-tpu-3029", name: "3029号皮料", file: "PU TPU/3029.webp" }
       ],
       groups: ["upper"],
       status: "published",
@@ -206,12 +206,12 @@ window.SKATE_CIM_CONFIG = {
       name: "鳞片",
       mode: "fixed_style_set",
       styles: [
-        { id: "ue-scale-1046", name: "1046号皮料", file: "鳞片/1046.png" },
-        { id: "ue-scale-1148", name: "1148号皮料", file: "鳞片/1148.png" },
-        { id: "ue-scale-647", name: "647号皮料", file: "鳞片/647.png" },
-        { id: "ue-scale-744", name: "744号皮料", file: "鳞片/744.png" },
-        { id: "ue-scale-845", name: "845号皮料", file: "鳞片/845.png" },
-        { id: "ue-scale-943", name: "943号皮料", file: "鳞片/943.png" }
+        { id: "ue-scale-1046", name: "1046号皮料", file: "鳞片/1046.webp" },
+        { id: "ue-scale-1148", name: "1148号皮料", file: "鳞片/1148.webp" },
+        { id: "ue-scale-647", name: "647号皮料", file: "鳞片/647.webp" },
+        { id: "ue-scale-744", name: "744号皮料", file: "鳞片/744.webp" },
+        { id: "ue-scale-845", name: "845号皮料", file: "鳞片/845.webp" },
+        { id: "ue-scale-943", name: "943号皮料", file: "鳞片/943.webp" }
       ],
       groups: ["upper"],
       status: "published",
