@@ -186,11 +186,19 @@ async function assertMobileCustomizerLayout(page, viewport) {
     const customizer = document.querySelector('#customizerPanel');
     const swatchGrid = document.querySelector('#swatchGrid');
     const swatches = Array.from(document.querySelectorAll('#swatchGrid .swatch-button')).map((button) => button.getBoundingClientRect().toJSON());
+    const inlineSwatchGrids = Array.from(document.querySelectorAll('#textureList .swatch-grid--inline')).map((grid) => ({
+      rect: grid.getBoundingClientRect().toJSON(),
+      scrollWidth: grid.scrollWidth,
+      clientWidth: grid.clientWidth,
+      columns: getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length,
+      swatches: Array.from(grid.querySelectorAll('.swatch-button')).map((button) => button.getBoundingClientRect().toJSON())
+    }));
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
       customizer: bounds('#customizerPanel'),
       swatchGrid: bounds('#swatchGrid'),
       swatches,
+      inlineSwatchGrids,
       customizerScrollWidth: customizer.scrollWidth,
       customizerClientWidth: customizer.clientWidth,
       swatchGridScrollWidth: swatchGrid.scrollWidth,
@@ -205,6 +213,15 @@ async function assertMobileCustomizerLayout(page, viewport) {
   assert(layout.customizerScrollWidth <= layout.customizerClientWidth + 1, `${label}: mobile customizer should not have horizontal overflow (${layout.customizerScrollWidth}/${layout.customizerClientWidth})`);
   assert(layout.swatchGridScrollWidth <= layout.swatchGridClientWidth + 1, `${label}: mobile color grid should not have horizontal overflow (${layout.swatchGridScrollWidth}/${layout.swatchGridClientWidth})`);
   assert(layout.columns >= 2, `${label}: mobile color grid should keep at least two columns, got ${layout.columns}`);
+  assert(layout.inlineSwatchGrids.length > 0, `${label}: selected material should render a color sub-list`);
+  layout.inlineSwatchGrids.forEach((grid, gridIndex) => {
+    assert(grid.columns === 1, `${label}: inline color sub-list #${gridIndex} should be vertical, got ${grid.columns} columns`);
+    assert(grid.scrollWidth <= grid.clientWidth + 1, `${label}: inline color sub-list #${gridIndex} should not overflow horizontally (${grid.scrollWidth}/${grid.clientWidth})`);
+    grid.swatches.forEach((swatch, swatchIndex) => {
+      assert(swatch.left >= grid.rect.left - 1, `${label}: inline color swatch #${gridIndex}.${swatchIndex} should not clip left`);
+      assert(swatch.right <= grid.rect.right + 1, `${label}: inline color swatch #${gridIndex}.${swatchIndex} should not clip right`);
+    });
+  });
   layout.swatches.forEach((swatch, index) => {
     assert(swatch.width >= 30 && swatch.height >= 30, `${label}: mobile swatch #${index} should remain tappable, got ${swatch.width}x${swatch.height}`);
     assert(swatch.left >= layout.swatchGrid.left - 1, `${label}: mobile swatch #${index} should not clip left`);

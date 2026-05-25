@@ -2494,6 +2494,14 @@ body.drawer-open {
     padding: 4px 9px;
   }
 
+  .swatch-grid--inline {
+    grid-template-columns: minmax(30px, 38px);
+    justify-content: center;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+  }
+
   .swatch-button {
     min-width: 30px;
     min-height: 30px;
@@ -2844,6 +2852,14 @@ body.drawer-open {
     max-height: 52px;
     padding-right: 10px;
     padding-left: 10px;
+  }
+
+  .swatch-grid--inline {
+    grid-template-columns: minmax(30px, 38px);
+    justify-content: center;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
   }
 
   .swatch-button {
