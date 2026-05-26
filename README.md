@@ -42,6 +42,13 @@ Cloudflare 部署时建议这样配置：
 - Variables：`EMAIL_TRANSPORT=resend`、`CONFIRMATION_EMAIL_TO=orders@example.com`、`RESEND_FROM=Skate CIM <orders@your-domain.com>`
 - Secrets：`RESEND_API_KEY`
 
+线上发送入口由 `functions/api/public/confirmation-email.js` 提供，对应 Cloudflare Pages 的 `POST /api/public/confirmation-email`。如果发送失败，优先按下面顺序排查：
+
+1. 浏览器 DevTools → Network → `confirmation-email`，确认状态码和返回 JSON。
+2. Cloudflare Pages → 当前部署 → Functions 日志，搜索 `[confirmation-email]`，可看到请求参数是否齐全、Resend 返回状态和 provider message。
+3. 如果状态码是 `405`，说明 Pages Function 没有随当前部署生效，通常是 `functions/` 目录未提交或部署产物仍是旧版本。
+4. 如果状态码是 `400` / `500` 且返回 Resend 配置或邮箱错误，检查 `CONFIRMATION_EMAIL_TO`、`RESEND_FROM`、`RESEND_API_KEY`，其中 `RESEND_FROM` 必须来自 Resend 已验证域名。
+
 ## C 端多语言
 
 C 端页面支持中文 / English 切换，入口是顶部 `EN` / `中` 按钮，当前语言会保存在浏览器 `localStorage` 的 `SKATE_CIM_LANGUAGE`。
