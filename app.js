@@ -1487,6 +1487,17 @@ function updatePartConfig(partId, patch) {
   render();
 }
 
+function updatePartConfigPreservingCustomizerScroll(partId, patch) {
+  const scroller = els.customizerScroll;
+  const scrollTop = scroller?.scrollTop ?? 0;
+  updatePartConfig(partId, patch);
+  if (!scroller) return;
+  scroller.scrollTop = scrollTop;
+  window.requestAnimationFrame(() => {
+    scroller.scrollTop = scrollTop;
+  });
+}
+
 function resetProduct() {
   state.config[state.productId] = cloneProductConfig(product());
   state.selectedPartId = activePartId();
@@ -2356,7 +2367,7 @@ function bindEvents() {
       if (state.config[state.productId]?.components?.[partId]) {
         state.selectedPartId = partId;
       }
-      updatePartConfig(state.selectedPartId, fabricStyleSetPatch(fabricStyleButton.dataset.fabricStyleParent, fabricStyleButton.dataset.fabricStyle));
+      updatePartConfigPreservingCustomizerScroll(state.selectedPartId, fabricStyleSetPatch(fabricStyleButton.dataset.fabricStyleParent, fabricStyleButton.dataset.fabricStyle));
       return;
     }
 
@@ -2368,10 +2379,10 @@ function bindEvents() {
       state.selectedPartId = partId;
     }
     if (fabricStyleSetByMaterial(button.dataset.material).length) {
-      updatePartConfig(state.selectedPartId, fabricStyleSetPatch(button.dataset.material));
+      updatePartConfigPreservingCustomizerScroll(state.selectedPartId, fabricStyleSetPatch(button.dataset.material));
       return;
     }
-    updatePartConfig(state.selectedPartId, { material: button.dataset.material, variant: "" });
+    updatePartConfigPreservingCustomizerScroll(state.selectedPartId, { material: button.dataset.material, variant: "" });
   });
 
   els.copyConfigButton?.addEventListener("click", copyConfig);

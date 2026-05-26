@@ -108,25 +108,38 @@ try {
   await page.waitFor("document.readyState === 'complete' && Boolean(document.querySelector('[data-home-product]'))");
   await page.evaluate("localStorage.removeItem('SKATE_CIM_PUBLISHED_CONFIG'); location.reload()");
   await page.waitFor("document.readyState === 'complete' && Boolean(document.querySelector('[data-home-product]'))");
+  await page.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, page.sessionId);
   await page.evaluate("document.querySelector('[data-home-product]').click()");
-  await page.waitFor("!document.querySelector('#workspace').classList.contains('is-hidden') && Boolean(document.querySelector('[data-material=\"ue_pu\"]'))");
-  await page.evaluate("document.querySelector('[data-material=\"ue_pu\"]').click()");
-  await page.waitFor("Boolean(document.querySelector('[data-fabric-style=\"ue-pu-183\"]'))");
-  await page.evaluate("document.querySelector('[data-fabric-style=\"ue-pu-183\"]').click()");
-  await page.waitFor("document.querySelector('[data-fabric-style=\"ue-pu-183\"]').getAttribute('aria-pressed') === 'true'");
+  await page.waitFor("!document.querySelector('#workspace').classList.contains('is-hidden') && Boolean(document.querySelector('[data-material=\"ue_tpu\"]'))");
+  const scrollBeforeMaterialSelect = await page.evaluate(`(() => {
+    const scroller = document.querySelector('.customizer-scroll');
+    const target = document.querySelector('[data-material="ue_tpu"]');
+    target.scrollIntoView({ block: 'nearest' });
+    return scroller.scrollTop;
+  })()`);
+  await page.evaluate("document.querySelector('[data-material=\"ue_tpu\"]').click()");
+  await page.waitFor("Boolean(document.querySelector('[data-fabric-style=\"ue-tpu-2840\"]'))");
   const state = await page.evaluate(`(() => {
     const layer = document.querySelector('#shoeArt .mvp-part-layer[data-part="G"]') || document.querySelector('#shoeArt .mvp-part-layer[data-part="A"]');
+    const scroller = document.querySelector('.customizer-scroll');
+    const selectedButton = document.querySelector('[data-material="ue_tpu"]');
+    const scrollerRect = scroller.getBoundingClientRect();
+    const selectedRect = selectedButton.getBoundingClientRect();
     return {
       selectedTexture: document.querySelector('#selectedTextureName')?.textContent.trim() || '',
       colorBlockHidden: document.querySelector('.color-block')?.hidden === true,
-      subitems: document.querySelectorAll('[data-fabric-style-parent="ue_pu"]').length,
-      texture: layer?.style.getPropertyValue('--part-material') || ''
+      subitems: document.querySelectorAll('[data-fabric-style-parent="ue_tpu"]').length,
+      texture: layer?.style.getPropertyValue('--part-material') || '',
+      scrollTop: scroller?.scrollTop || 0,
+      selectedVisible: selectedRect.top >= scrollerRect.top && selectedRect.bottom <= scrollerRect.bottom
     };
   })()`);
-  assert(state.selectedTexture === "183号皮料", `selected texture should be 183号皮料, got ${JSON.stringify(state)}`);
+  assert(state.selectedTexture === "2623号皮料", `selected texture should default to 2623号皮料, got ${JSON.stringify(state)}`);
   assert(state.colorBlockHidden, `color block should be hidden for UE image fabric, got ${JSON.stringify(state)}`);
-  assert(state.subitems === 5, `PU should expose 5 subitems, got ${JSON.stringify(state)}`);
-  assert(state.texture.includes("PU/183.webp"), `shoe layer should use PU/183.webp, got ${JSON.stringify(state)}`);
+  assert(state.subitems === 4, `TPU should expose 4 subitems, got ${JSON.stringify(state)}`);
+  assert(state.texture.includes("TPU/2623.webp"), `shoe layer should use TPU/2623.webp, got ${JSON.stringify(state)}`);
+  assert(Math.abs(state.scrollTop - scrollBeforeMaterialSelect) <= 2, `selecting visible material should not move drawer scroll, before ${scrollBeforeMaterialSelect}, got ${JSON.stringify(state)}`);
+  assert(state.selectedVisible, `selected material should remain visible after update, got ${JSON.stringify(state)}`);
   const screenshot = await page.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, page.sessionId);
   const screenshotPath = "/private/tmp/skate-cim-ue-fabric-ui.png";
   await writeFile(screenshotPath, Buffer.from(screenshot.data, "base64"));
