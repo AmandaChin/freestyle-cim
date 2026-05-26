@@ -327,6 +327,21 @@ async function main() {
           document.querySelector('[data-customer="name"]').dispatchEvent(new Event('input', { bubbles: true }));
           document.querySelector('[data-customer="phone"]').value = '13800138000';
           document.querySelector('[data-customer="phone"]').dispatchEvent(new Event('input', { bubbles: true }));
+          document.querySelector('[data-customer="email"]').value = "15732152800@163.com'";
+          document.querySelector('[data-customer="email"]').dispatchEvent(new Event('input', { bubbles: true }));
+          document.querySelector('[data-customer="footLength"]').value = '245mm';
+          document.querySelector('[data-customer="footLength"]').dispatchEvent(new Event('input', { bubbles: true }));
+          document.querySelector('[data-customer="size"]').value = '39';
+          document.querySelector('[data-customer="size"]').dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        assert(await page.evaluate("Boolean(document.querySelector('#confirmModal [data-review-effect][disabled]'))"), `${viewport.name}: invalid customer email should keep next-step disabled`);
+        assert(await page.evaluate("document.querySelector('#confirmModal')?.textContent.includes('邮箱格式有误')"), `${viewport.name}: invalid customer email should show a format hint`);
+
+        await page.evaluate(`(() => {
+          document.querySelector('[data-customer="name"]').value = '测试用户';
+          document.querySelector('[data-customer="name"]').dispatchEvent(new Event('input', { bubbles: true }));
+          document.querySelector('[data-customer="phone"]').value = '13800138000';
+          document.querySelector('[data-customer="phone"]').dispatchEvent(new Event('input', { bubbles: true }));
           document.querySelector('[data-customer="email"]').value = 'customer@example.com';
           document.querySelector('[data-customer="email"]').dispatchEvent(new Event('input', { bubbles: true }));
           document.querySelector('[data-customer="footLength"]').value = '245mm';

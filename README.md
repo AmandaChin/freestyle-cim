@@ -42,6 +42,16 @@ Cloudflare 部署时建议这样配置：
 - Variables：`EMAIL_TRANSPORT=resend`、`CONFIRMATION_EMAIL_TO=orders@example.com`、`RESEND_FROM=Skate CIM <orders@your-domain.com>`
 - Secrets：`RESEND_API_KEY`
 
+## C 端多语言
+
+C 端页面支持中文 / English 切换，入口是顶部 `EN` / `中` 按钮，当前语言会保存在浏览器 `localStorage` 的 `SKATE_CIM_LANGUAGE`。
+
+多语言资源不要直接写死在 `app.js`：
+
+- 页面通用文案维护在 `i18n/c-side-copy.js` 的 `window.SKATE_CIM_I18N`
+- C 端内置产品补充文案维护在 `i18n/c-side-copy.js` 的 `window.SKATE_CIM_PRODUCT_COPY`
+- B 端配置或 schema 后续可直接使用 `{ zh: "中文", en: "English" }` 结构，C 端会按当前语言读取，并兼容旧的纯字符串字段
+
 ## 自动发布到阿里云 OSS
 
 仓库已配置 GitHub Actions：每次 push 到 `main` 分支，会把当前静态站文件同步到阿里云 OSS。同步使用 `ossutil sync --delete`，OSS 侧会删除本仓库静态站中已不存在的旧文件。

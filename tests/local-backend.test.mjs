@@ -102,6 +102,35 @@ test("local backend requires project-level confirmation recipient", async () => 
   }
 });
 
+test("local backend rejects invalid confirmation email addresses", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
+  try {
+    const invalidRecipientBackend = await createLocalBackend({ dataDir: workspace, confirmationEmailTo: "15732152800@163.com'" });
+    const invalidRecipient = await invalidRecipientBackend.queueConfirmationEmail({
+      customer: { name: "测试用户", email: "customer@example.com" },
+      product: "YJS Pro CIM",
+      html: "<!doctype html><html><body><h1>定制确认单</h1></body></html>"
+    });
+
+    assert.equal(invalidRecipient.ok, false);
+    assert.equal(invalidRecipient.status, 400);
+    assert.equal(invalidRecipient.message, "确认单收件邮箱格式不正确");
+
+    const invalidCustomer = await createLocalBackend({ dataDir: workspace, confirmationEmailTo: "orders@example.com" });
+    const invalidReplyTo = await invalidCustomer.queueConfirmationEmail({
+      customer: { name: "测试用户", email: "15732152800@163.com'" },
+      product: "YJS Pro CIM",
+      html: "<!doctype html><html><body><h1>定制确认单</h1></body></html>"
+    });
+
+    assert.equal(invalidReplyTo.ok, false);
+    assert.equal(invalidReplyTo.status, 400);
+    assert.equal(invalidReplyTo.message, "客户邮箱格式不正确");
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 test("local backend sends confirmation emails through Resend transport", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
   const resendRequests = [];

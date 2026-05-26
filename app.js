@@ -13,6 +13,24 @@ const SELECTION_RING_BLUR = 8;
 const SHOE_ART_ASPECT_RATIO = 2401 / 1601;
 const SHOE_SNAPSHOT_MAX_WIDTH = 1200;
 const APP_VERSION = window.SKATE_CIM_VERSION || "0.0.0";
+const LANGUAGE_STORAGE_KEY = "SKATE_CIM_LANGUAGE";
+const SUPPORTED_LANGUAGES = ["zh", "en"];
+const I18N = window.SKATE_CIM_I18N || {};
+const PRODUCT_COPY = window.SKATE_CIM_PRODUCT_COPY || { fixedItems: [], embroiderySlots: [], productDefaults: {} };
+
+function i18nValue(value, language = "zh", fallback = "") {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value[language] || value.zh || value.cn || value.en || fallback;
+  }
+  const text = value || fallback;
+  if (language === "en" && PRODUCT_COPY.terms?.[text]) return PRODUCT_COPY.terms[text];
+  return text;
+}
+
+function localizeTerm(value) {
+  return i18nValue(value, state.language, value);
+}
+
 
 const SHARED_MVP_ASSETS = {
   base: "./assets/mvp/base-ui.png",
@@ -44,6 +62,7 @@ function buildComponentsFromSchema(schema) {
   return (schema.parts || []).map((part) => ({
     id: part.key,
     code: part.key,
+    label: part.label || part.i18n || { zh: part.name, en: part.en || part.name },
     en: part.en || part.name,
     cn: part.name,
     group: part.group,
@@ -63,19 +82,9 @@ function buildComponentsFromSchema(schema) {
 }
 
 const SHARED_PRODUCT_DETAILS = {
-  fixedItems: [
-    { en: "Upper energy strap", cn: "上能量带", value: "黑色" },
-    { en: "Lower energy strap", cn: "下能量带", value: "黑色" },
-    { en: "Mushroom nail", cn: "蘑菇钉", value: "黑色" },
-    { en: "Spider buckle", cn: "蜘蛛扣", value: "参考黑色公款" }
-  ],
+  fixedItems: PRODUCT_COPY.fixedItems,
   padStyles: [],
-  embroiderySlots: [
-    { id: "B1", code: "B1", en: "Back handle strap", cn: "后提带电绣", enabled: true },
-    { id: "tongue", code: "C", en: "Tongue", cn: "鞋舌电绣片", enabled: true },
-    { id: "toe-left", code: "K-L", en: "Left toe strap", cn: "左脚前魔术贴电绣片", enabled: true },
-    { id: "toe-right", code: "K-R", en: "Right toe strap", cn: "右脚前魔术贴电绣片", enabled: true }
-  ]
+  embroiderySlots: PRODUCT_COPY.embroiderySlots
 };
 
 const CIM_SHARED_CONFIG = (() => {
@@ -98,19 +107,20 @@ function productFromSchema(schema) {
     id: productSchema.shoeId,
     shoeId: productSchema.shoeId,
     name: productSchema.name,
+    label: productSchema.label || productSchema.i18n || { zh: productSchema.name, en: productSchema.en || productSchema.name },
     code: productSchema.code,
-    price: "专业上鞋定制",
+    price: PRODUCT_COPY.productDefaults.price,
     homeTag: "Pro Custom",
-    homeLabel: productSchema.homeLabel || "专业支撑款",
-    description: productSchema.description || "高帮轮滑鞋上鞋定制，面向进阶训练与比赛配置。",
-    note: productSchema.notes || "鞋款裁片、视角、布料和贴图由统一 schema 驱动。",
-    homeFeatures: productSchema.homeFeatures || ["高帮支撑", "碳纤鞋壳", "确认单导出"],
+    homeLabel: productSchema.homeLabel || PRODUCT_COPY.productDefaults.homeLabel,
+    description: productSchema.description || PRODUCT_COPY.productDefaults.description,
+    note: productSchema.notes || PRODUCT_COPY.productDefaults.note,
+    homeFeatures: productSchema.homeFeatures || PRODUCT_COPY.productDefaults.homeFeatures,
     realProductImages: productSchema.assets?.realProducts || [],
     accentA: "#f0b7c8",
     accentB: "#ad94ff",
     angles: (productSchema.angles || [])
       .filter((angle) => angle.active !== false)
-      .map((angle) => ({ id: angle.key, key: angle.key, label: angle.name, meta: angle.name })),
+      .map((angle) => ({ id: angle.key, key: angle.key, label: angle.label || angle.i18n || { zh: angle.name, en: angle.en || angle.name }, meta: angle.meta || angle.label || angle.i18n || { zh: angle.name, en: angle.en || angle.name } })),
     defaultAngle: productSchema.defaultAngleKey || "side",
     editablePartId: productSchema.defaultPartKey || MVP_ACTIVE_PART_ID,
     assets: SHARED_MVP_ASSETS,
@@ -190,6 +200,7 @@ let confirmationEmailMessage = "";
 
 const state = {
   view: "home",
+  language: SUPPORTED_LANGUAGES.includes(localStorage.getItem(LANGUAGE_STORAGE_KEY)) ? localStorage.getItem(LANGUAGE_STORAGE_KEY) : "zh",
   productId: DEFAULT_PRODUCT_ID,
   selectedPartId: activePartId(DEFAULT_PRODUCT),
   angle: "side",
@@ -206,6 +217,48 @@ const state = {
   config: {}
 };
 
+function t(key, params = {}) {
+  const template = I18N[state.language]?.[key] || I18N.zh?.[key] || key;
+  return Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), template);
+}
+
+function localized(value, fallback = "") {
+  return i18nValue(value, state.language, fallback);
+}
+
+function productName(item = product()) {
+  return localized(item.label, item.name);
+}
+
+function angleLabel(angle) {
+  return localized(angle.label, localizeTerm(angle.name || angle.key || angle.id));
+}
+
+function angleMeta(angle) {
+  return localized(angle.meta, angleLabel(angle));
+}
+
+function componentName(component) {
+  return localized(component.label, state.language === "en" ? component.en || component.cn : component.cn || component.en);
+}
+
+function slotName(slot) {
+  return localized(slot.label, state.language === "en" ? slot.en || slot.cn : slot.cn || slot.en);
+}
+
+function fixedItemName(item) {
+  return localized(item.label, state.language === "en" ? item.en || item.cn : item.cn || item.en);
+}
+
+function fixedItemValue(item) {
+  return localized(item.value, item.value);
+}
+
+function translateFeature(feature) {
+  if (feature && typeof feature === "object") return localized(feature);
+  return localizeTerm(feature);
+}
+
 function applyPublishedConfig(config) {
   const publishedShoes = Array.isArray(config?.shoes) ? config.shoes.filter((item) => item.status === "published") : [];
   if (!publishedShoes.length) return;
@@ -216,6 +269,7 @@ function applyPublishedConfig(config) {
       return {
         ...productItem,
         name: adminItem.name || productItem.name,
+        label: adminItem.label || adminItem.i18n || productItem.label,
         code: adminItem.code || productItem.code,
         homeLabel: adminItem.homeLabel || productItem.homeLabel,
         description: adminItem.description || adminItem.notes || productItem.description,
@@ -252,6 +306,7 @@ const els = {
   homeProductMeta: document.querySelector("#homeProductMeta"),
   homeShoeArt: document.querySelector("#homeShoeArt"),
   homeProductGrid: document.querySelector("#homeProductGrid"),
+  languageToggleButton: document.querySelector("#languageToggleButton"),
   homeButton: document.querySelector("#homeButton"),
   modelStrip: document.querySelector("#modelStrip"),
   angleTabs: document.querySelector("#angleTabs"),
@@ -293,11 +348,11 @@ function selectedComponent() {
 }
 
 function productAngles(item = product()) {
-  return item?.angles?.length ? item.angles : (activeShoeSchema().angles || []).map((angle) => ({ id: angle.key, key: angle.key, label: angle.name, meta: angle.name }));
+  return item?.angles?.length ? item.angles : (activeShoeSchema().angles || []).map((angle) => ({ id: angle.key, key: angle.key, label: { zh: angle.name, en: angle.en || angle.name }, meta: { zh: angle.name, en: angle.en || angle.name } }));
 }
 
 function currentAngleConfig(item = product(), angleId = state.angle) {
-  return productAngles(item).find((angle) => angle.id === angleId || angle.key === angleId) || productAngles(item)[0] || { id: activeShoeSchema().defaultAngleKey || "side", label: "侧面" };
+  return productAngles(item).find((angle) => angle.id === angleId || angle.key === angleId) || productAngles(item)[0] || { id: activeShoeSchema().defaultAngleKey || "side", label: { zh: "侧面", en: "Side" } };
 }
 
 function effectAngleConfig(item = product()) {
@@ -386,9 +441,9 @@ function fabricStyleSetPatch(parentId, styleId = "") {
 }
 
 function colorName(value, component = selectedComponent()) {
-  if (component?.fixedColorOptions) return component.fixedColorOptions.find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value;
-  if (component?.fixedOptions) return fixedOption(component, { color: value, variant: value })?.name || value;
-  return colorOptions(component).find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value;
+  if (component?.fixedColorOptions) return localizeTerm(component.fixedColorOptions.find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value);
+  if (component?.fixedOptions) return localizeTerm(fixedOption(component, { color: value, variant: value })?.name || value);
+  return localizeTerm(colorOptions(component).find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value);
 }
 
 function defaultFixedOption(component) {
@@ -439,8 +494,8 @@ function componentColorValue(component, config = componentConfig(component.id)) 
 }
 
 function materialName(id, component = selectedComponent()) {
-  if (component?.fixedColorOptions) return fixedOption(component, { material: id, variant: id })?.name || id;
-  return materialById(id).name;
+  if (component?.fixedColorOptions) return localizeTerm(fixedOption(component, { material: id, variant: id })?.name || id);
+  return localizeTerm(materialById(id).name);
 }
 
 function cssTexture(color, material) {
@@ -781,7 +836,7 @@ async function buildEffectSnapshotRecord(item = product()) {
   const previews = await Promise.all(
     productAngles(item).map(async (angle) => ({
       id: angle.id,
-      label: angle.label,
+      label: angleLabel(angle),
       dataUrl: await renderShoeSnapshot(item, angle.id)
     }))
   );
@@ -903,8 +958,8 @@ function syncCustomizerState() {
   els.customizerPanel.setAttribute("aria-hidden", isOpen ? "false" : "true");
   els.customizerToggleButton.hidden = !isBuilder;
   els.customizerToggleButton.setAttribute("aria-expanded", String(isOpen));
-  els.customizerToggleButton.textContent = isOpen ? "收起侧栏" : "颜色/布料";
-  els.customizerToggleButton.title = isOpen ? "收起颜色和布料侧边栏" : "打开颜色和布料侧边栏";
+  els.customizerToggleButton.textContent = isOpen ? t("collapsePanel") : t("materialOptions");
+  els.customizerToggleButton.title = isOpen ? t("collapsePanel") : t("expandPanel");
 }
 
 function isPartSelectionVisible() {
@@ -948,11 +1003,11 @@ function syncShoeFit() {
 
 function selectPart(partId, shouldOpenPanel = false) {
   if (!isEditablePart(partId)) {
-    toast("该区域暂未配置切图");
+    toast(t("noLayerConfigured"));
     return false;
   }
   if (!isPartAvailableInCurrentAngle(partId)) {
-    toast("当前角度暂未配置该裁片切图");
+    toast(t("noLayerCurrentAngle"));
     return false;
   }
   state.selectedPartId = partId;
@@ -1167,7 +1222,7 @@ function componentLayerMarkup(component, item = product(), angle = angleAssets(c
     .join("");
 }
 
-function shoeMarkup(item = product(), alt = `${product().name} 侧面预览`, angleOverrideId = "", options = {}) {
+function shoeMarkup(item = product(), alt = `${productName(product())} ${t("preview")}`, angleOverrideId = "", options = {}) {
   const selectedAngle = angleOverrideId
     ? currentAngleConfig(item, angleOverrideId)
     : currentAngleConfig(item, item.id === state.productId ? state.angle : (item.defaultAngle || productAngles(item)[0]?.id || "side"));
@@ -1183,11 +1238,11 @@ function shoeMarkup(item = product(), alt = `${product().name} 侧面预览`, an
 
 function mvpShoeMarkup() {
   const item = product();
-  return shoeMarkup(item, `${item.name} 侧面基础图`);
+  return shoeMarkup(item, `${productName(item)} ${t("preview")}`);
 }
 
 function homeShoeMarkup(item = product()) {
-  return shoeMarkup(item, `${item.name} 预览图`);
+  return shoeMarkup(item, `${productName(item)} ${t("preview")}`);
 }
 
 function realProductCarouselMarkup(item = product()) {
@@ -1223,8 +1278,8 @@ function renderHome() {
 
   els.homeProductTag.textContent = "Skate Studio";
   els.homeProductName.textContent = "Create your own skates";
-  els.homeProductDescription.textContent = "选择鞋款后进入定制器，继续配置颜色、皮料和特殊定制。";
-  els.homeProductMeta.innerHTML = (item.homeFeatures || [item.code, "Layered 2.5D MVP"]).map((feature) => `<span>${feature}</span>`).join("");
+  els.homeProductDescription.textContent = t("homeDescription");
+  els.homeProductMeta.innerHTML = (item.homeFeatures || [item.code, "Layered 2.5D MVP"]).map((feature) => `<span>${escapeHtml(translateFeature(feature))}</span>`).join("");
   els.homeShoeArt.innerHTML = homeShoeMarkup();
   els.homeProductGrid.style.setProperty("--product-columns", productColumns);
   els.homeProductGrid.style.setProperty("--product-grid-width", `${productColumns * productCardWidth + (productColumns - 1) * productGap}px`);
@@ -1238,11 +1293,11 @@ function renderHome() {
         </span>
         <span class="home-card-dot" aria-hidden="true"></span>
         <span class="home-card-body">
-          <span class="home-card-kicker">${catalogItem.homeLabel}</span>
-          <strong>${catalogItem.name}</strong>
-          <span>${catalogItem.description}</span>
+          <span class="home-card-kicker">${escapeHtml(translateFeature(catalogItem.homeLabel))}</span>
+          <strong>${escapeHtml(productName(catalogItem))}</strong>
+          <span>${escapeHtml(localized(catalogItem.description, catalogItem.description))}</span>
         </span>
-        <span class="home-card-meta">${selected ? "已选择" : "选择"}</span>
+        <span class="home-card-meta">${selected ? t("selected") : t("select")}</span>
       </button>`;
   }).join("");
   els.homeView.style.setProperty("--home-accent-a", item.accentA);
@@ -1255,8 +1310,8 @@ function renderModelStrip() {
     (item) => `
       <button class="model-pill" type="button" data-product="${item.id}" aria-pressed="${item.id === state.productId}" style="--thumb-a:${item.accentA};--thumb-b:${item.accentB};">
         <span>
-          <strong>${item.name}</strong>
-          <span>${item.price}</span>
+          <strong>${productName(item)}</strong>
+          <span>${t("proCustom")}</span>
         </span>
       </button>`
   ).join("");
@@ -1269,7 +1324,7 @@ function renderAngleTabs() {
     .map(
       (tab) => `
       <button class="segment-button" type="button" role="tab" data-angle="${tab.id}" aria-selected="${tab.id === state.angle}">
-        ${tab.label}
+        ${angleLabel(tab)}
       </button>`
     )
     .join("");
@@ -1284,11 +1339,11 @@ function renderParts() {
       const config = componentConfig(component.id);
       const angleAvailable = componentHasLayerInAngle(component, item, angle);
       const disabled = !component.editable || !angleAvailable;
-      const disabledReason = !component.editable ? component.lockReason : "当前角度无切图";
+      const disabledReason = !component.editable ? t("noLayerConfigured") : t("noLayerCurrentAngle");
       return `
-        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${isPartSelectionVisible() && component.id === state.selectedPartId}" title="${component.code} · ${component.cn}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
+        <button class="part-button component-button rail-part-button ${disabled ? "is-disabled" : ""}" type="button" data-part="${component.id}" aria-pressed="${isPartSelectionVisible() && component.id === state.selectedPartId}" title="${component.code} · ${componentName(component)}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>
           <span>
-            <strong>${component.cn}</strong>
+            <strong>${componentName(component)}</strong>
             <span>${disabled ? disabledReason : component.en}</span>
           </span>
           <i style="--component-color:${componentPreview(component, config)}"></i>
@@ -1306,7 +1361,7 @@ function renderSwatches() {
 function renderMaterialSubChoices(component, config, material) {
   if (!shouldExpandMaterial(component, config, material)) return "";
   if (fabricStyleSetByMaterial(material.id).length) return renderFabricSetStyles(component, config, material);
-  const title = component.fixedColorOptions ? "颜色" : (component.fixedOptions ? "选项" : "颜色");
+  const title = component.fixedColorOptions ? t("color") : (component.fixedOptions ? t("materialOptions") : t("color"));
   return renderInlineSwatches(component, config, title);
 }
 
@@ -1334,8 +1389,8 @@ function renderTextures() {
       <button class="texture-button" type="button" data-part-id="${component.id}" data-material="${material.id}" aria-pressed="${isSelected}">
         <span class="texture-preview" style="--texture:${texturePreview(component, config, material)};"></span>
         <span>
-          <strong>${material.name}</strong>
-          <span>${material.note}</span>
+          <strong>${localizeTerm(material.name)}</strong>
+          <span>${localizeTerm(material.note)}</span>
         </span>
         <span class="texture-check">${isSelected ? "✓" : ""}</span>
       </button>
@@ -1349,8 +1404,8 @@ function renderFabricSetStyles(component, config, material) {
     <button class="texture-button texture-button--sub" type="button" data-part-id="${component.id}" data-fabric-style-parent="${material.id}" data-fabric-style="${style.id}" aria-pressed="${style.id === config.material}">
       <span class="texture-preview" style="--texture:${cssTexture(config.color, style.id)};"></span>
       <span>
-        <strong>${style.name}</strong>
-        <span>${material.name}固定贴图</span>
+        <strong>${localizeTerm(style.name)}</strong>
+        <span>${localizeTerm(material.name)}${t("fixedTexture")}</span>
       </span>
       <span class="texture-check">${style.id === config.material ? "✓" : ""}</span>
     </button>`).join("");
@@ -1369,10 +1424,10 @@ function buildExportData(options = {}) {
   const includeEffectSnapshots = options.includeEffectSnapshots === true && effectSnapshotsReady(item);
   return {
     version: APP_VERSION,
-    product: item.name,
+    product: productName(item),
     customer: { ...state.customer },
     effectPreview: {
-      angle: selectedEffect.label,
+      angle: angleLabel(selectedEffect),
       angleId: selectedEffect.id
     },
     components: item.components.map((component) => {
@@ -1380,19 +1435,19 @@ function buildExportData(options = {}) {
       return {
         code: component.code,
         component: component.en,
-        name: component.cn,
+        name: componentName(component),
         color: colorName(config.color, component),
         colorValue: componentColorValue(component, config),
         material: materialName(config.material, component)
       };
     }),
-    fixedItems: item.fixedItems,
+    fixedItems: item.fixedItems.map((entry) => ({ ...entry, code: entry.code || "", name: fixedItemName(entry), value: fixedItemValue(entry) })),
     padStyle: item.padStyles.find((style) => style.id === state.config[state.productId].padStyle)?.name || "",
     embroidery: item.embroiderySlots.map((slot) => {
       const image = state.config[state.productId].embroidery[slot.id].image;
       return {
         code: slot.code,
-        name: slot.cn,
+        name: slotName(slot),
         enabled: state.config[state.productId].embroidery[slot.id].enabled,
         text: state.config[state.productId].embroidery[slot.id].text,
         image: image
@@ -1411,28 +1466,34 @@ function buildExportData(options = {}) {
             createdAt: effectSnapshotRecord.createdAt,
             previews: effectSnapshotRecord.previews.map((preview) => ({
               id: preview.id,
-              label: preview.label,
+              label: angleLabel(preview),
               dataUrl: preview.dataUrl
             }))
           }
         }
       : {}),
-    note: item.note
+    note: localized(item.note, item.note)
   };
 }
 
 const REQUIRED_CUSTOMER_FIELDS = [
-  ["name", "姓名"],
-  ["phone", "电话"],
-  ["email", "邮箱"],
-  ["footLength", "脚长"],
-  ["size", "尺码"]
+  ["name", "name"],
+  ["phone", "phone"],
+  ["email", "email"],
+  ["footLength", "footLength"],
+  ["size", "size"]
 ];
 
+function isValidEmail(value) {
+  return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(value || "").trim());
+}
+
 function missingCustomerFields() {
-  return REQUIRED_CUSTOMER_FIELDS
+  const missing = REQUIRED_CUSTOMER_FIELDS
     .filter(([key]) => !String(state.customer[key] || "").trim())
-    .map(([, label]) => label);
+    .map(([, labelKey]) => t(labelKey));
+  if (state.customer.email && !isValidEmail(state.customer.email)) missing.push(t("emailInvalid"));
+  return missing;
 }
 
 function customerInfoComplete() {
@@ -1452,12 +1513,12 @@ function renderSummary() {
     material: materialName(config.material, component)
   };
 
-  els.modelName.textContent = item.name;
-  els.modelDescription.textContent = item.description;
-  els.angleMeta.textContent = currentAngleConfig(item).meta || `${currentAngleConfig(item).label}预览`;
-  els.modelMeta.textContent = `${item.code} · 已开放 ${item.components.filter((part) => part.editable).length} 个标注区域`;
-  els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${component.cn}` : "";
-  els.selectedPartTitle.textContent = `正在编辑：${component.cn}`;
+  els.modelName.textContent = productName(item);
+  els.modelDescription.textContent = localized(item.description, item.description);
+  els.angleMeta.textContent = angleMeta(currentAngleConfig(item)) || t("effectImage", { angle: angleLabel(currentAngleConfig(item)) });
+  els.modelMeta.textContent = `${item.code} · ${t("partCount", { count: item.components.filter((part) => part.editable).length })}`;
+  els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${componentName(component)}` : "";
+  els.selectedPartTitle.textContent = t("editingPart", { part: componentName(component) });
   els.selectedColorName.textContent = colorName(config.color);
   els.selectedTextureName.textContent = materialName(config.material, component);
   els.configPreview.textContent = JSON.stringify(output, null, 2);
@@ -1468,13 +1529,29 @@ function render() {
   normalizeSelectedPartForAngle();
   const isHome = state.view === "home";
   document.body.dataset.view = state.view;
+  document.documentElement.lang = state.language === "en" ? "en" : "zh-CN";
   els.homeView.classList.toggle("is-hidden", !isHome);
   els.workspace.classList.toggle("is-hidden", isHome);
   els.homeButton.hidden = isHome;
   els.resetButton.hidden = isHome;
   els.saveButton.hidden = isHome;
-  els.pageEyebrow.textContent = isHome ? "Skate Studio" : "Customizer";
-  els.pageTitle.textContent = isHome ? "Freestyle CIM" : product().name;
+  els.languageToggleButton.textContent = state.language === "zh" ? "EN" : t("languageChineseShort");
+  els.languageToggleButton.setAttribute("aria-label", state.language === "zh" ? t("switchToEnglish") : t("switchToChinese"));
+  els.homeButton.textContent = t("home");
+  els.resetButton.title = t("resetTitle");
+  els.saveButton.textContent = t("savePlan");
+  els.customizerToggleButton.textContent = state.isCustomizerOpen ? t("collapsePanel") : t("expandPanel");
+  els.drawerCloseButton.title = t("close");
+  document.querySelector('.home-picker .section-title h3').textContent = t("chooseProduct");
+  document.querySelector('.home-picker .section-title span').textContent = t("publishedFromB");
+  document.querySelector('.selected-part-card .eyebrow').textContent = t("selectedPart");
+  document.querySelector('.color-block .section-title h3').textContent = t("color");
+  document.querySelector('.texture-block .section-title h3').textContent = t("materialOptions");
+  document.querySelector('.summary-block .section-title h3').textContent = t("config");
+  els.copyConfigButton.textContent = t("copyJson");
+  document.querySelector('.part-rail-block .section-title h3').textContent = t("parts");
+  els.pageEyebrow.textContent = isHome ? "Skate Studio" : t("customizer");
+  els.pageTitle.textContent = isHome ? "Freestyle CIM" : productName(product());
   renderHome();
   renderModelStrip();
   renderAngleTabs();
@@ -1527,7 +1604,7 @@ function resetProduct() {
   state.selectedEffectAngle = currentAngleConfig(product()).id;
   state.isCustomizerOpen = defaultCustomizerOpen();
   render();
-  toast("已重置当前鞋款");
+  toast(t("resetDone"));
 }
 
 async function openEffectPickerModal() {
@@ -1578,10 +1655,10 @@ function refreshEffectPickerModal() {
 function effectOptionThumbMarkup(item, angle) {
   const snapshot = effectSnapshotForAngle(angle.id, item);
   if (snapshot?.dataUrl) {
-    return `<img class="effect-option-thumb-image" src="${escapeHtml(snapshot.dataUrl)}" alt="${escapeHtml(`${item.name} ${angle.label}视角缩略图`)}" draggable="false" />`;
+    return `<img class="effect-option-thumb-image" src="${escapeHtml(snapshot.dataUrl)}" alt="${escapeHtml(`${productName(item)} ${t("effectImage", { angle: angleLabel(angle) })}`)}" draggable="false" />`;
   }
   const assets = angleAssets(angle.id);
-  return `<img class="effect-option-thumb-image" src="${escapeHtml(assets.base)}" alt="${escapeHtml(`${item.name} ${angle.label}视角缩略图`)}" loading="lazy" draggable="false" />`;
+  return `<img class="effect-option-thumb-image" src="${escapeHtml(assets.base)}" alt="${escapeHtml(`${productName(item)} ${t("effectImage", { angle: angleLabel(angle) })}`)}" loading="lazy" draggable="false" />`;
 }
 
 function renderEffectPickerModal() {
@@ -1596,30 +1673,30 @@ function renderEffectPickerModal() {
       <header class="confirm-header effect-header">
         <div>
           <p class="eyebrow">Preview</p>
-          <h2 id="effectPickerTitle">确认鞋子效果</h2>
+          <h2 id="effectPickerTitle">${t("confirmEffect")}</h2>
         </div>
-        <button class="icon-button" type="button" data-close-effect title="关闭">×</button>
+        <button class="icon-button" type="button" data-close-effect title="${t("close")}">×</button>
       </header>
 
       <div class="effect-body">
         <section class="effect-preview-panel">
           <div class="section-title">
-            <h3>${selectedEffect.label}效果图</h3>
-            <span>${item.name}</span>
+            <h3>${t("effectImage", { angle: angleLabel(selectedEffect) })}</h3>
+            <span>${productName(item)}</span>
           </div>
           <div class="effect-preview-frame">
             ${
               selectedSnapshot?.dataUrl
-                ? `<img class="effect-preview-snapshot" src="${escapeHtml(selectedSnapshot.dataUrl)}" alt="${escapeHtml(`${item.name} ${selectedEffect.label}效果图`)}" draggable="false" />`
-                : `<div class="effect-preview-loading">正在生成效果图...</div>`
+                ? `<img class="effect-preview-snapshot" src="${escapeHtml(selectedSnapshot.dataUrl)}" alt="${escapeHtml(`${productName(item)} ${t("effectImage", { angle: angleLabel(selectedEffect) })}`)}" draggable="false" />`
+                : `<div class="effect-preview-loading">${t("generatingEffect")}</div>`
             }
           </div>
         </section>
 
         <section class="effect-choice-panel">
           <div class="section-title">
-            <h3>效果图视角</h3>
-            <span>生成确认单前确认最终鞋子效果 UI</span>
+            <h3>${t("effectAngle")}</h3>
+            <span>${t("effectHint")}</span>
           </div>
           <div class="effect-option-grid">
             ${angles
@@ -1630,8 +1707,8 @@ function renderEffectPickerModal() {
                       ${effectOptionThumbMarkup(item, angle)}
                     </span>
                     <span>
-                      <strong>${angle.label}效果图</strong>
-                      <span>${angle.meta || `${angle.label}预览`}</span>
+                      <strong>${t("effectImage", { angle: angleLabel(angle) })}</strong>
+                      <span>${angleMeta(angle) || t("effectImage", { angle: angleLabel(angle) })}</span>
                     </span>
                   </button>`
               )
@@ -1641,9 +1718,9 @@ function renderEffectPickerModal() {
       </div>
 
       <footer class="confirm-actions">
-        ${isConfirmationSheetGenerating ? `<span class="confirm-action-status">正在生成确认单，可返回修改</span>` : ""}
-        <button class="glass-button" type="button" data-back-confirm>返回表单</button>
-        <button class="primary-button" type="button" data-download-sheet ${isConfirmationSheetGenerating ? "disabled aria-busy=\"true\"" : ""}>${isConfirmationSheetGenerating ? "生成中..." : "生成确认单"}</button>
+        ${isConfirmationSheetGenerating ? `<span class="confirm-action-status">${t("generatingSheetStatus")}</span>` : ""}
+        <button class="glass-button" type="button" data-back-confirm>${t("backToForm")}</button>
+        <button class="primary-button" type="button" data-download-sheet ${isConfirmationSheetGenerating ? "disabled aria-busy=\"true\"" : ""}>${isConfirmationSheetGenerating ? t("generating") : t("generateConfirmation")}</button>
       </footer>
     </section>
   `;
@@ -1684,7 +1761,7 @@ function refreshConfirmCustomerValidation() {
       hint.dataset.customerRequiredHint = "";
       modal.querySelector(".confirm-info-section .section-title")?.insertAdjacentElement("afterend", hint);
     }
-    hint.textContent = `请先填写：${missingFields.join("、")}`;
+    hint.textContent = t("fillFirst", { fields: missingFields.join(state.language === "en" ? ", " : "、") });
   } else {
     hint?.remove();
   }
@@ -1704,36 +1781,36 @@ function renderConfirmModal() {
       <header class="confirm-header">
         <div>
           <p class="eyebrow">Form</p>
-          <h2 id="confirmTitle">填写定制信息</h2>
+          <h2 id="confirmTitle">${t("fillCustomInfo")}</h2>
         </div>
-        <button class="icon-button" type="button" data-close-confirm title="关闭">×</button>
+        <button class="icon-button" type="button" data-close-confirm title="${t("close")}">×</button>
       </header>
 
       <div class="confirm-body">
         <section class="confirm-section confirm-info-section">
           <div class="section-title">
-            <h3>个人信息</h3>
-            <span>先填写表单，再确认鞋子效果</span>
+            <h3>${t("personalInfo")}</h3>
+            <span>${t("formHint")}</span>
           </div>
-          ${canReviewEffect ? "" : `<p class="confirm-required-hint" data-customer-required-hint>请先填写：${escapeHtml(missingFields.join("、"))}</p>`}
+          ${canReviewEffect ? "" : `<p class="confirm-required-hint" data-customer-required-hint>${escapeHtml(t("fillFirst", { fields: missingFields.join(state.language === "en" ? ", " : "、") }))}</p>`}
           <div class="field-grid">
-            <label>姓名<input data-customer="name" required value="${escapeHtml(state.customer.name)}" placeholder="name" /></label>
-            <label>电话<input data-customer="phone" required type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
-            <label>邮箱<input data-customer="email" required type="email" inputmode="email" value="${escapeHtml(state.customer.email)}" placeholder="email" /></label>
-            <label>日期<input data-customer="date" type="date" value="${escapeHtml(state.customer.date)}" /></label>
-            <label>脚长<input data-customer="footLength" required value="${escapeHtml(state.customer.footLength)}" placeholder="foot length" /></label>
-            <label>尺码<input data-customer="size" required value="${escapeHtml(state.customer.size)}" placeholder="size" /></label>
+            <label>${t("name")}<input data-customer="name" required value="${escapeHtml(state.customer.name)}" placeholder="name" /></label>
+            <label>${t("phone")}<input data-customer="phone" required type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
+            <label>${t("email")}<input data-customer="email" required type="email" inputmode="email" value="${escapeHtml(state.customer.email)}" placeholder="email" /></label>
+            <label>${t("date")}<input data-customer="date" type="date" value="${escapeHtml(state.customer.date)}" /></label>
+            <label>${t("footLength")}<input data-customer="footLength" required value="${escapeHtml(state.customer.footLength)}" placeholder="foot length" /></label>
+            <label>${t("size")}<input data-customer="size" required value="${escapeHtml(state.customer.size)}" placeholder="size" /></label>
           </div>
         </section>
 
         <section class="confirm-section confirm-color-section">
           <div class="section-title">
-            <h3>配色选型</h3>
-            <span>${data.components.length} 个裁片</span>
+            <h3>${t("colorSelection")}</h3>
+            <span>${t("partCount", { count: data.components.length })}</span>
           </div>
           <div class="confirm-table">
             <div class="confirm-row confirm-row-head">
-              <span>No.</span><span>裁片</span><span>颜色</span><span>皮料</span>
+              <span>${t("no")}</span><span>${t("part")}</span><span>${t("color")}</span><span>${t("leather")}</span>
             </div>
             ${data.components
               .map(
@@ -1748,8 +1825,8 @@ function renderConfirmModal() {
 
         <section class="confirm-section confirm-special-section">
           <div class="section-title">
-            <h3>特殊定制</h3>
-            <span>电绣 / 固定件</span>
+            <h3>${t("specialCustom")}</h3>
+            <span>${t("embroideryFixed")}</span>
           </div>
           <div class="embroidery-list">
             ${product().embroiderySlots
@@ -1760,23 +1837,23 @@ function renderConfirmModal() {
                     <label class="embroidery-row">
                       <input type="checkbox" data-embroidery-toggle="${slot.id}" ${slotConfig.enabled ? "checked" : ""} />
                       <span class="component-code">${slot.code}</span>
-                      <span>${slot.cn}</span>
-                      <input type="text" data-embroidery-text="${slot.id}" value="${escapeHtml(slotConfig.text)}" placeholder="文字/Logo 备注" />
+                      <span>${slotName(slot)}</span>
+                      <input type="text" data-embroidery-text="${slot.id}" value="${escapeHtml(slotConfig.text)}" placeholder="${t("textLogoNote")}" />
                     </label>
                     <div class="embroidery-upload-row">
                       <label class="embroidery-upload ${slotConfig.image ? "has-image" : ""}">
                         <input type="file" accept="image/*" hidden data-embroidery-image="${slot.id}" />
                         ${
                           slotConfig.image?.dataUrl
-                            ? `<img src="${escapeHtml(slotConfig.image.dataUrl)}" alt="${escapeHtml(slot.cn)}参考图" />`
-                            : `<span class="embroidery-thumb-placeholder">图片</span>`
+                            ? `<img src="${escapeHtml(slotConfig.image.dataUrl)}" alt="${escapeHtml(`${slotName(slot)} ${t("referenceImage")}`)}" />`
+                            : `<span class="embroidery-thumb-placeholder">${t("image")}</span>`
                         }
                         <span>
-                          <strong>${escapeHtml(slotConfig.image?.name || "上传图片")}</strong>
-                          <em>${escapeHtml(slotConfig.image?.size || "支持 Logo / 参考图")}</em>
+                          <strong>${escapeHtml(slotConfig.image?.name || t("uploadImage"))}</strong>
+                          <em>${escapeHtml(slotConfig.image?.size || t("logoReference"))}</em>
                         </span>
                       </label>
-                      ${slotConfig.image ? `<button class="text-button embroidery-remove" type="button" data-remove-embroidery-image="${slot.id}">移除</button>` : ""}
+                      ${slotConfig.image ? `<button class="text-button embroidery-remove" type="button" data-remove-embroidery-image="${slot.id}">${t("remove")}</button>` : ""}
                     </div>
                   </div>`;
               })
@@ -1787,8 +1864,8 @@ function renderConfirmModal() {
               .map(
                 (item) => `
                   <div>
-                    <strong>${item.cn}</strong>
-                    <span>${item.en}</span>
+                    <strong>${fixedItemName(item)}</strong>
+                    <span>${state.language === "en" ? item.cn : item.en}</span>
                     <em>${item.value}</em>
                   </div>`
               )
@@ -1798,8 +1875,8 @@ function renderConfirmModal() {
       </div>
 
       <footer class="confirm-actions">
-        <button class="glass-button" type="button" data-close-confirm>继续修改</button>
-        <button class="primary-button" type="button" data-review-effect ${canReviewEffect ? "" : "disabled aria-disabled=\"true\""}>下一步确认鞋子效果</button>
+        <button class="glass-button" type="button" data-close-confirm>${t("keepEditing")}</button>
+        <button class="primary-button" type="button" data-review-effect ${canReviewEffect ? "" : "disabled aria-disabled=\"true\""}>${t("nextConfirmEffect")}</button>
       </footer>
     </section>
   `;
@@ -1832,11 +1909,11 @@ async function handleEmbroideryImageInput(input) {
   input.value = "";
   if (!slotId || !file) return;
   if (!file.type.startsWith("image/")) {
-    toast("请上传图片文件");
+    toast(t("uploadImageFile"));
     return;
   }
   if (file.size > 10 * 1024 * 1024) {
-    toast("图片过大，请控制在 10MB 内");
+    toast(t("imageTooLarge"));
     return;
   }
 
@@ -1852,9 +1929,9 @@ async function handleEmbroideryImageInput(input) {
       dataUrl
     };
     refreshConfirmModal();
-    toast("图片已添加");
+    toast(t("imageAdded"));
   } catch {
-    toast("图片读取失败，请重试");
+    toast(t("imageReadFailed"));
   }
 }
 
@@ -2114,67 +2191,68 @@ function tableRows(rows) {
 
 function buildConfirmationSheetHtml(data) {
   const item = product();
-  const generatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
+  const locale = state.language === "en" ? "en-US" : "zh-CN";
+  const generatedAt = new Date().toLocaleString(locale, { hour12: false });
   const baseHref = document.baseURI || window.location.href;
   const allAnglePreviews = data.effectSnapshots?.previews?.length
     ? data.effectSnapshots.previews
-    : productAngles(item).map((angle) => ({ id: angle.id, label: angle.label, dataUrl: "" }));
+    : productAngles(item).map((angle) => ({ id: angle.id, label: angleLabel(angle), dataUrl: "" }));
   const embroideryImages = data.embroidery.filter((entry) => entry.image?.dataUrl);
   const customerRows = [
-    ["姓名", data.customer.name || "-"],
-    ["电话", data.customer.phone || "-"],
-    ["邮箱", data.customer.email || "-"],
-    ["日期", data.customer.date || "-"],
-    ["脚长", data.customer.footLength || "-"],
-    ["尺码", data.customer.size || "-"]
+    [t("name"), data.customer.name || "-"],
+    [t("phone"), data.customer.phone || "-"],
+    [t("email"), data.customer.email || "-"],
+    [t("date"), data.customer.date || "-"],
+    [t("footLength"), data.customer.footLength || "-"],
+    [t("size"), data.customer.size || "-"]
   ];
   const componentRows = data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]);
   const embroideryRows = data.embroidery.map((entry) => [
     entry.code,
     entry.name,
-    entry.enabled ? "是" : "否",
+    entry.enabled ? t("enabled") : t("disabled"),
     entry.text || "-",
     entry.image ? `${entry.image.name} (${entry.image.size})` : "-"
   ]);
 
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${state.language === "en" ? "en" : "zh-CN"}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="${escapeHtml(baseHref)}" />
-    <title>${escapeHtml(data.product)} 定制确认单</title>
+    <title>${escapeHtml(data.product)} ${t("customConfirmationSheet")}</title>
     <style>${confirmationSheetStyles()}</style>
   </head>
   <body>
     <main class="sheet-shell">
       <div class="sheet-toolbar">
-        <button type="button" onclick="window.print()">打印 / 另存 PDF</button>
+        <button type="button" onclick="window.print()">${t("printPdf")}</button>
       </div>
       <header class="sheet-header">
         <div>
           <p class="sheet-kicker">Skate Studio</p>
-          <h1>定制确认单</h1>
-          <p>${escapeHtml(data.product)} · 三视角最终效果图</p>
+          <h1>${t("customConfirmationSheet")}</h1>
+          <p>${escapeHtml(data.product)} · ${t("threeViewFinal")}</p>
         </div>
         <div class="sheet-meta">
-          <span>版本：${escapeHtml(data.version)}</span>
-          <span>生成时间：${escapeHtml(generatedAt)}</span>
-          <span>客户：${escapeHtml(data.customer.name || "-")}</span>
+          <span>${t("version")}：${escapeHtml(data.version)}</span>
+          <span>${t("generatedAt")}：${escapeHtml(generatedAt)}</span>
+          <span>${t("customer")}：${escapeHtml(data.customer.name || "-")}</span>
         </div>
       </header>
 
       <section class="sheet-section">
-        <h2>最终效果图</h2>
+        <h2>${t("finalEffect")}</h2>
         <div class="sheet-preview-grid">
           ${allAnglePreviews.map((preview) => `
             <div class="sheet-preview-card">
-              <p class="sheet-preview-label">${escapeHtml(preview.label)}效果图</p>
+              <p class="sheet-preview-label">${escapeHtml(t("effectImage", { angle: preview.label }))}</p>
               <div class="sheet-shoe-art">
                 ${
                   preview.dataUrl
-                    ? `<img class="sheet-preview-image" src="${escapeHtml(preview.dataUrl)}" alt="${escapeHtml(`${data.product} ${preview.label}最终效果图`)}" />`
-                    : `<div class="sheet-preview-empty">效果图生成失败，请返回重新生成</div>`
+                    ? `<img class="sheet-preview-image" src="${escapeHtml(preview.dataUrl)}" alt="${escapeHtml(`${data.product} ${t("effectImage", { angle: preview.label })}`)}" />`
+                    : `<div class="sheet-preview-empty">${t("effectFailed")}</div>`
                 }
               </div>
             </div>
@@ -2183,30 +2261,30 @@ function buildConfirmationSheetHtml(data) {
       </section>
 
       <section class="sheet-section">
-        <h2>个人信息</h2>
+        <h2>${t("personalInfo")}</h2>
         <div class="info-grid">
           ${customerRows.map(([label, value]) => `<div class="info-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
         </div>
       </section>
 
       <section class="sheet-section">
-        <h2>配色选型</h2>
-        <table aria-label="配色选型">
+        <h2>${t("colorSelection")}</h2>
+        <table aria-label="${t("colorSelection")}">
           <thead>
-            <tr><th>No.</th><th>Component</th><th>裁片名称</th><th>颜色</th><th>皮料</th></tr>
+            <tr><th>${t("no")}</th><th>Component</th><th>${t("part")}</th><th>${t("color")}</th><th>${t("leather")}</th></tr>
           </thead>
           <tbody>${tableRows(componentRows)}</tbody>
         </table>
       </section>
 
       <section class="sheet-section">
-        <h2>特殊定制</h2>
+        <h2>${t("specialCustom")}</h2>
         <div class="info-grid">
-          ${data.padStyle ? `<div class="info-item"><span>L1 防磨片款式</span><strong>${escapeHtml(data.padStyle)}</strong></div>` : ""}
+          ${data.padStyle ? `<div class="info-item"><span>L1</span><strong>${escapeHtml(data.padStyle)}</strong></div>` : ""}
         </div>
-        <table aria-label="电绣定制">
+        <table aria-label="${t("embroideryFixed")}">
           <thead>
-            <tr><th>位置</th><th>名称</th><th>启用</th><th>内容</th><th>图片</th></tr>
+            <tr><th>${t("part")}</th><th>${t("name")}</th><th>${t("enabled")}</th><th>${t("textLogoNote")}</th><th>${t("image")}</th></tr>
           </thead>
           <tbody>${tableRows(embroideryRows)}</tbody>
         </table>
@@ -2215,14 +2293,14 @@ function buildConfirmationSheetHtml(data) {
       ${
         embroideryImages.length
           ? `<section class="sheet-section">
-              <h2>上传图片</h2>
+              <h2>${t("uploadImage")}</h2>
               <div class="image-grid">
                 ${embroideryImages
                   .map(
                     (entry) => `<div class="image-card">
                       <span>${escapeHtml(entry.code)} · ${escapeHtml(entry.name)}</span>
                       <strong>${escapeHtml(entry.image.name)} (${escapeHtml(entry.image.size)})</strong>
-                      <img src="${escapeHtml(entry.image.dataUrl)}" alt="${escapeHtml(entry.name)}参考图" />
+                      <img src="${escapeHtml(entry.image.dataUrl)}" alt="${escapeHtml(`${entry.name} ${t("referenceImage")}`)}" />
                     </div>`
                   )
                   .join("")}
@@ -2232,14 +2310,14 @@ function buildConfirmationSheetHtml(data) {
       }
 
       <section class="sheet-section">
-        <h2>固定件</h2>
+        <h2>${t("fixedItems")}</h2>
         <div class="fixed-grid">
-          ${data.fixedItems.map((entry) => `<div class="fixed-card"><span>${escapeHtml(entry.en)}</span><strong>${escapeHtml(entry.cn)}：${escapeHtml(entry.value)}</strong></div>`).join("")}
+          ${data.fixedItems.map((entry) => `<div class="fixed-card"><span>${escapeHtml(entry.code || "")}</span><strong>${escapeHtml(entry.name || fixedItemName(entry))}：${escapeHtml(entry.value || fixedItemValue(entry))}</strong></div>`).join("")}
         </div>
       </section>
 
       <section class="sheet-section">
-        <h2>备注</h2>
+        <h2>Note</h2>
         <div class="sheet-note">${escapeHtml(data.note || "-")}</div>
       </section>
     </main>
@@ -2270,75 +2348,75 @@ function selectedEffectSnapshotData(item = product()) {
 
 function quickColorSummary(data) {
   return data.components
-    .filter((entry) => entry.color && entry.color !== "-" && entry.material && entry.material !== "固定图")
+    .filter((entry) => entry.color && entry.color !== "-" && entry.material && entry.material !== t("materialFixedImage"))
     .slice(0, 6);
 }
 
 function quickCustomSummary(data) {
   const embroidery = data.embroidery
     .filter((entry) => entry.enabled && (entry.text || entry.image))
-    .map((entry) => `${entry.code} ${entry.text || entry.image?.name || "已上传图片"}`);
-  return [data.padStyle ? `防磨片：${data.padStyle}` : "", ...embroidery].filter(Boolean);
+    .map((entry) => `${entry.code} ${entry.text || entry.image?.name || t("uploadImage")}`);
+  return [data.padStyle ? `L1: ${data.padStyle}` : "", ...embroidery].filter(Boolean);
 }
 
 function renderQuickConfirmationCard(data, imageDataUrl) {
   const colorRows = quickColorSummary(data);
   const customRows = quickCustomSummary(data);
   const isLocalOutboxSent = confirmationEmailState === "sent" && confirmationEmailTransport === "local-outbox";
-  const sendLabel = confirmationEmailState === "sending" ? "发送中..." : confirmationEmailState === "sent" ? (isLocalOutboxSent ? "已保存" : "已发送") : "确认并发送";
+  const sendLabel = confirmationEmailState === "sending" ? t("sending") : confirmationEmailState === "sent" ? (isLocalOutboxSent ? t("saved") : t("sent")) : t("confirmAndSend");
   const statusText = confirmationEmailState === "sending"
-    ? "正在发送确认单，请不要重复点击"
+    ? t("sendingStatus")
     : confirmationEmailState === "sent"
-      ? (isLocalOutboxSent ? "已保存到本地发件箱，当前 Demo 还没有真实发出邮件" : "发送完成，请等待商家跟进")
-      : (confirmationEmailMessage || "确认无误后会发送完整生产单给商家");
+      ? (isLocalOutboxSent ? t("savedOutbox") : t("sentDone"))
+      : (confirmationEmailMessage || t("sendIntro"));
   return `
     <div class="confirm-backdrop" data-close-preview></div>
     <div class="confirm-dialog quick-confirm-dialog">
       <header class="quick-confirm-header">
         <div>
-          <p class="eyebrow">Quick Check</p>
-          <h3>快速确认</h3>
+          <p class="eyebrow">${t("quickCheck")}</p>
+          <h3>${t("quickConfirm")}</h3>
         </div>
-        <button class="icon-button" type="button" data-close-preview title="关闭">×</button>
+        <button class="icon-button" type="button" data-close-preview title="${t("close")}">×</button>
       </header>
 
       <div class="quick-confirm-body">
         <section class="quick-confirm-card">
           <div class="quick-confirm-hero">
             ${imageDataUrl
-              ? `<img class="quick-confirm-image" src="${escapeHtml(imageDataUrl)}" alt="${escapeHtml(`${data.product}最终效果图`)}" draggable="false" />`
-              : `<div class="sheet-preview-empty">效果图生成失败，请返回重新生成</div>`
+              ? `<img class="quick-confirm-image" src="${escapeHtml(imageDataUrl)}" alt="${escapeHtml(`${data.product} ${t("finalEffect")}`)}" draggable="false" />`
+              : `<div class="sheet-preview-empty">${t("effectFailed")}</div>`
             }
           </div>
           <div class="quick-confirm-copy">
-            <span class="quick-confirm-pill">${escapeHtml(data.effectPreview.angle)}效果图</span>
+            <span class="quick-confirm-pill">${escapeHtml(t("effectImage", { angle: data.effectPreview.angle }))}</span>
             <h4>${escapeHtml(data.product)}</h4>
             <div class="quick-info-grid">
-              <div><span>姓名</span><strong>${escapeHtml(data.customer.name || "-")}</strong></div>
-              <div><span>电话</span><strong>${escapeHtml(data.customer.phone || "-")}</strong></div>
-              <div><span>邮箱</span><strong>${escapeHtml(data.customer.email || "-")}</strong></div>
-              <div><span>尺码</span><strong>${escapeHtml(data.customer.size || "-")}</strong></div>
-              <div><span>脚长</span><strong>${escapeHtml(data.customer.footLength || "-")}</strong></div>
+              <div><span>${t("name")}</span><strong>${escapeHtml(data.customer.name || "-")}</strong></div>
+              <div><span>${t("phone")}</span><strong>${escapeHtml(data.customer.phone || "-")}</strong></div>
+              <div><span>${t("email")}</span><strong>${escapeHtml(data.customer.email || "-")}</strong></div>
+              <div><span>${t("size")}</span><strong>${escapeHtml(data.customer.size || "-")}</strong></div>
+              <div><span>${t("footLength")}</span><strong>${escapeHtml(data.customer.footLength || "-")}</strong></div>
             </div>
           </div>
         </section>
 
         <section class="quick-confirm-section">
-          <h4>配色摘要</h4>
+          <h4>${t("colorSummary")}</h4>
           <div class="quick-summary-list">
             ${colorRows.length
               ? colorRows.map((entry) => `<div><span>${escapeHtml(entry.code)} · ${escapeHtml(entry.name)}</span><strong>${escapeHtml(entry.color)} / ${escapeHtml(entry.material)}</strong></div>`).join("")
-              : `<div><span>暂无配色</span><strong>-</strong></div>`
+              : `<div><span>${t("noColorSummary")}</span><strong>-</strong></div>`
             }
           </div>
         </section>
 
         <section class="quick-confirm-section">
-          <h4>特殊定制</h4>
+          <h4>${t("specialCustom")}</h4>
           <div class="quick-summary-list">
             ${customRows.length
-              ? customRows.map((entry) => `<div><span>${escapeHtml(entry)}</span><strong>已记录</strong></div>`).join("")
-              : `<div><span>无特殊定制</span><strong>-</strong></div>`
+              ? customRows.map((entry) => `<div><span>${escapeHtml(entry)}</span><strong>${t("recorded")}</strong></div>`).join("")
+              : `<div><span>${t("noSpecialCustom")}</span><strong>-</strong></div>`
             }
           </div>
         </section>
@@ -2347,8 +2425,8 @@ function renderQuickConfirmationCard(data, imageDataUrl) {
       </div>
 
       <footer class="confirm-actions quick-confirm-actions">
-        <button class="glass-button" type="button" data-back-confirm>返回修改</button>
-        <button class="glass-button" type="button" data-view-full-sheet>查看完整生产单</button>
+        <button class="glass-button" type="button" data-back-confirm>${t("backEdit")}</button>
+        <button class="glass-button" type="button" data-view-full-sheet>${t("viewFullSheet")}</button>
         <button class="primary-button" type="button" data-send-confirmation ${confirmationEmailState !== "idle" ? "disabled" : ""} ${confirmationEmailState === "sending" ? "aria-busy=\"true\"" : ""}>${sendLabel}</button>
       </footer>
     </div>
@@ -2396,11 +2474,11 @@ async function downloadSheet() {
 
     closeConfirmModal();
     closeEffectPickerModal();
-    toast("快速确认卡已生成");
+    toast(t("generatedQuickCard"));
   } catch (error) {
     console.error("Sheet generation failed:", error);
     if (requestId === confirmationSheetRequestId) {
-      toast("生成失败，请重试");
+      toast(t("generateFailed"));
     }
   } finally {
     if (requestId === confirmationSheetRequestId) {
@@ -2421,7 +2499,7 @@ async function openFullConfirmationSheet() {
     return;
   }
   downloadConfirmationSheetFallback(html, confirmationSheetFileName(data));
-  toast("浏览器拦截新窗口，已下载 HTML 确认单");
+  toast(t("popupBlocked"));
 }
 
 function refreshQuickConfirmationCard() {
@@ -2436,7 +2514,7 @@ async function sendConfirmationEmail() {
   confirmationEmailState = "sending";
   confirmationEmailMessage = "";
   refreshQuickConfirmationCard();
-  toast("正在发送确认单...");
+  toast(t("sendingToast"));
   try {
     const { data, html } = await buildConfirmationSheetDocument();
     const response = await fetch("/api/public/confirmation-email", {
@@ -2450,22 +2528,22 @@ async function sendConfirmationEmail() {
       })
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.ok === false) throw new Error(result.message || "发送失败");
+    if (!response.ok || result.ok === false) throw new Error(result.message || t("sendFailed"));
     confirmationEmailState = "sent";
     confirmationEmailTransport = result.transport || "resend";
     refreshQuickConfirmationCard();
     const doneMessage = result.transport === "local-outbox"
-      ? `确认单已保存到本地发件箱，目标邮箱 ${result.to || "指定邮箱"}`
-      : `确认单已发送至 ${result.to || "指定邮箱"}`;
+      ? t("savedToOutbox", { email: result.to || t("specifiedEmail") })
+      : t("sentTo", { email: result.to || t("specifiedEmail") });
     toast(doneMessage);
   } catch (error) {
     console.error("Confirmation email failed", {
-      message: error.message || "发送失败",
+      message: error.message || t("sendFailed"),
       customerEmail: buildExportData().customer.email || "",
       target: "confirmation-email"
     });
     confirmationEmailState = "idle";
-    confirmationEmailMessage = "发送失败，请截图保存相关配置";
+    confirmationEmailMessage = t("sendFailed");
     refreshQuickConfirmationCard();
     toast(confirmationEmailMessage);
   }
@@ -2474,8 +2552,8 @@ async function sendConfirmationEmail() {
 function copyConfig() {
   navigator.clipboard
     ?.writeText(JSON.stringify(buildExportData(), null, 2))
-    .then(() => toast("配置 JSON 已复制"))
-    .catch(() => toast("当前浏览器不允许复制，请手动选中 JSON"));
+    .then(() => toast(t("copiedJson")))
+    .catch(() => toast(t("copyDenied")));
 }
 
 function showHome() {
@@ -2597,6 +2675,14 @@ function bindEvents() {
   });
 
   els.copyConfigButton?.addEventListener("click", copyConfig);
+  els.languageToggleButton?.addEventListener("click", () => {
+    state.language = state.language === "zh" ? "en" : "zh";
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, state.language);
+    refreshConfirmModal();
+    refreshEffectPickerModal();
+    refreshQuickConfirmationCard();
+    render();
+  });
   els.saveButton.addEventListener("click", openConfirmModal);
   els.resetButton.addEventListener("click", resetProduct);
 
@@ -2652,14 +2738,14 @@ function bindEvents() {
       if (!slotConfig) return;
       slotConfig.image = null;
       refreshConfirmModal();
-      toast("图片已移除");
+      toast(t("imageRemoved"));
       return;
     }
 
     if (event.target.closest("[data-review-effect]")) {
       if (!customerInfoComplete()) {
         refreshConfirmModal();
-        toast(`请先填写：${missingCustomerFields().join("、")}`);
+        toast(t("fillFirst", { fields: missingCustomerFields().join(state.language === "en" ? ", " : "、") }));
         return;
       }
       closeConfirmModal();

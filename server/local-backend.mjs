@@ -37,6 +37,10 @@ function dataUrlAttachmentContent(dataUrl = "") {
   return { contentType: match[1] || "application/octet-stream", content: match[2] };
 }
 
+function isValidEmail(value) {
+  return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(value || "").trim());
+}
+
 function embroideryImageAttachments(embroidery = []) {
   return embroidery.flatMap((entry) => {
     const image = entry?.image;
@@ -288,6 +292,19 @@ export async function createLocalBackend(options = {}) {
           envName: "CONFIRMATION_EMAIL_TO"
         });
         return { ok: false, status: 500, message: "确认单收件邮箱未配置" };
+      }
+      if (!isValidEmail(confirmationEmailTo)) {
+        logger.error?.("[confirmation-email] recipient invalid", {
+          transport: emailTransport,
+          to: confirmationEmailTo
+        });
+        return { ok: false, status: 400, message: "确认单收件邮箱格式不正确" };
+      }
+      if (payload.customer?.email && !isValidEmail(payload.customer.email)) {
+        logger.error?.("[confirmation-email] customer email invalid", {
+          customerEmail: payload.customer.email
+        });
+        return { ok: false, status: 400, message: "客户邮箱格式不正确" };
       }
       const customerName = String(payload.customer?.name || "customer").trim() || "customer";
       const productName = String(payload.product || "Skate CIM").trim() || "Skate CIM";
