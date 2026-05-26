@@ -184,6 +184,9 @@ let effectSnapshotRecord = null;
 let effectSnapshotRequestId = 0;
 let confirmationSheetRequestId = 0;
 let isConfirmationSheetGenerating = false;
+let confirmationEmailState = "idle";
+let confirmationEmailTransport = "outbox";
+let confirmationEmailMessage = "";
 
 const state = {
   view: "home",
@@ -195,6 +198,7 @@ const state = {
   customer: {
     name: "",
     phone: "",
+    email: "",
     date: new Date().toISOString().slice(0, 10),
     footLength: "",
     size: ""
@@ -1417,6 +1421,24 @@ function buildExportData(options = {}) {
   };
 }
 
+const REQUIRED_CUSTOMER_FIELDS = [
+  ["name", "姓名"],
+  ["phone", "电话"],
+  ["email", "邮箱"],
+  ["footLength", "脚长"],
+  ["size", "尺码"]
+];
+
+function missingCustomerFields() {
+  return REQUIRED_CUSTOMER_FIELDS
+    .filter(([key]) => !String(state.customer[key] || "").trim())
+    .map(([, label]) => label);
+}
+
+function customerInfoComplete() {
+  return missingCustomerFields().length === 0;
+}
+
 function renderSummary() {
   const item = product();
   const component = selectedComponent();
@@ -1649,8 +1671,33 @@ function refreshConfirmModal() {
   modal.innerHTML = renderConfirmModal();
 }
 
+function refreshConfirmCustomerValidation() {
+  const modal = document.querySelector("#confirmModal");
+  if (!modal?.classList.contains("is-visible")) return;
+  const missingFields = missingCustomerFields();
+  const canReviewEffect = missingFields.length === 0;
+  let hint = modal.querySelector("[data-customer-required-hint]");
+  if (!canReviewEffect) {
+    if (!hint) {
+      hint = document.createElement("p");
+      hint.className = "confirm-required-hint";
+      hint.dataset.customerRequiredHint = "";
+      modal.querySelector(".confirm-info-section .section-title")?.insertAdjacentElement("afterend", hint);
+    }
+    hint.textContent = `请先填写：${missingFields.join("、")}`;
+  } else {
+    hint?.remove();
+  }
+  const nextButton = modal.querySelector("[data-review-effect]");
+  if (!nextButton) return;
+  nextButton.disabled = !canReviewEffect;
+  nextButton.setAttribute("aria-disabled", String(!canReviewEffect));
+}
+
 function renderConfirmModal() {
   const data = buildExportData();
+  const missingFields = missingCustomerFields();
+  const canReviewEffect = missingFields.length === 0;
   return `
     <div class="confirm-backdrop" data-close-confirm></div>
     <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
@@ -1668,12 +1715,14 @@ function renderConfirmModal() {
             <h3>个人信息</h3>
             <span>先填写表单，再确认鞋子效果</span>
           </div>
+          ${canReviewEffect ? "" : `<p class="confirm-required-hint" data-customer-required-hint>请先填写：${escapeHtml(missingFields.join("、"))}</p>`}
           <div class="field-grid">
-            <label>姓名<input data-customer="name" value="${escapeHtml(state.customer.name)}" placeholder="name" /></label>
-            <label>电话<input data-customer="phone" type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
+            <label>姓名<input data-customer="name" required value="${escapeHtml(state.customer.name)}" placeholder="name" /></label>
+            <label>电话<input data-customer="phone" required type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
+            <label>邮箱<input data-customer="email" required type="email" inputmode="email" value="${escapeHtml(state.customer.email)}" placeholder="email" /></label>
             <label>日期<input data-customer="date" type="date" value="${escapeHtml(state.customer.date)}" /></label>
-            <label>脚长<input data-customer="footLength" value="${escapeHtml(state.customer.footLength)}" placeholder="foot length" /></label>
-            <label>尺码<input data-customer="size" value="${escapeHtml(state.customer.size)}" placeholder="size" /></label>
+            <label>脚长<input data-customer="footLength" required value="${escapeHtml(state.customer.footLength)}" placeholder="foot length" /></label>
+            <label>尺码<input data-customer="size" required value="${escapeHtml(state.customer.size)}" placeholder="size" /></label>
           </div>
         </section>
 
@@ -1750,7 +1799,7 @@ function renderConfirmModal() {
 
       <footer class="confirm-actions">
         <button class="glass-button" type="button" data-close-confirm>继续修改</button>
-        <button class="primary-button" type="button" data-review-effect>下一步确认鞋子效果</button>
+        <button class="primary-button" type="button" data-review-effect ${canReviewEffect ? "" : "disabled aria-disabled=\"true\""}>下一步确认鞋子效果</button>
       </footer>
     </section>
   `;
@@ -2074,6 +2123,7 @@ function buildConfirmationSheetHtml(data) {
   const customerRows = [
     ["姓名", data.customer.name || "-"],
     ["电话", data.customer.phone || "-"],
+    ["邮箱", data.customer.email || "-"],
     ["日期", data.customer.date || "-"],
     ["脚长", data.customer.footLength || "-"],
     ["尺码", data.customer.size || "-"]
@@ -2214,6 +2264,97 @@ function downloadConfirmationSheetFallback(html, fileName) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+function selectedEffectSnapshotData(item = product()) {
+  return effectSnapshotForAngle(effectAngleConfig(item).id, item)?.dataUrl || "";
+}
+
+function quickColorSummary(data) {
+  return data.components
+    .filter((entry) => entry.color && entry.color !== "-" && entry.material && entry.material !== "固定图")
+    .slice(0, 6);
+}
+
+function quickCustomSummary(data) {
+  const embroidery = data.embroidery
+    .filter((entry) => entry.enabled && (entry.text || entry.image))
+    .map((entry) => `${entry.code} ${entry.text || entry.image?.name || "已上传图片"}`);
+  return [data.padStyle ? `防磨片：${data.padStyle}` : "", ...embroidery].filter(Boolean);
+}
+
+function renderQuickConfirmationCard(data, imageDataUrl) {
+  const colorRows = quickColorSummary(data);
+  const customRows = quickCustomSummary(data);
+  const isLocalOutboxSent = confirmationEmailState === "sent" && confirmationEmailTransport === "local-outbox";
+  const sendLabel = confirmationEmailState === "sending" ? "发送中..." : confirmationEmailState === "sent" ? (isLocalOutboxSent ? "已保存" : "已发送") : "确认并发送";
+  const statusText = confirmationEmailState === "sending"
+    ? "正在发送确认单，请不要重复点击"
+    : confirmationEmailState === "sent"
+      ? (isLocalOutboxSent ? "已保存到本地发件箱，当前 Demo 还没有真实发出邮件" : "发送完成，请等待商家跟进")
+      : (confirmationEmailMessage || "确认无误后会发送完整生产单给商家");
+  return `
+    <div class="confirm-backdrop" data-close-preview></div>
+    <div class="confirm-dialog quick-confirm-dialog">
+      <header class="quick-confirm-header">
+        <div>
+          <p class="eyebrow">Quick Check</p>
+          <h3>快速确认</h3>
+        </div>
+        <button class="icon-button" type="button" data-close-preview title="关闭">×</button>
+      </header>
+
+      <div class="quick-confirm-body">
+        <section class="quick-confirm-card">
+          <div class="quick-confirm-hero">
+            ${imageDataUrl
+              ? `<img class="quick-confirm-image" src="${escapeHtml(imageDataUrl)}" alt="${escapeHtml(`${data.product}最终效果图`)}" draggable="false" />`
+              : `<div class="sheet-preview-empty">效果图生成失败，请返回重新生成</div>`
+            }
+          </div>
+          <div class="quick-confirm-copy">
+            <span class="quick-confirm-pill">${escapeHtml(data.effectPreview.angle)}效果图</span>
+            <h4>${escapeHtml(data.product)}</h4>
+            <div class="quick-info-grid">
+              <div><span>姓名</span><strong>${escapeHtml(data.customer.name || "-")}</strong></div>
+              <div><span>电话</span><strong>${escapeHtml(data.customer.phone || "-")}</strong></div>
+              <div><span>邮箱</span><strong>${escapeHtml(data.customer.email || "-")}</strong></div>
+              <div><span>尺码</span><strong>${escapeHtml(data.customer.size || "-")}</strong></div>
+              <div><span>脚长</span><strong>${escapeHtml(data.customer.footLength || "-")}</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="quick-confirm-section">
+          <h4>配色摘要</h4>
+          <div class="quick-summary-list">
+            ${colorRows.length
+              ? colorRows.map((entry) => `<div><span>${escapeHtml(entry.code)} · ${escapeHtml(entry.name)}</span><strong>${escapeHtml(entry.color)} / ${escapeHtml(entry.material)}</strong></div>`).join("")
+              : `<div><span>暂无配色</span><strong>-</strong></div>`
+            }
+          </div>
+        </section>
+
+        <section class="quick-confirm-section">
+          <h4>特殊定制</h4>
+          <div class="quick-summary-list">
+            ${customRows.length
+              ? customRows.map((entry) => `<div><span>${escapeHtml(entry)}</span><strong>已记录</strong></div>`).join("")
+              : `<div><span>无特殊定制</span><strong>-</strong></div>`
+            }
+          </div>
+        </section>
+
+        <div class="quick-send-status" data-send-status="${confirmationEmailState}">${statusText}</div>
+      </div>
+
+      <footer class="confirm-actions quick-confirm-actions">
+        <button class="glass-button" type="button" data-back-confirm>返回修改</button>
+        <button class="glass-button" type="button" data-view-full-sheet>查看完整生产单</button>
+        <button class="primary-button" type="button" data-send-confirmation ${confirmationEmailState !== "idle" ? "disabled" : ""} ${confirmationEmailState === "sending" ? "aria-busy=\"true\"" : ""}>${sendLabel}</button>
+      </footer>
+    </div>
+  `;
+}
+
 async function buildConfirmationSheetDocument() {
   if (!effectSnapshotsReady(product())) {
     effectSnapshotRecord = await buildEffectSnapshotRecord(product());
@@ -2230,34 +2371,103 @@ async function downloadSheet() {
   const requestId = confirmationSheetRequestId + 1;
   confirmationSheetRequestId = requestId;
   isConfirmationSheetGenerating = true;
+  confirmationEmailState = "idle";
+  confirmationEmailTransport = "outbox";
+  confirmationEmailMessage = "";
   refreshEffectPickerModal();
 
   try {
-    const { data, html } = await buildConfirmationSheetDocument();
-    if (requestId !== confirmationSheetRequestId) return;
-    const sheetWindow = window.open("", "_blank");
-    if (requestId !== confirmationSheetRequestId) return;
-    if (sheetWindow && !sheetWindow.closed) {
-      sheetWindow.document.open();
-      sheetWindow.document.write(html);
-      sheetWindow.document.close();
-      sheetWindow.focus();
-    } else {
-      downloadConfirmationSheetFallback(html, confirmationSheetFileName(data));
-      toast("浏览器拦截新窗口，已下载 HTML 确认单");
+    if (!effectSnapshotsReady(product())) {
+      effectSnapshotRecord = await buildEffectSnapshotRecord(product());
     }
+    const data = buildExportData({ includeImageData: false, includeEffectSnapshots: false });
+    const imageDataUrl = selectedEffectSnapshotData(product());
+    if (requestId !== confirmationSheetRequestId) return;
+
+    let modal = document.querySelector("#confirmationPreviewModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "confirmationPreviewModal";
+      modal.className = "confirm-modal";
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = renderQuickConfirmationCard(data, imageDataUrl);
+    modal.classList.add("is-visible");
+
     closeConfirmModal();
     closeEffectPickerModal();
-    toast("确认单已生成");
-  } catch {
+    toast("快速确认卡已生成");
+  } catch (error) {
+    console.error("Sheet generation failed:", error);
     if (requestId === confirmationSheetRequestId) {
-      toast("确认单生成失败，请重新生成");
+      toast("生成失败，请重试");
     }
   } finally {
     if (requestId === confirmationSheetRequestId) {
       isConfirmationSheetGenerating = false;
       refreshEffectPickerModal();
     }
+  }
+}
+
+async function openFullConfirmationSheet() {
+  const { data, html } = await buildConfirmationSheetDocument();
+  const sheetWindow = window.open("", "_blank");
+  if (sheetWindow && !sheetWindow.closed) {
+    sheetWindow.document.open();
+    sheetWindow.document.write(html);
+    sheetWindow.document.close();
+    sheetWindow.focus();
+    return;
+  }
+  downloadConfirmationSheetFallback(html, confirmationSheetFileName(data));
+  toast("浏览器拦截新窗口，已下载 HTML 确认单");
+}
+
+function refreshQuickConfirmationCard() {
+  const modal = document.querySelector("#confirmationPreviewModal");
+  if (!modal?.classList.contains("is-visible")) return;
+  const data = buildExportData({ includeImageData: false, includeEffectSnapshots: false });
+  modal.innerHTML = renderQuickConfirmationCard(data, selectedEffectSnapshotData(product()));
+}
+
+async function sendConfirmationEmail() {
+  if (confirmationEmailState !== "idle") return;
+  confirmationEmailState = "sending";
+  confirmationEmailMessage = "";
+  refreshQuickConfirmationCard();
+  toast("正在发送确认单...");
+  try {
+    const { data, html } = await buildConfirmationSheetDocument();
+    const response = await fetch("/api/public/confirmation-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product: data.product,
+        customer: data.customer,
+        embroidery: data.embroidery,
+        html
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.ok === false) throw new Error(result.message || "发送失败");
+    confirmationEmailState = "sent";
+    confirmationEmailTransport = result.transport || "resend";
+    refreshQuickConfirmationCard();
+    const doneMessage = result.transport === "local-outbox"
+      ? `确认单已保存到本地发件箱，目标邮箱 ${result.to || "指定邮箱"}`
+      : `确认单已发送至 ${result.to || "指定邮箱"}`;
+    toast(doneMessage);
+  } catch (error) {
+    console.error("Confirmation email failed", {
+      message: error.message || "发送失败",
+      customerEmail: buildExportData().customer.email || "",
+      target: "confirmation-email"
+    });
+    confirmationEmailState = "idle";
+    confirmationEmailMessage = "发送失败，请截图保存相关配置";
+    refreshQuickConfirmationCard();
+    toast(confirmationEmailMessage);
   }
 }
 
@@ -2404,7 +2614,23 @@ function bindEvents() {
     }
 
     if (event.target.closest("[data-back-confirm]")) {
+      document.querySelector("#confirmationPreviewModal")?.classList.remove("is-visible");
       returnToConfirmModal();
+      return;
+    }
+
+    if (event.target.closest("[data-view-full-sheet]")) {
+      void openFullConfirmationSheet();
+      return;
+    }
+
+    if (event.target.closest("[data-send-confirmation]")) {
+      void sendConfirmationEmail();
+      return;
+    }
+
+    if (event.target.closest("[data-close-preview]")) {
+      document.querySelector("#confirmationPreviewModal")?.classList.remove("is-visible");
       return;
     }
 
@@ -2431,6 +2657,11 @@ function bindEvents() {
     }
 
     if (event.target.closest("[data-review-effect]")) {
+      if (!customerInfoComplete()) {
+        refreshConfirmModal();
+        toast(`请先填写：${missingCustomerFields().join("、")}`);
+        return;
+      }
       closeConfirmModal();
       void openEffectPickerModal();
       return;
@@ -2449,6 +2680,7 @@ function bindEvents() {
     const customerKey = event.target.dataset.customer;
     if (customerKey) {
       state.customer[customerKey] = event.target.value;
+      refreshConfirmCustomerValidation();
       return;
     }
 

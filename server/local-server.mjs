@@ -93,6 +93,10 @@ export async function createLocalServer(options = {}) {
         sendJson(response, 200, await backend.getPublicConfig(), { "Cache-Control": "no-cache" });
         return;
       }
+      if (request.method === "POST" && url.pathname === "/api/public/confirmation-email") {
+        sendJson(response, 200, await backend.queueConfirmationEmail(await readBody(request)));
+        return;
+      }
       if (request.method === "POST" && url.pathname === "/api/admin/login") {
         const body = await readBody(request);
         const result = await backend.signIn(body);

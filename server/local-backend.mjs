@@ -11,6 +11,7 @@ const SHARED_SCHEMA_PATH = path.join(PROJECT_ROOT, "shared", "yjs-pro-cim-schema
 const SHARED_CONFIG_PATH = path.join(PROJECT_ROOT, "b-side", "data", "cim-config.js");
 const DEFAULT_ADMIN_EMAIL = "admin@skate-cim.local";
 const DEFAULT_ADMIN_PASSWORD = "admin123";
+const RESEND_EMAIL_ENDPOINT = "https://api.resend.com/emails";
 
 function nowString() {
   const date = new Date();
@@ -20,6 +21,34 @@ function nowString() {
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function safeFileName(value) {
+  return String(value || "customer").replace(/[\\/:*?"<>|]/g, "-");
+}
+
+function htmlToBase64(value) {
+  return Buffer.from(String(value), "utf8").toString("base64");
+}
+
+function dataUrlAttachmentContent(dataUrl = "") {
+  const match = String(dataUrl).match(/^data:([^;,]+)?(?:;[^,]*)?;base64,(.+)$/);
+  if (!match) return null;
+  return { contentType: match[1] || "application/octet-stream", content: match[2] };
+}
+
+function embroideryImageAttachments(embroidery = []) {
+  return embroidery.flatMap((entry) => {
+    const image = entry?.image;
+    const parsed = dataUrlAttachmentContent(image?.dataUrl);
+    if (!parsed) return [];
+    const prefix = [entry.code, entry.name].filter(Boolean).join("-") || "remark-image";
+    return [{
+      filename: safeFileName(`${prefix}-${image.name || "attachment"}`),
+      contentType: image.type || parsed.contentType,
+      content: parsed.content
+    }];
+  });
 }
 
 function passwordHash(password, salt = randomBytes(16).toString("hex")) {
@@ -115,9 +144,17 @@ function writeAudit(db, actor, action, detail) {
 
 export async function createLocalBackend(options = {}) {
   const dataDir = options.dataDir || DEFAULT_DATA_DIR;
+  const outboxDir = path.join(dataDir, "outbox");
+  const confirmationEmailTo = String(options.confirmationEmailTo || process.env.CONFIRMATION_EMAIL_TO || "").trim();
+  const emailTransport = options.emailTransport || process.env.EMAIL_TRANSPORT || "outbox";
+  const resendApiKey = options.resendApiKey || process.env.RESEND_API_KEY || "";
+  const resendFrom = options.resendFrom || process.env.RESEND_FROM || "";
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  const logger = options.logger || console;
   await mkdir(dataDir, { recursive: true });
   await mkdir(path.join(dataDir, "releases"), { recursive: true });
   await mkdir(path.join(dataDir, "uploads"), { recursive: true });
+  await mkdir(outboxDir, { recursive: true });
 
   const db = new DatabaseSync(path.join(dataDir, "skate-cim.db"));
   ensureSchema(db);
@@ -227,6 +264,72 @@ export async function createLocalBackend(options = {}) {
 
     async getPublicConfig() {
       return deepClone(readConfig("public"));
+    },
+
+    async queueConfirmationEmail(payload = {}) {
+      if (!confirmationEmailTo) {
+        return { ok: false, status: 500, message: "确认单收件邮箱未配置" };
+      }
+      const customerName = String(payload.customer?.name || "customer").trim() || "customer";
+      const productName = String(payload.product || "Skate CIM").trim() || "Skate CIM";
+      const html = String(payload.html || "");
+      if (!html.includes("定制确认单")) {
+        return { ok: false, status: 400, message: "确认单内容不完整" };
+      }
+      const id = `confirmation-${Date.now()}-${randomBytes(4).toString("hex")}`;
+      const attachment = {
+        filename: `${safeFileName(productName)}-${safeFileName(customerName)}-confirmation.html`,
+        contentType: "text/html; charset=utf-8",
+        content: html
+      };
+      const imageAttachments = embroideryImageAttachments(payload.embroidery);
+      const message = {
+        id,
+        transport: "local-outbox",
+        to: confirmationEmailTo,
+        subject: `${productName} 定制确认单 - ${customerName}`,
+        createdAt: nowString(),
+        customer: payload.customer || {},
+        attachments: [attachment, ...imageAttachments]
+      };
+      if (emailTransport === "resend") {
+        if (!resendApiKey || !resendFrom) {
+          return { ok: false, status: 500, message: "Resend 邮件配置缺失" };
+        }
+        const resendBody = {
+          from: resendFrom,
+          to: [confirmationEmailTo],
+          subject: message.subject,
+          html,
+          attachments: [
+            { filename: attachment.filename, content: htmlToBase64(html) },
+            ...imageAttachments.map((item) => ({ filename: item.filename, content: item.content }))
+          ]
+        };
+        if (payload.customer?.email) resendBody.reply_to = [payload.customer.email];
+        const response = await fetchImpl(RESEND_EMAIL_ENDPOINT, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(resendBody)
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          logger.error?.("[confirmation-email] Resend send failed", {
+            status: response.status,
+            to: confirmationEmailTo,
+            from: resendFrom,
+            subject: message.subject,
+            providerMessage: result.message || result.error || "Resend 发送失败"
+          });
+          return { ok: false, status: response.status, message: result.message || "Resend 发送失败" };
+        }
+        return { ok: true, id, providerId: result.id, transport: "resend", to: confirmationEmailTo };
+      }
+      await writeFile(path.join(outboxDir, `${id}.json`), JSON.stringify(message, null, 2));
+      return { ok: true, id, transport: "local-outbox", to: confirmationEmailTo };
     },
 
     async readPublishedSnapshotFile() {

@@ -22,6 +22,26 @@ python3 -m http.server 8081
 
 打开 `http://127.0.0.1:8081/` 预览 C 端定制页。
 
+## 确认单邮件
+
+本地默认使用 `EMAIL_TRANSPORT=outbox`，只会把确认单邮件写入 `.local-data/outbox`，不会真实发信。
+
+接入 Resend 后可切到真实发送：
+
+```bash
+EMAIL_TRANSPORT=resend
+CONFIRMATION_EMAIL_TO=orders@example.com
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+RESEND_FROM="Skate CIM <orders@your-domain.com>"
+```
+
+`CONFIRMATION_EMAIL_TO` 是项目级收件邮箱，线上必须按实际订单接收邮箱配置；`RESEND_FROM` 必须使用已在 Resend 完成验证的域名邮箱。`RESEND_API_KEY` 只能放在本地环境变量或 Cloudflare Worker secrets，不要提交到仓库。
+
+Cloudflare 部署时建议这样配置：
+
+- Variables：`EMAIL_TRANSPORT=resend`、`CONFIRMATION_EMAIL_TO=orders@example.com`、`RESEND_FROM=Skate CIM <orders@your-domain.com>`
+- Secrets：`RESEND_API_KEY`
+
 ## 自动发布到阿里云 OSS
 
 仓库已配置 GitHub Actions：每次 push 到 `main` 分支，会把当前静态站文件同步到阿里云 OSS。同步使用 `ossutil sync --delete`，OSS 侧会删除本仓库静态站中已不存在的旧文件。

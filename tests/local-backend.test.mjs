@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -55,6 +55,142 @@ test("local backend publishes draft config as the C-side current snapshot", asyn
     assert.equal(publicConfig.release.online.version, publishResult.version);
     assert.equal(publicConfig.shoes[0].name, "YJS-pro CIM 本地后台验证");
     assert.equal(publicConfig.fabrics.at(-1).materialKey, "test_blue_smooth");
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("local backend writes confirmation emails to local outbox", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
+  try {
+    const backend = await createLocalBackend({ dataDir: workspace, confirmationEmailTo: "orders@example.com" });
+    const result = await backend.queueConfirmationEmail({
+      customer: { name: "测试用户", phone: "13800138000" },
+      product: "YJS Pro CIM",
+      html: "<!doctype html><html><body><h1>定制确认单</h1></body></html>"
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.to, "orders@example.com");
+    assert.match(result.id, /^confirmation-\d+-[a-f0-9]{8}$/);
+
+    const message = JSON.parse(await readFile(path.join(workspace, "outbox", `${result.id}.json`), "utf8"));
+    assert.equal(message.to, "orders@example.com");
+    assert.equal(message.subject, "YJS Pro CIM 定制确认单 - 测试用户");
+    assert.equal(message.attachments[0].filename, "YJS Pro CIM-测试用户-confirmation.html");
+    assert.match(message.attachments[0].content, /定制确认单/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("local backend requires project-level confirmation recipient", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
+  try {
+    const backend = await createLocalBackend({ dataDir: workspace });
+    const result = await backend.queueConfirmationEmail({
+      customer: { name: "测试用户" },
+      product: "YJS Pro CIM",
+      html: "<!doctype html><html><body><h1>定制确认单</h1></body></html>"
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 500);
+    assert.equal(result.message, "确认单收件邮箱未配置");
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("local backend sends confirmation emails through Resend transport", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
+  const resendRequests = [];
+  try {
+    const backend = await createLocalBackend({
+      dataDir: workspace,
+      confirmationEmailTo: "orders@example.com",
+      emailTransport: "resend",
+      resendApiKey: "re_test_key",
+      resendFrom: "Skate CIM <orders@example.com>",
+      fetchImpl: async (url, options) => {
+        resendRequests.push({ url, options, body: JSON.parse(options.body) });
+        return new Response(JSON.stringify({ id: "email_test_123" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    });
+    const result = await backend.queueConfirmationEmail({
+      customer: { name: "测试用户", email: "customer@example.com" },
+      product: "YJS Pro CIM",
+      embroidery: [
+        {
+          code: "C",
+          name: "鞋舌电绣片",
+          image: {
+            name: "logo.png",
+            type: "image/png",
+            dataUrl: "data:image/png;base64,QUJD"
+          }
+        }
+      ],
+      html: "<!doctype html><html><body><h1>定制确认单</h1></body></html>"
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.transport, "resend");
+    assert.equal(result.providerId, "email_test_123");
+    assert.equal(result.to, "orders@example.com");
+    assert.equal(resendRequests.length, 1);
+    assert.equal(resendRequests[0].url, "https://api.resend.com/emails");
+    assert.equal(resendRequests[0].options.headers.Authorization, "Bearer re_test_key");
+    assert.equal(resendRequests[0].body.from, "Skate CIM <orders@example.com>");
+    assert.deepEqual(resendRequests[0].body.to, ["orders@example.com"]);
+    assert.deepEqual(resendRequests[0].body.reply_to, ["customer@example.com"]);
+    assert.match(resendRequests[0].body.html, /定制确认单/);
+    assert.equal(resendRequests[0].body.attachments[0].filename, "YJS Pro CIM-测试用户-confirmation.html");
+    assert.equal(resendRequests[0].body.attachments[1].filename, "C-鞋舌电绣片-logo.png");
+    assert.equal(resendRequests[0].body.attachments[1].content, "QUJD");
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("local backend logs Resend failures without leaking secrets", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
+  const logs = [];
+  try {
+    const backend = await createLocalBackend({
+      dataDir: workspace,
+      confirmationEmailTo: "orders@example.com",
+      emailTransport: "resend",
+      resendApiKey: "re_secret_should_not_leak",
+      resendFrom: "Skate CIM <orders@example.com>",
+      logger: { error: (...args) => logs.push(args) },
+      fetchImpl: async () => new Response(JSON.stringify({ message: "Domain not verified" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" }
+      })
+    });
+
+    const result = await backend.queueConfirmationEmail({
+      customer: { name: "测试用户", email: "customer@example.com" },
+      product: "YJS Pro CIM",
+      html: "<!doctype html><html><body><h1>定制确认单</h1></body></html>"
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 403);
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], "[confirmation-email] Resend send failed");
+    assert.deepEqual(logs[0][1], {
+      status: 403,
+      to: "orders@example.com",
+      from: "Skate CIM <orders@example.com>",
+      subject: "YJS Pro CIM 定制确认单 - 测试用户",
+      providerMessage: "Domain not verified"
+    });
+    assert(!JSON.stringify(logs).includes("re_secret_should_not_leak"));
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }

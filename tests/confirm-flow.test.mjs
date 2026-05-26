@@ -310,12 +310,29 @@ async function main() {
         await page.waitFor("document.querySelector('#confirmModal.is-visible #confirmTitle')?.textContent === '填写定制信息'");
         assert(await page.evaluate("!document.querySelector('#effectPickerModal.is-visible')"), `${viewport.name}: effect picker should not open before form confirmation`);
         assert(await page.evaluate("Boolean(document.querySelector('#confirmModal [data-review-effect]'))"), `${viewport.name}: form modal should expose the next-step effect button`);
+        assert(await page.evaluate("Boolean(document.querySelector('#confirmModal [data-review-effect][disabled]'))"), `${viewport.name}: next-step button should be disabled before required personal info is complete`);
+        assert(await page.evaluate("document.querySelector('#confirmModal')?.textContent.includes('请先填写')"), `${viewport.name}: form modal should explain required personal info before next step`);
+        await page.click("[data-review-effect]");
+        assert(await page.evaluate("!document.querySelector('#effectPickerModal.is-visible')"), `${viewport.name}: disabled next-step button should not open effect confirmation`);
+        assert(await page.evaluate(`(() => {
+          const input = document.querySelector('[data-customer="name"]');
+          input.focus();
+          input.value = '测';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          return document.activeElement === input && input.value === '测';
+        })()`), `${viewport.name}: typing required customer info should keep focus instead of remounting the input`);
 
         await page.evaluate(`(() => {
           document.querySelector('[data-customer="name"]').value = '测试用户';
           document.querySelector('[data-customer="name"]').dispatchEvent(new Event('input', { bubbles: true }));
           document.querySelector('[data-customer="phone"]').value = '13800138000';
           document.querySelector('[data-customer="phone"]').dispatchEvent(new Event('input', { bubbles: true }));
+          document.querySelector('[data-customer="email"]').value = 'customer@example.com';
+          document.querySelector('[data-customer="email"]').dispatchEvent(new Event('input', { bubbles: true }));
+          document.querySelector('[data-customer="footLength"]').value = '245mm';
+          document.querySelector('[data-customer="footLength"]').dispatchEvent(new Event('input', { bubbles: true }));
+          document.querySelector('[data-customer="size"]').value = '39';
+          document.querySelector('[data-customer="size"]').dispatchEvent(new Event('input', { bubbles: true }));
           const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='), (char) => char.charCodeAt(0));
           const file = new File([bytes], 'logo.png', { type: 'image/png' });
           const transfer = new DataTransfer();
@@ -329,7 +346,11 @@ async function main() {
         const formData = await page.evaluate("window.buildExportData()");
         assert(formData.customer.name === "测试用户", `${viewport.name}: customer form input should update export data`);
         assert(formData.customer.phone === "13800138000", `${viewport.name}: customer phone input should update export data`);
+        assert(formData.customer.email === "customer@example.com", `${viewport.name}: customer email input should update export data`);
+        assert(formData.customer.footLength === "245mm", `${viewport.name}: customer foot length input should update export data`);
+        assert(formData.customer.size === "39", `${viewport.name}: customer size input should update export data`);
         assert(formData.embroidery.some((item) => item.image?.name === "logo.png"), `${viewport.name}: uploaded special customization image should be exported as file metadata`);
+        assert(await page.evaluate("!document.querySelector('#confirmModal [data-review-effect][disabled]')"), `${viewport.name}: next-step button should be enabled after required personal info is complete`);
 
         await page.tap("[data-review-effect]");
         await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
@@ -352,6 +373,7 @@ async function main() {
         assert(confirmationHtml.includes("data:image/png") && !confirmationHtml.includes("mvp-shoe-frame"), `${viewport.name}: confirmation sheet should embed static PNG previews instead of live shoe markup`);
         assert(confirmationHtml.includes("测试用户"), `${viewport.name}: confirmation sheet should include customer data`);
         assert(confirmationHtml.includes("13800138000"), `${viewport.name}: confirmation sheet should include customer phone`);
+        assert(confirmationHtml.includes("customer@example.com"), `${viewport.name}: confirmation sheet should include customer email`);
         assert(confirmationHtml.includes("配色选型"), `${viewport.name}: confirmation sheet should keep the original confirmation table data`);
         assert(confirmationHtml.includes("logo.png") && confirmationHtml.includes("data:image/png;base64,"), `${viewport.name}: confirmation sheet should include uploaded reference images`);
 
@@ -361,6 +383,9 @@ async function main() {
         assert(await page.evaluate("!document.querySelector('#effectPickerModal.is-visible')"), `${viewport.name}: returning to form should close effect confirmation`);
         assert(await page.evaluate("document.querySelector('[data-customer=\"name\"]')?.value === '测试用户'"), `${viewport.name}: returning to form should preserve customer input`);
         assert(await page.evaluate("document.querySelector('[data-customer=\"phone\"]')?.value === '13800138000'"), `${viewport.name}: returning to form should preserve customer phone input`);
+        assert(await page.evaluate("document.querySelector('[data-customer=\"email\"]')?.value === 'customer@example.com'"), `${viewport.name}: returning to form should preserve customer email input`);
+        assert(await page.evaluate("document.querySelector('[data-customer=\"footLength\"]')?.value === '245mm'"), `${viewport.name}: returning to form should preserve customer foot length input`);
+        assert(await page.evaluate("document.querySelector('[data-customer=\"size\"]')?.value === '39'"), `${viewport.name}: returning to form should preserve customer size input`);
 
         await page.tap("[data-review-effect]");
         await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
@@ -388,32 +413,126 @@ async function main() {
               focus() {}
             };
           };
-          window.__confirmationBuildReleases = [];
+          window.__fullConfirmationBuildCount = 0;
+          window.__confirmationEmailRequests = [];
+          window.__confirmationEmailResolvers = [];
           const originalBuildConfirmationSheetHtml = window.buildConfirmationSheetHtml;
           window.buildConfirmationSheetHtml = (data) => {
-            const html = originalBuildConfirmationSheetHtml(data);
-            return new Promise((resolve) => {
-              window.__confirmationBuildReleases.push(() => resolve(html));
-            });
+            window.__fullConfirmationBuildCount += 1;
+            return originalBuildConfirmationSheetHtml(data);
+          };
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (url, options = {}) => {
+            if (url === '/api/public/confirmation-email') {
+              window.__confirmationEmailRequests.push(JSON.parse(options.body || '{}'));
+              return new Promise((resolve) => {
+                window.__confirmationEmailResolvers.push(() => resolve(new Response(JSON.stringify({ ok: true, id: 'confirmation-test', to: 'orders@example.com', transport: 'local-outbox' }), {
+                  status: 200,
+                  headers: { 'Content-Type': 'application/json' }
+                })));
+              });
+            }
+            return originalFetch(url, options);
           };
         })()`);
         await page.click("[data-download-sheet]");
-        await page.waitFor("document.querySelector('[data-download-sheet]')?.textContent.includes('生成中')");
-        assert(await page.evaluate("window.__confirmationOpenCount === 0"), `${viewport.name}: final action should not open a blank tab before the sheet is ready`);
-        assert(await page.evaluate("Boolean(document.querySelector('#effectPickerModal.is-visible [data-back-confirm]:not([disabled])'))"), `${viewport.name}: generating confirmation sheet should still allow returning to the form`);
-        await page.click("[data-back-confirm]");
+        await page.waitFor("document.querySelector('#confirmationPreviewModal.is-visible .quick-confirm-card')");
+        assert(await page.evaluate("window.__confirmationOpenCount === 0"), `${viewport.name}: quick confirmation should not open a blank tab`);
+        assert(await page.evaluate("window.__fullConfirmationBuildCount === 0"), `${viewport.name}: quick confirmation should not build the full production sheet`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal .quick-confirm-image')?.src.startsWith('data:image/png')"), `${viewport.name}: quick confirmation should reuse the selected static preview`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('测试用户')"), `${viewport.name}: quick confirmation should include customer data`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('customer@example.com')"), `${viewport.name}: quick confirmation should include customer email`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('配色摘要')"), `${viewport.name}: quick confirmation should show a compact color summary`);
+        assert(await page.evaluate("Boolean(document.querySelector('#confirmationPreviewModal [data-back-confirm]'))"), `${viewport.name}: quick confirmation should keep a return-to-form action`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal [data-send-confirmation]')?.textContent.includes('确认并发送')"), `${viewport.name}: quick confirmation should expose the email send action`);
+        assert(await page.evaluate("Boolean(document.querySelector('#confirmationPreviewModal [data-view-full-sheet]'))"), `${viewport.name}: full production sheet should be a secondary action`);
+        assert(await page.evaluate(`(() => {
+          const rect = document.querySelector('#confirmationPreviewModal .quick-confirm-card')?.getBoundingClientRect();
+          return rect && rect.width <= window.innerWidth && rect.height <= window.innerHeight * 1.6;
+        })()`), `${viewport.name}: quick confirmation card should stay compact on mobile`);
+        await page.click("#confirmationPreviewModal [data-back-confirm]");
         await page.waitFor("document.querySelector('#confirmModal.is-visible #confirmTitle')?.textContent === '填写定制信息'");
-        assert(await page.evaluate("window.__confirmationOpenCount === 0"), `${viewport.name}: returning during generation should cancel the pending sheet open`);
+        assert(await page.evaluate("window.__confirmationOpenCount === 0"), `${viewport.name}: returning from quick confirmation should not open a sheet`);
 
         await page.tap("[data-review-effect]");
         await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
         await page.click("[data-download-sheet]");
-        await page.waitFor("(window.__confirmationBuildReleases?.length || 0) >= 2");
-        await page.evaluate("window.__confirmationBuildReleases.at(-1)()");
+        await page.waitFor("document.querySelector('#confirmationPreviewModal.is-visible .quick-confirm-card')");
+        await page.click("#confirmationPreviewModal [data-send-confirmation]");
+        await page.waitFor("document.querySelector('#confirmationPreviewModal [data-send-confirmation]')?.textContent.includes('发送中')");
+        assert(await page.evaluate("Boolean(document.querySelector('#confirmationPreviewModal [data-send-confirmation][disabled]'))"), `${viewport.name}: sending action should be disabled immediately to prevent duplicate clicks`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('正在发送')"), `${viewport.name}: sending action should show an in-card progress message`);
+        assert(await page.evaluate("document.querySelector('#toast')?.textContent.includes('正在发送')"), `${viewport.name}: sending action should push a progress toast`);
+        await page.click("#confirmationPreviewModal [data-send-confirmation]");
+        assert(await page.evaluate("window.__confirmationEmailRequests.length === 1"), `${viewport.name}: duplicate click while sending should not enqueue another email`);
+        await page.evaluate("window.__confirmationEmailResolvers.at(-1)()");
+        await page.waitFor("window.__confirmationEmailRequests?.length === 1");
+        assert(await page.evaluate("window.__confirmationEmailRequests[0].html.includes('定制确认单')"), `${viewport.name}: email action should send the full confirmation sheet HTML`);
+        assert(await page.evaluate("window.__confirmationEmailRequests[0].customer.name === '测试用户'"), `${viewport.name}: email action should include customer metadata`);
+        assert(await page.evaluate("window.__confirmationEmailRequests[0].customer.email === 'customer@example.com'"), `${viewport.name}: email action should include customer email metadata`);
+        assert(await page.evaluate("window.__fullConfirmationBuildCount === 1"), `${viewport.name}: email action should build the full sheet only after explicit confirmation`);
+        await page.waitFor("document.querySelector('#confirmationPreviewModal [data-send-confirmation]')?.textContent.includes('已保存')");
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal [data-send-confirmation]')?.textContent.includes('已保存')"), `${viewport.name}: local outbox action should show saved state instead of pretending real email was delivered`);
+        assert(await page.evaluate("Boolean(document.querySelector('#confirmationPreviewModal [data-send-confirmation][disabled]'))"), `${viewport.name}: completed send action should stay disabled`);
+        await page.click("#confirmationPreviewModal [data-send-confirmation]");
+        assert(await page.evaluate("window.__confirmationEmailRequests.length === 1"), `${viewport.name}: clicking saved state should not enqueue another email`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('已保存到本地发件箱')"), `${viewport.name}: local outbox action should explain that no real email was sent yet`);
+        assert(await page.evaluate("document.querySelector('#toast')?.textContent.includes('已保存到本地发件箱')"), `${viewport.name}: local outbox action should push an honest completion toast`);
+
+        await page.evaluate(`(() => {
+          window.__confirmationEmailRequests = [];
+          window.__confirmationEmailResolvers = [];
+          window.fetch = (url, options = {}) => {
+            if (url === '/api/public/confirmation-email') {
+              window.__confirmationEmailRequests.push(JSON.parse(options.body || '{}'));
+              return Promise.resolve(new Response(JSON.stringify({ ok: true, id: 'confirmation-test', to: 'orders@example.com', transport: 'resend' }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              }));
+            }
+            return Promise.reject(new Error('unexpected fetch'));
+          };
+        })()`);
+        await page.click("#confirmationPreviewModal [data-back-confirm]");
+        await page.waitFor("document.querySelector('#confirmModal.is-visible #confirmTitle')?.textContent === '填写定制信息'");
+        await page.tap("[data-review-effect]");
+        await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
+        await page.click("[data-download-sheet]");
+        await page.waitFor("document.querySelector('#confirmationPreviewModal.is-visible .quick-confirm-card')");
+        await page.click("#confirmationPreviewModal [data-send-confirmation]");
+        await page.waitFor("document.querySelector('#confirmationPreviewModal [data-send-confirmation]')?.textContent.includes('已发送')");
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('发送完成')"), `${viewport.name}: Resend transport should show real sent completion copy`);
+        assert(await page.evaluate("document.querySelector('#toast')?.textContent.includes('确认单已发送至 orders@example.com')"), `${viewport.name}: Resend transport should push a real sent toast`);
+        await page.click("#confirmationPreviewModal [data-view-full-sheet]");
         await page.waitFor("window.__confirmationSheetWrites?.some((html) => html.includes('最终效果图'))");
         assert(await page.evaluate("window.__confirmationOpenCount === 1"), `${viewport.name}: final action should open the confirmation page after HTML is ready`);
+        assert(await page.evaluate("window.__fullConfirmationBuildCount === 3"), `${viewport.name}: full production sheet should also build for both send transports and the secondary full-sheet action`);
         assert(await page.evaluate("window.__confirmationSheetWrites.at(-1).includes('data:image/png')"), `${viewport.name}: final action should open the HTML confirmation sheet with static PNG previews`);
         assert(await page.evaluate("document.body.dataset.view === 'builder'"), `${viewport.name}: generating the confirmation sheet should keep the customization page state`);
+
+        await page.evaluate(`(() => {
+          window.__confirmationEmailRequests = [];
+          window.fetch = (url, options = {}) => {
+            if (url === '/api/public/confirmation-email') {
+              window.__confirmationEmailRequests.push(JSON.parse(options.body || '{}'));
+              return Promise.resolve(new Response(JSON.stringify({ ok: false, message: 'Resend 发送失败：Domain not verified' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+              }));
+            }
+            return Promise.reject(new Error('unexpected fetch'));
+          };
+        })()`);
+        await page.click("#confirmationPreviewModal [data-back-confirm]");
+        await page.waitFor("document.querySelector('#confirmModal.is-visible #confirmTitle')?.textContent === '填写定制信息'");
+        await page.tap("[data-review-effect]");
+        await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
+        await page.click("[data-download-sheet]");
+        await page.waitFor("document.querySelector('#confirmationPreviewModal.is-visible .quick-confirm-card')");
+        await page.click("#confirmationPreviewModal [data-send-confirmation]");
+        await page.waitFor("document.querySelector('#toast')?.textContent.includes('发送失败，请截图保存相关配置')");
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('发送失败，请截图保存相关配置')"), `${viewport.name}: Resend failures should ask users to screenshot the configuration`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal [data-send-confirmation]')?.textContent.includes('确认并发送')"), `${viewport.name}: failed send should restore the retry action`);
       } finally {
         page?.ws?.close();
       }
