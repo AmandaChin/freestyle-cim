@@ -334,8 +334,8 @@ async function main() {
           document.querySelector('[data-customer="size"]').value = '39';
           document.querySelector('[data-customer="size"]').dispatchEvent(new Event('input', { bubbles: true }));
         })()`);
-        assert(await page.evaluate("Boolean(document.querySelector('#confirmModal [data-review-effect][disabled]'))"), `${viewport.name}: invalid customer email should keep next-step disabled`);
-        assert(await page.evaluate("document.querySelector('#confirmModal')?.textContent.includes('邮箱格式有误')"), `${viewport.name}: invalid customer email should show a format hint`);
+        assert(await page.evaluate("!document.querySelector('#confirmModal [data-review-effect][disabled]')"), `${viewport.name}: invalid customer email should not block project-recipient submission`);
+        assert(await page.evaluate("!document.querySelector('#confirmModal')?.textContent.includes('邮箱格式有误')"), `${viewport.name}: invalid customer email should be ignored by the sender instead of blocking the form`);
 
         await page.evaluate(`(() => {
           document.querySelector('[data-customer="name"]').value = '测试用户';

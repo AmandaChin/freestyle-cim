@@ -1492,7 +1492,6 @@ function missingCustomerFields() {
   const missing = REQUIRED_CUSTOMER_FIELDS
     .filter(([key]) => !String(state.customer[key] || "").trim())
     .map(([, labelKey]) => t(labelKey));
-  if (state.customer.email && !isValidEmail(state.customer.email)) missing.push(t("emailInvalid"));
   return missing;
 }
 

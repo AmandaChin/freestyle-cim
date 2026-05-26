@@ -81,13 +81,14 @@ export async function onRequestPost({ request, env }) {
   if (!payload) return jsonResponse(400, { ok: false, message: "请求内容不是合法 JSON" });
   if (!confirmationEmailTo) return jsonResponse(500, { ok: false, message: "确认单收件邮箱未配置" });
   if (!isValidEmail(confirmationEmailTo)) return jsonResponse(400, { ok: false, message: "确认单收件邮箱格式不正确" });
-  if (payload.customer?.email && !isValidEmail(payload.customer.email)) return jsonResponse(400, { ok: false, message: "客户邮箱格式不正确" });
   if (!resendApiKey || !resendFrom) return jsonResponse(500, { ok: false, message: "Resend 邮件配置缺失" });
 
   const html = String(payload.html || "");
   if (!html.includes("定制确认单")) return jsonResponse(400, { ok: false, message: "确认单内容不完整" });
 
   const customerName = String(payload.customer?.name || "customer").trim() || "customer";
+  const validCustomerEmail = payload.customer?.email && isValidEmail(payload.customer.email) ? payload.customer.email : "";
+  const recipients = [confirmationEmailTo, ...(validCustomerEmail ? [validCustomerEmail] : [])];
   const productName = String(payloadProductName(payload.product)).trim() || "Skate CIM";
   const subject = `${productName} 定制确认单 - ${customerName}`;
   const confirmationAttachment = {
@@ -96,7 +97,7 @@ export async function onRequestPost({ request, env }) {
   };
   const resendBody = {
     from: resendFrom,
-    to: [confirmationEmailTo],
+    to: recipients,
     subject,
     html,
     attachments: [
@@ -104,7 +105,7 @@ export async function onRequestPost({ request, env }) {
       ...embroideryImageAttachments(payload.embroidery).map((item) => ({ filename: item.filename, content: item.content }))
     ]
   };
-  if (payload.customer?.email) resendBody.reply_to = [payload.customer.email];
+  if (validCustomerEmail) resendBody.reply_to = [validCustomerEmail];
 
   const response = await fetchImpl(RESEND_EMAIL_ENDPOINT, {
     method: "POST",
@@ -126,7 +127,7 @@ export async function onRequestPost({ request, env }) {
     // Keep the provider message visible in Cloudflare Functions logs without printing the API key.
     console.error("[confirmation-email] Resend send failed", {
       status: response.status,
-      to: confirmationEmailTo,
+      to: recipients,
       from: resendFrom,
       subject,
       providerMessage: result.message || result.error || "Resend 发送失败"
@@ -139,6 +140,6 @@ export async function onRequestPost({ request, env }) {
     id: `confirmation-${Date.now()}`,
     providerId: result.id,
     transport: "resend",
-    to: confirmationEmailTo
+    to: recipients.join(", ")
   });
 }

@@ -35,7 +35,7 @@ RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 RESEND_FROM="Skate CIM <orders@your-domain.com>"
 ```
 
-`CONFIRMATION_EMAIL_TO` 是项目级收件邮箱，线上必须按实际订单接收邮箱配置；`RESEND_FROM` 必须使用已在 Resend 完成验证的域名邮箱。`RESEND_API_KEY` 只能放在本地环境变量或 Cloudflare Worker secrets，不要提交到仓库。
+`CONFIRMATION_EMAIL_TO` 是项目级收件邮箱，线上必须按实际订单接收邮箱配置；客户在确认单里填写的邮箱如果格式合法，会和项目邮箱一起收到确认单，如果格式不合法则只发项目邮箱，不阻断提交。`RESEND_FROM` 必须使用已在 Resend 完成验证的域名邮箱。`RESEND_API_KEY` 只能放在本地环境变量或 Cloudflare Worker secrets，不要提交到仓库。
 
 Cloudflare 部署时建议这样配置：
 

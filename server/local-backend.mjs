@@ -300,12 +300,8 @@ export async function createLocalBackend(options = {}) {
         });
         return { ok: false, status: 400, message: "确认单收件邮箱格式不正确" };
       }
-      if (payload.customer?.email && !isValidEmail(payload.customer.email)) {
-        logger.error?.("[confirmation-email] customer email invalid", {
-          customerEmail: payload.customer.email
-        });
-        return { ok: false, status: 400, message: "客户邮箱格式不正确" };
-      }
+      const validCustomerEmail = payload.customer?.email && isValidEmail(payload.customer.email) ? payload.customer.email : "";
+      const recipients = [confirmationEmailTo, ...(validCustomerEmail ? [validCustomerEmail] : [])];
       const customerName = String(payload.customer?.name || "customer").trim() || "customer";
       const productName = String(payload.product || "Skate CIM").trim() || "Skate CIM";
       const html = String(payload.html || "");
@@ -322,7 +318,7 @@ export async function createLocalBackend(options = {}) {
       const message = {
         id,
         transport: "local-outbox",
-        to: confirmationEmailTo,
+        to: recipients,
         subject: `${productName} 定制确认单 - ${customerName}`,
         createdAt: nowString(),
         customer: payload.customer || {},
@@ -339,7 +335,7 @@ export async function createLocalBackend(options = {}) {
         }
         const resendBody = {
           from: resendFrom,
-          to: [confirmationEmailTo],
+          to: recipients,
           subject: message.subject,
           html,
           attachments: [
@@ -347,14 +343,14 @@ export async function createLocalBackend(options = {}) {
             ...imageAttachments.map((item) => ({ filename: item.filename, content: item.content }))
           ]
         };
-        if (payload.customer?.email) resendBody.reply_to = [payload.customer.email];
+        if (validCustomerEmail) resendBody.reply_to = [validCustomerEmail];
         logger.info?.("[confirmation-email] Resend request", {
           endpoint: RESEND_EMAIL_ENDPOINT,
-          to: confirmationEmailTo,
+          to: recipients,
           from: resendFrom,
           subject: message.subject,
           attachmentCount: resendBody.attachments.length,
-          hasReplyTo: Boolean(payload.customer?.email)
+          hasReplyTo: Boolean(validCustomerEmail)
         });
         const response = await fetchImpl(RESEND_EMAIL_ENDPOINT, {
           method: "POST",
@@ -374,17 +370,17 @@ export async function createLocalBackend(options = {}) {
         if (!response.ok) {
           logger.error?.("[confirmation-email] Resend send failed", {
             status: response.status,
-            to: confirmationEmailTo,
+            to: recipients,
             from: resendFrom,
             subject: message.subject,
             providerMessage: result.message || result.error || "Resend 发送失败"
           });
           return { ok: false, status: response.status, message: result.message || "Resend 发送失败" };
         }
-        return { ok: true, id, providerId: result.id, transport: "resend", to: confirmationEmailTo };
+        return { ok: true, id, providerId: result.id, transport: "resend", to: recipients.join(", ") };
       }
       await writeFile(path.join(outboxDir, `${id}.json`), JSON.stringify(message, null, 2));
-      return { ok: true, id, transport: "local-outbox", to: confirmationEmailTo };
+      return { ok: true, id, transport: "local-outbox", to: recipients.join(", ") };
     },
 
     async readPublishedSnapshotFile() {
