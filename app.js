@@ -258,6 +258,7 @@ const els = {
   modelName: document.querySelector("#modelName"),
   modelDescription: document.querySelector("#modelDescription"),
   customizerPanel: document.querySelector("#customizerPanel"),
+  customizerScroll: document.querySelector(".customizer-scroll"),
   customizerToggleButton: document.querySelector("#customizerToggleButton"),
   drawerBackdrop: document.querySelector("#drawerBackdrop"),
   drawerCloseButton: document.querySelector("#drawerCloseButton"),
