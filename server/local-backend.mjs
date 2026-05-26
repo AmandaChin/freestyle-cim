@@ -151,6 +151,13 @@ export async function createLocalBackend(options = {}) {
   const resendFrom = options.resendFrom || process.env.RESEND_FROM || "";
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const logger = options.logger || console;
+  logger.info?.("[confirmation-email] config", {
+    transport: emailTransport,
+    hasRecipient: Boolean(confirmationEmailTo),
+    recipient: confirmationEmailTo || "UNSET",
+    hasResendApiKey: Boolean(resendApiKey),
+    resendFrom: resendFrom || "UNSET"
+  });
   await mkdir(dataDir, { recursive: true });
   await mkdir(path.join(dataDir, "releases"), { recursive: true });
   await mkdir(path.join(dataDir, "uploads"), { recursive: true });
@@ -267,7 +274,19 @@ export async function createLocalBackend(options = {}) {
     },
 
     async queueConfirmationEmail(payload = {}) {
+      logger.info?.("[confirmation-email] queue request", {
+        transport: emailTransport,
+        hasRecipient: Boolean(confirmationEmailTo),
+        hasHtml: Boolean(payload.html),
+        htmlLength: String(payload.html || "").length,
+        customerEmail: payload.customer?.email || "UNSET",
+        embroideryImageCount: embroideryImageAttachments(payload.embroidery).length
+      });
       if (!confirmationEmailTo) {
+        logger.error?.("[confirmation-email] recipient missing", {
+          transport: emailTransport,
+          envName: "CONFIRMATION_EMAIL_TO"
+        });
         return { ok: false, status: 500, message: "确认单收件邮箱未配置" };
       }
       const customerName = String(payload.customer?.name || "customer").trim() || "customer";
@@ -294,6 +313,11 @@ export async function createLocalBackend(options = {}) {
       };
       if (emailTransport === "resend") {
         if (!resendApiKey || !resendFrom) {
+          logger.error?.("[confirmation-email] Resend config missing", {
+            hasResendApiKey: Boolean(resendApiKey),
+            hasResendFrom: Boolean(resendFrom),
+            to: confirmationEmailTo
+          });
           return { ok: false, status: 500, message: "Resend 邮件配置缺失" };
         }
         const resendBody = {
@@ -307,6 +331,14 @@ export async function createLocalBackend(options = {}) {
           ]
         };
         if (payload.customer?.email) resendBody.reply_to = [payload.customer.email];
+        logger.info?.("[confirmation-email] Resend request", {
+          endpoint: RESEND_EMAIL_ENDPOINT,
+          to: confirmationEmailTo,
+          from: resendFrom,
+          subject: message.subject,
+          attachmentCount: resendBody.attachments.length,
+          hasReplyTo: Boolean(payload.customer?.email)
+        });
         const response = await fetchImpl(RESEND_EMAIL_ENDPOINT, {
           method: "POST",
           headers: {
@@ -316,6 +348,12 @@ export async function createLocalBackend(options = {}) {
           body: JSON.stringify(resendBody)
         });
         const result = await response.json().catch(() => ({}));
+        logger.info?.("[confirmation-email] Resend response", {
+          status: response.status,
+          ok: response.ok,
+          providerId: result.id || "UNSET",
+          providerMessage: result.message || result.error || ""
+        });
         if (!response.ok) {
           logger.error?.("[confirmation-email] Resend send failed", {
             status: response.status,
