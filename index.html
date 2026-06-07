@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Freestyle CIM</title>
+    <meta name="description" content="轮滑色彩札记是个人轮滑兴趣展示网站，用于记录轮滑鞋配色灵感、视觉预览和个人设计想法。" />
+    <title>轮滑色彩札记</title>
     <link rel="stylesheet" href="./styles.css?v=20260526-confirmation-email-v1" />
   </head>
   <body>
@@ -14,17 +15,17 @@
             <img src="./assets/logo.png" alt="Logo" />
           </span>
           <div>
-            <p class="eyebrow" id="pageEyebrow">Skate Studio</p>
-            <h1 id="pageTitle">Freestyle CIM</h1>
+            <p class="eyebrow" id="pageEyebrow">Skating Color Notes</p>
+            <h1 id="pageTitle">轮滑色彩札记</h1>
           </div>
         </div>
         <nav class="top-actions" aria-label="Primary actions">
           <button class="glass-button language-toggle" id="languageToggleButton" type="button" aria-label="Switch language">EN</button>
           <button class="glass-button" id="homeButton" type="button" hidden>首页</button>
-          <button class="icon-button" id="resetButton" type="button" title="重置定制">
+          <button class="icon-button" id="resetButton" type="button" title="重置预览">
             <span aria-hidden="true">↺</span>
           </button>
-          <button class="primary-button" id="saveButton" type="button">保存方案</button>
+          <button class="primary-button" id="saveButton" type="button" hidden aria-hidden="true">保存</button>
         </nav>
       </header>
 
@@ -32,7 +33,7 @@
         <section class="home-hero">
           <div class="home-copy">
             <p class="eyebrow" id="homeProductTag">Collection</p>
-            <h2 id="homeProductName">选择你的定制鞋款</h2>
+            <h2 id="homeProductName">选择轮滑鞋配色灵感</h2>
             <p id="homeProductDescription"></p>
             <div class="home-meta" id="homeProductMeta"></div>
           </div>
@@ -63,14 +64,14 @@
         <section class="home-picker" aria-label="选择鞋款">
           <div class="section-title">
             <h3>选择鞋款</h3>
-            <span>发布态鞋款来自 B 端配置</span>
+            <span>以YJS-pro鞋型为例</span>
           </div>
           <div class="home-product-grid" id="homeProductGrid"></div>
         </section>
       </section>
 
       <section class="workspace is-hidden" id="workspace">
-        <section class="workspace-topbar" aria-label="定制控制区">
+        <section class="workspace-topbar" aria-label="配色预览控制区">
           <div class="model-strip" id="modelStrip" aria-label="鞋款选择"></div>
           <div class="view-tools">
             <div class="segmented" id="angleTabs" role="tablist" aria-label="角度切换"></div>
@@ -81,7 +82,7 @@
         <section class="preview-stage" aria-label="Shoe preview">
           <div class="shoe-scene" id="shoeScene">
             <div class="shoe-shadow" aria-hidden="true"></div>
-            <div class="shoe-art" id="shoeArt" role="img" aria-label="定制轮滑鞋预览"></div>
+            <div class="shoe-art" id="shoeArt" role="img" aria-label="轮滑鞋配色预览"></div>
           </div>
           <div class="scene-footer">
             <span id="angleMeta"></span>
@@ -94,7 +95,7 @@
         <aside class="customizer" id="customizerPanel" aria-label="Customization panel">
           <div class="panel-top">
             <div class="panel-heading">
-              <p class="eyebrow">Customize</p>
+              <p class="eyebrow">Preview</p>
               <h2 id="modelName">YJS-pro CIM</h2>
               <p id="modelDescription"></p>
             </div>
@@ -104,7 +105,7 @@
           </div>
 
           <section class="selected-part-card" aria-live="polite">
-            <p class="eyebrow">Selected Part</p>
+            <p class="eyebrow">Selected Area</p>
             <h3 id="selectedPartTitle">正在编辑：上身鞋片</h3>
           </section>
 
@@ -127,8 +128,8 @@
 
             <section class="summary-block">
               <div class="section-title">
-                <h3>配置</h3>
-                <button class="text-button" id="copyConfigButton" type="button">复制 JSON</button>
+                <h3>配色记录</h3>
+                <button class="text-button" id="copyConfigButton" type="button" hidden aria-hidden="true">复制</button>
               </div>
               <pre id="configPreview"></pre>
             </section>

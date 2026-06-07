@@ -17,6 +17,7 @@ const LANGUAGE_STORAGE_KEY = "SKATE_CIM_LANGUAGE";
 const SUPPORTED_LANGUAGES = ["zh", "en"];
 const I18N = window.SKATE_CIM_I18N || {};
 const PRODUCT_COPY = window.SKATE_CIM_PRODUCT_COPY || { fixedItems: [], embroiderySlots: [], productDefaults: {} };
+const ALIYUN_FILING_MODE = true;
 
 function i18nValue(value, language = "zh", fallback = "") {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -1276,8 +1277,8 @@ function renderHome() {
   const productCardWidth = productColumns === 1 ? 420 : productColumns === 2 ? 360 : 320;
   const productGap = 18;
 
-  els.homeProductTag.textContent = "Skate Studio";
-  els.homeProductName.textContent = "Create your own skates";
+  els.homeProductTag.textContent = "Skating Color Notes";
+  els.homeProductName.textContent = t("homeTitle");
   els.homeProductDescription.textContent = t("homeDescription");
   els.homeProductMeta.innerHTML = (item.homeFeatures || [item.code, "Layered 2.5D MVP"]).map((feature) => `<span>${escapeHtml(translateFeature(feature))}</span>`).join("");
   els.homeShoeArt.innerHTML = homeShoeMarkup();
@@ -1533,7 +1534,7 @@ function render() {
   els.workspace.classList.toggle("is-hidden", isHome);
   els.homeButton.hidden = isHome;
   els.resetButton.hidden = isHome;
-  els.saveButton.hidden = isHome;
+  els.saveButton.hidden = ALIYUN_FILING_MODE || isHome;
   els.languageToggleButton.textContent = state.language === "zh" ? "EN" : t("languageChineseShort");
   els.languageToggleButton.setAttribute("aria-label", state.language === "zh" ? t("switchToEnglish") : t("switchToChinese"));
   els.homeButton.textContent = t("home");
@@ -1547,10 +1548,11 @@ function render() {
   document.querySelector('.color-block .section-title h3').textContent = t("color");
   document.querySelector('.texture-block .section-title h3').textContent = t("materialOptions");
   document.querySelector('.summary-block .section-title h3').textContent = t("config");
+  els.copyConfigButton.hidden = ALIYUN_FILING_MODE;
   els.copyConfigButton.textContent = t("copyJson");
   document.querySelector('.part-rail-block .section-title h3').textContent = t("parts");
-  els.pageEyebrow.textContent = isHome ? "Skate Studio" : t("customizer");
-  els.pageTitle.textContent = isHome ? "Freestyle CIM" : productName(product());
+  els.pageEyebrow.textContent = isHome ? "Skating Color Notes" : t("customizer");
+  els.pageTitle.textContent = isHome ? "轮滑色彩札记" : productName(product());
   renderHome();
   renderModelStrip();
   renderAngleTabs();
