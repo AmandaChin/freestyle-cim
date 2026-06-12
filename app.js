@@ -4,8 +4,8 @@ const LAYER_ASSET_DIR = "./assets/mvp/layers/";
 const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
 const FULL_ANGLE_ASSET_VERSION = "20260523-annotated-v1";
 const REAL_PRODUCT_ASSET_DIR = "./assets/skates/yjs-pro-cim/real-products/";
-const MATERIAL_ASSET_DIR = "./assets/mvp/materials/";
-const MATERIAL_ASSET_VERSION = "20260524-ue-fabric-v1";
+const MATERIAL_ASSET_DIR = "./assets/skates/yjs-pro-cim/materials/";
+const MATERIAL_ASSET_VERSION = "20260613-official-materials-v1";
 const HIT_ALPHA_THRESHOLD = 18;
 const SELECTION_RING_RADIUS = 14;
 const SELECTION_RING_STEP = 3;
@@ -44,6 +44,20 @@ function materialAsset(fileName) {
   return `${MATERIAL_ASSET_DIR}${fileName}?v=${MATERIAL_ASSET_VERSION}`;
 }
 
+function officialTextureById(id, schema = activeShoeSchema()) {
+  return (schema.materialTextures || []).find((item) => item.id === String(id)) || null;
+}
+
+function officialTexturesForCategory(component, category, schema = activeShoeSchema()) {
+  const availableIds = new Set(schema.materialAvailability?.[component.id] || []);
+  return (schema.materialTextures || []).filter((texture) => texture.categoryId === category.id && availableIds.has(texture.id));
+}
+
+function officialCategoryByTextureId(id, schema = activeShoeSchema()) {
+  const texture = officialTextureById(id, schema);
+  return texture ? (schema.materialCategories || []).find((category) => category.id === texture.categoryId) : null;
+}
+
 function activeShoeSchema() {
   const publishedShoe = (CIM_SHARED_CONFIG.shoes || []).find((item) => item.shoeId === SHOE_SCHEMA.shoeId || item.id === SHOE_SCHEMA.shoeId);
   return SCHEMA_UTILS.mergePublishedShoe(SHOE_SCHEMA, publishedShoe);
@@ -76,7 +90,7 @@ function buildComponentsFromSchema(schema) {
     fixedColorOptions: part.fixedStyleSet?.colorOptions || null,
     fixedStyleSet: part.fixedStyleSet || null,
     color: part.defaultStyle?.color || "#f6f3ec",
-    material: part.defaultStyle?.material || "smooth",
+    material: part.defaultStyle?.material || part.materialIds?.[0] || SHOE_SCHEMA.materialTextures?.[0]?.id || "",
     defaultVariant: part.defaultStyle?.variant || part.defaultStyle?.material || part.fixedStyleSet?.defaultVariant || part.fixedVariants?.[0]?.id || ""
   }));
 }
@@ -135,42 +149,6 @@ const PRODUCT_CATALOG = [productFromSchema(SHOE_SCHEMA)].filter((item) => {
   if (!publishedShoes.length) return true;
   return publishedShoes.some((shoe) => shoe.shoeId === item.id || shoe.id === item.id || shoe.id === `shoe-${item.id}`);
 });
-
-const STATIC_FABRIC_STYLE_SETS = {
-  "fixed-straw": [
-    { id: "fixed-straw-1336", name: "1336号皮料", parentId: "fixed-straw", file: "草席/1336.webp" },
-    { id: "fixed-straw-1437", name: "1437号皮料", parentId: "fixed-straw", file: "草席/1437.webp" },
-    { id: "fixed-straw-1518", name: "1518号皮料", parentId: "fixed-straw", file: "草席/1518.webp" },
-    { id: "fixed-straw-1635", name: "1635号皮料", parentId: "fixed-straw", file: "草席/1635.webp" },
-    { id: "fixed-straw-1741", name: "1741号皮料", parentId: "fixed-straw", file: "草席/1741.webp" },
-    { id: "fixed-straw-2932", name: "2932号皮料", parentId: "fixed-straw", file: "草席/2932.webp" }
-  ]
-};
-
-function materialIdFromFabric(fabric) {
-  if (fabric.materialKey === "fixed_straw") return "fixed-straw";
-  return fabric.materialKey;
-}
-
-function fabricStyleSetsFromSharedConfig() {
-  const sets = {};
-  (CIM_SHARED_CONFIG.fabrics || [])
-    .filter((fabric) => fabric.mode === "fixed_style_set" && Array.isArray(fabric.styles) && fabric.styles.length)
-    .forEach((fabric) => {
-      const parentId = materialIdFromFabric(fabric);
-      sets[parentId] = fabric.styles.map((style) => ({
-        id: style.id,
-        name: style.name,
-        parentId,
-        parentName: fabric.name,
-        file: style.file
-      }));
-    });
-  return sets;
-}
-
-const SHARED_FABRIC_STYLE_SETS = fabricStyleSetsFromSharedConfig();
-const FABRIC_STYLE_SETS = { ...STATIC_FABRIC_STYLE_SETS, ...SHARED_FABRIC_STYLE_SETS };
 
 PRODUCT_CATALOG.forEach((item) => {
   item.components.forEach((component) => {
@@ -415,7 +393,7 @@ function colorOptions(component) {
 }
 
 function isColorControlVisible(component = selectedComponent(), config = componentConfig(component.id)) {
-  return !fabricStyleByMaterial(config.material);
+  return !officialTextureById(config.material);
 }
 
 function materialsFor(component) {
@@ -423,21 +401,7 @@ function materialsFor(component) {
 }
 
 function materialById(id) {
-  return fabricStyleByMaterial(id) || activeShoeSchema().materials.find((item) => item.id === id) || activeShoeSchema().materials[0];
-}
-
-function fabricStyleSetByMaterial(id) {
-  return FABRIC_STYLE_SETS[id] || [];
-}
-
-function fabricStyleByMaterial(id) {
-  return Object.values(FABRIC_STYLE_SETS).flat().find((item) => item.id === id) || null;
-}
-
-function fabricStyleSetPatch(parentId, styleId = "") {
-  const styles = fabricStyleSetByMaterial(parentId);
-  const style = styles.find((item) => item.id === styleId) || styles[0];
-  return { material: style.id, variant: style.id };
+  return officialTextureById(id) || activeShoeSchema().materials.find((item) => item.id === id) || activeShoeSchema().materials[0];
 }
 
 function colorName(value, component = selectedComponent()) {
@@ -472,17 +436,19 @@ function componentPreview(component, config = componentConfig(component.id)) {
 
 function texturePreview(component, config, material) {
   if (component.fixedColorOptions) return material.swatch || componentPreview(component, config);
-  return component.fixedOptions ? componentPreview(component, config) : cssTexture(config.color, material.id);
+  const selectedTexture = officialTextureById(config.material);
+  const previewTexture = selectedTexture?.categoryId === material.id ? selectedTexture : officialTexturesForCategory(component, material)[0];
+  return component.fixedOptions ? componentPreview(component, config) : cssTexture(config.color, previewTexture?.id || config.material);
 }
 
 function isSelectedMaterial(component, config, material) {
-  if (fabricStyleSetByMaterial(material.id).length) return fabricStyleSetByMaterial(material.id).some((style) => style.id === config.material);
+  if (officialTexturesForCategory(component, material).some((texture) => texture.id === config.material)) return true;
   return material.id === config.material;
 }
 
 function shouldExpandMaterial(component, config, material) {
   if (!isSelectedMaterial(component, config, material)) return false;
-  if (fabricStyleSetByMaterial(material.id).length) return true;
+  if (officialTexturesForCategory(component, material).length) return true;
   if (component.fixedOptions) return true;
   return true;
 }
@@ -499,10 +465,9 @@ function materialName(id, component = selectedComponent()) {
 }
 
 function cssTexture(color, material) {
-  const fabricStyle = fabricStyleByMaterial(material);
-  if (fabricStyle) {
-    // 固定贴图子款式本身已经包含颜色和纹理，不再叠加色值。
-    return `url('${materialAsset(fabricStyle.file)}') center / cover no-repeat`;
+  const texture = officialTextureById(material);
+  if (texture?.file) {
+    return `url('${materialAsset(texture.file)}') center / cover no-repeat`;
   }
 
   switch (material) {
@@ -722,10 +687,9 @@ function drawRepeatingLines(context, width, height, step, color, alpha, directio
 }
 
 async function paintSnapshotMaterial(context, width, height, color, material) {
-  const fabricStyle = fabricStyleByMaterial(material);
-  if (fabricStyle) {
-    // 确认页快照使用 Canvas 重新合成，固定贴图布料必须在这里重画，不能依赖 CSS background。
-    const image = await loadSnapshotImage(materialAsset(fabricStyle.file));
+  const texture = officialTextureById(material);
+  if (texture?.file) {
+    const image = await loadSnapshotImage(materialAsset(texture.file));
     if (image) {
       const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
       const drawWidth = image.naturalWidth * scale;
@@ -1360,7 +1324,7 @@ function renderSwatches() {
 
 function renderMaterialSubChoices(component, config, material) {
   if (!shouldExpandMaterial(component, config, material)) return "";
-  if (fabricStyleSetByMaterial(material.id).length) return renderFabricSetStyles(component, config, material);
+  if (officialTexturesForCategory(component, material).length) return renderOfficialTextureStyles(component, config, material);
   const title = component.fixedColorOptions ? t("color") : (component.fixedOptions ? t("materialOptions") : t("color"));
   return renderInlineSwatches(component, config, title);
 }
@@ -1390,7 +1354,6 @@ function renderTextures() {
         <span class="texture-preview" style="--texture:${texturePreview(component, config, material)};"></span>
         <span>
           <strong>${localizeTerm(material.name)}</strong>
-          <span>${localizeTerm(material.note)}</span>
         </span>
         <span class="texture-check">${isSelected ? "✓" : ""}</span>
       </button>
@@ -1399,15 +1362,14 @@ function renderTextures() {
     .join("");
 }
 
-function renderFabricSetStyles(component, config, material) {
-  return fabricStyleSetByMaterial(material.id).map((style) => `
-    <button class="texture-button texture-button--sub" type="button" data-part-id="${component.id}" data-fabric-style-parent="${material.id}" data-fabric-style="${style.id}" aria-pressed="${style.id === config.material}">
-      <span class="texture-preview" style="--texture:${cssTexture(config.color, style.id)};"></span>
+function renderOfficialTextureStyles(component, config, material) {
+  return officialTexturesForCategory(component, material).map((texture) => `
+    <button class="texture-button texture-button--sub" type="button" data-part-id="${component.id}" data-texture-id="${texture.id}" aria-pressed="${texture.id === config.material}">
+      <span class="texture-preview" style="--texture:${cssTexture(config.color, texture.id)};"></span>
       <span>
-        <strong>${localizeTerm(style.name)}</strong>
-        <span>${localizeTerm(material.name)}${t("fixedTexture")}</span>
+        <strong>${localizeTerm(texture.name)}</strong>
       </span>
-      <span class="texture-check">${style.id === config.material ? "✓" : ""}</span>
+      <span class="texture-check">${texture.id === config.material ? "✓" : ""}</span>
     </button>`).join("");
 }
 
@@ -1542,7 +1504,6 @@ function render() {
   els.customizerToggleButton.textContent = state.isCustomizerOpen ? t("collapsePanel") : t("expandPanel");
   els.drawerCloseButton.title = t("close");
   document.querySelector('.home-picker .section-title h3').textContent = t("chooseProduct");
-  document.querySelector('.home-picker .section-title span').textContent = t("publishedFromB");
   document.querySelector('.selected-part-card .eyebrow').textContent = t("selectedPart");
   document.querySelector('.color-block .section-title h3').textContent = t("color");
   document.querySelector('.texture-block .section-title h3').textContent = t("materialOptions");
@@ -2648,14 +2609,14 @@ function bindEvents() {
       return;
     }
 
-    const fabricStyleButton = event.target.closest("[data-fabric-style]");
-    if (fabricStyleButton) {
-      const partId = fabricStyleButton.dataset.partId || state.selectedPartId;
+    const textureButton = event.target.closest("[data-texture-id]");
+    if (textureButton) {
+      const partId = textureButton.dataset.partId || state.selectedPartId;
       invalidatePendingShoeHit();
       if (state.config[state.productId]?.components?.[partId]) {
         state.selectedPartId = partId;
       }
-      updatePartConfigPreservingCustomizerScroll(state.selectedPartId, fabricStyleSetPatch(fabricStyleButton.dataset.fabricStyleParent, fabricStyleButton.dataset.fabricStyle));
+      updatePartConfigPreservingCustomizerScroll(state.selectedPartId, { material: textureButton.dataset.textureId, variant: textureButton.dataset.textureId });
       return;
     }
 
@@ -2666,8 +2627,11 @@ function bindEvents() {
     if (state.config[state.productId]?.components?.[partId]) {
       state.selectedPartId = partId;
     }
-    if (fabricStyleSetByMaterial(button.dataset.material).length) {
-      updatePartConfigPreservingCustomizerScroll(state.selectedPartId, fabricStyleSetPatch(button.dataset.material));
+    const textures = officialTexturesForCategory(selectedComponent(), { id: button.dataset.material });
+    if (textures.length) {
+      const selectedTexture = officialTextureById(componentConfig(state.selectedPartId).material);
+      const texture = selectedTexture?.categoryId === button.dataset.material ? selectedTexture : textures[0];
+      updatePartConfigPreservingCustomizerScroll(state.selectedPartId, { material: texture.id, variant: texture.id });
       return;
     }
     updatePartConfigPreservingCustomizerScroll(state.selectedPartId, { material: button.dataset.material, variant: "" });

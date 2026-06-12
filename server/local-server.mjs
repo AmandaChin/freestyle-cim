@@ -149,6 +149,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   server.listen(PORT, HOST, () => {
     console.log(`Skate CIM local server: http://${HOST}:${PORT}/`);
     console.log(`B-side admin: http://${HOST}:${PORT}/b-side/`);
-    console.log("Default admin: admin@skate-cim.local / admin123");
   });
 }

@@ -1,16 +1,45 @@
 (function () {
   const ASSET_ROOT = "./assets/skates/yjs-pro-cim/";
-  const ASSET_VERSION = "20260523-schema-v2";
+  const ASSET_VERSION = "20260613-official-materials-v1";
+
+  const categorySeed = [
+    ["scale", "鳞片", ["43", "44", "45", "46", "47", "48"]],
+    ["bear", "小熊", ["7", "8"]],
+    ["others", "OTHERS", ["6", "12", "14", "15", "49", "50", "51", "52", "53"]],
+    ["straw", "草席", ["18", "31", "32", "35", "36", "37", "39", "41"]],
+    ["twill-dot", "斜纹点子布", ["16", "33"]],
+    ["pu", "PU", ["1", "2", "3", "5", "9"]],
+    ["silk-texture", "丝状肌理", ["22", "24", "38"]],
+    ["chinoiserie", "中国风", ["17", "34"]],
+    ["leather", "皮革", ["19", "20", "27", "28", "30", "42"]],
+    ["tpu", "TPU", ["23", "25", "26", "29", "40"]]
+  ];
+
+  const materialCategories = categorySeed.map(([id, name]) => ({
+    id,
+    name,
+    note: "正式皮料",
+    kind: "official_texture_set",
+    groups: ["upper", "strap"]
+  }));
+
+  const materialTextures = categorySeed.flatMap(([categoryId, categoryName, ids]) => ids.map((id) => ({
+    id,
+    name: `${id}号皮料`,
+    categoryId,
+    categoryName,
+    file: `${categoryName}/${id}.jpg`
+  })));
+
+  const allTextureIds = materialTextures.map((item) => item.id);
+  const toeExcludedTextureIds = new Set(["1", "2", "3", "5", "9", "23", "25", "26", "29", "40"]);
+  const materialAvailability = Object.fromEntries(
+    ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "J", "K"].map((key) => [key, allTextureIds])
+  );
+  materialAvailability.H = allTextureIds.filter((id) => !toeExcludedTextureIds.has(id));
 
   const materials = [
-    { id: "smooth", name: "光面皮", note: "纯色光面效果", kind: "tint", groups: ["upper", "strap", "sole"] },
-    { id: "matte", name: "哑光皮", note: "纯色低反光效果", kind: "tint", groups: ["upper", "strap", "sole", "hardware"] },
-    { id: "fixed-straw", name: "草席", note: "固定皮料花纹", kind: "style_set", groups: ["upper"] },
-    { id: "ue_pu", name: "PU", note: "UE 固定贴图", kind: "style_set", groups: ["upper"] },
-    { id: "ue_tpu", name: "TPU", note: "UE 固定贴图", kind: "style_set", groups: ["upper"] },
-    { id: "ue_pu_tpu", name: "PU TPU", note: "UE 固定贴图", kind: "style_set", groups: ["upper"] },
-    { id: "ue_鳞片", name: "鳞片", note: "UE 固定贴图", kind: "style_set", groups: ["upper"] },
-    { id: "webbing", name: "织带", note: "织带纹理", kind: "tint", groups: ["strap"] },
+    ...materialCategories,
     { id: "fixed-image", name: "固定样式", note: "", kind: "fixed", groups: ["fixed"] }
   ];
 
@@ -78,23 +107,24 @@
     ]
   };
 
+  const defaultMaterial = "18";
   const parts = [
-    { key: "A", name: "鞋帮", en: "Shoe collar", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 30, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte", "fixed-straw", "ue_pu", "ue_tpu", "ue_pu_tpu", "ue_鳞片"] },
-    { key: "B", name: "后提带", en: "Back handle strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 34, defaultStyle: { color: "#ffffff", material: "webbing" }, materialIds: ["webbing", "smooth"] },
-    { key: "C", name: "鞋舌", en: "Tongue", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 55, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte"] },
-    { key: "C1", name: "鞋舌三角片", en: "Tongue triangle panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 60, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte"] },
-    { key: "C2", name: "皮垫套下片", en: "Lower pad cover", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 62, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte"] },
-    { key: "C3", name: "皮垫套上片", en: "Upper pad cover", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 64, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte"] },
-    { key: "D", name: "CUFF", en: "Cuff", group: "hardware", selectable: true, renderMode: "fixed_variant", renderOrder: 110, defaultStyle: { material: "fixed-image", variant: "cuff-silver" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.D },
-    { key: "D1", name: "蘑菇钉", en: "Mushroom nail", group: "hardware", selectable: true, renderMode: "fixed_variant", renderOrder: 130, defaultStyle: { material: "fixed-image", variant: "mushroom-nail-black" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.D1 },
+    { key: "A", name: "鞋帮", en: "Shoe collar", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 30, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "B", name: "后提带", en: "Back handle strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 34, defaultStyle: { color: "#ffffff", material: defaultMaterial } },
+    { key: "C", name: "鞋舌", en: "Tongue", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 55, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "C1", name: "鞋舌三角片", en: "Tongue triangle", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 56, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "C2", name: "皮垫套下片", en: "Pad sleeve lower", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 57, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "C3", name: "皮垫套上片", en: "Pad sleeve upper", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 58, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "D", name: "CUFF", en: "Cuff", group: "hardware", selectable: true, renderMode: "fixed_variant", renderOrder: 10, defaultStyle: { material: "fixed-image", variant: "cuff-black-gold" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.D },
+    { key: "D1", name: "蘑菇钉", en: "Mushroom nail", group: "hardware", selectable: true, renderMode: "fixed_variant", renderOrder: 12, defaultStyle: { material: "fixed-image", variant: "mushroom-nail-black" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.D1 },
     { key: "E", name: "碳纤鞋壳", en: "Carbon shell", group: "sole", selectable: true, renderMode: "fixed_variant", renderOrder: 20, defaultStyle: { material: "fixed-image", variant: "sole-silver" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.E },
-    { key: "F", name: "下鞋身片", en: "Lower body", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 35, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte", "fixed-straw", "ue_pu", "ue_tpu", "ue_pu_tpu", "ue_鳞片"] },
-    { key: "F1", name: "下鞋身片2", en: "Lower body 2", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 40, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte", "fixed-straw", "ue_pu", "ue_tpu", "ue_pu_tpu", "ue_鳞片"] },
-    { key: "G", name: "上鞋身片", en: "Main upper", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 45, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte", "fixed-straw", "ue_pu", "ue_tpu", "ue_pu_tpu", "ue_鳞片"] },
-    { key: "H", name: "鞋头下片", en: "Toe lower panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 50, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte"], materialRule: "部分可用（PU/TPU 不可用于鞋头）" },
-    { key: "I", name: "鞋眼片", en: "Eyelet panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 65, defaultStyle: { color: "#f6f3ec", material: "smooth" }, materialIds: ["smooth", "matte"] },
-    { key: "J", name: "鞋带", en: "Lace", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 80, defaultStyle: { color: "#ffffff", material: "webbing" }, materialIds: ["webbing", "smooth"] },
-    { key: "K", name: "前魔术贴绑带", en: "Front velcro strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 90, defaultStyle: { color: "#ffffff", material: "webbing" }, materialIds: ["webbing", "smooth"] },
+    { key: "F", name: "下鞋身片", en: "Lower body", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 35, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "F1", name: "下鞋身片2", en: "Lower body 2", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 40, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "G", name: "上鞋身片", en: "Main upper", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 45, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "H", name: "鞋头下片", en: "Toe lower panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 50, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "I", name: "鞋眼片", en: "Eyelet panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 65, defaultStyle: { color: "#f6f3ec", material: defaultMaterial } },
+    { key: "J", name: "鞋带", en: "Lace", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 80, defaultStyle: { color: "#ffffff", material: defaultMaterial } },
+    { key: "K", name: "前魔术贴绑带", en: "Front velcro strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 90, defaultStyle: { color: "#ffffff", material: defaultMaterial } },
     {
       key: "L",
       name: "防磨片",
@@ -132,6 +162,7 @@
     assets: {
       root: ASSET_ROOT,
       version: ASSET_VERSION,
+      materialDir: "materials/",
       realProductDir: "real-products/",
       realProducts: [
         { file: "brown-1.jpg", alt: "YJS-pro CIM 咖色真实鞋款" },
@@ -145,6 +176,9 @@
     },
     palettes,
     materials,
+    materialCategories,
+    materialTextures,
+    materialAvailability,
     fixedStyleSets,
     fixedVariants,
     parts,

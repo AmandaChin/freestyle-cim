@@ -27,14 +27,9 @@ const renderModes = {
   fixed_style_set: "固定样式组"
 };
 
-const fixedStrawStyleSeeds = [
-  { id: "fixed-straw-1336", name: "1336号皮料", file: "草席/1336.webp" },
-  { id: "fixed-straw-1437", name: "1437号皮料", file: "草席/1437.webp" },
-  { id: "fixed-straw-1518", name: "1518号皮料", file: "草席/1518.webp" },
-  { id: "fixed-straw-1635", name: "1635号皮料", file: "草席/1635.webp" },
-  { id: "fixed-straw-1741", name: "1741号皮料", file: "草席/1741.webp" },
-  { id: "fixed-straw-2932", name: "2932号皮料", file: "草席/2932.webp" }
-];
+const officialStyleSeeds = (SHOE_SCHEMA.materialTextures || [])
+  .filter((texture) => texture.categoryId === SHOE_SCHEMA.materialCategories?.[0]?.id)
+  .map((texture) => ({ id: texture.id, name: texture.name, file: texture.file }));
 
 const shoeStatus = {
   draft: "草稿",
@@ -202,6 +197,22 @@ function adminFabricsFromSource(source) {
 }
 
 function adminFabricsFromShared() {
+  if (Array.isArray(SHOE_SCHEMA.materialCategories) && Array.isArray(SHOE_SCHEMA.materialTextures)) {
+    return SHOE_SCHEMA.materialCategories.map((category) => ({
+      id: `fabric-${category.id}`,
+      materialKey: category.id,
+      name: category.name,
+      mode: "fixed_style_set",
+      color: "",
+      textureFile: null,
+      styles: SHOE_SCHEMA.materialTextures
+        .filter((texture) => texture.categoryId === category.id)
+        .map((texture) => ({ id: texture.id, name: texture.name, file: texture.file })),
+      groups: category.groups || ["upper"],
+      status: "published",
+      updatedAt: "2026-06-13 00:00"
+    }));
+  }
   return adminFabricsFromSource(Array.isArray(CIM_SHARED_CONFIG.fabrics) ? CIM_SHARED_CONFIG.fabrics : []);
 }
 
@@ -241,6 +252,9 @@ function buildPublishedConfig() {
         assets: SCHEMA_UTILS.clone(SHOE_SCHEMA.assets),
         palettes: SCHEMA_UTILS.clone(SHOE_SCHEMA.palettes),
         materials: SCHEMA_UTILS.clone(SHOE_SCHEMA.materials),
+        materialCategories: SCHEMA_UTILS.clone(SHOE_SCHEMA.materialCategories),
+        materialTextures: SCHEMA_UTILS.clone(SHOE_SCHEMA.materialTextures),
+        materialAvailability: SCHEMA_UTILS.clone(SHOE_SCHEMA.materialAvailability),
         fixedStyleSets: SCHEMA_UTILS.clone(SHOE_SCHEMA.fixedStyleSets),
         fixedVariants: SCHEMA_UTILS.clone(SHOE_SCHEMA.fixedVariants),
         angles: shoe.angles.map((angle) => ({
@@ -467,11 +481,11 @@ function renderLogin() {
         <p>只有管理员白名单内账号可以进入并发布 C 端配置。</p>
         <label class="field">
           <span>管理员邮箱</span>
-          <input class="input" id="loginEmail" type="email" value="admin@skate-cim.local" autocomplete="username" required />
+          <input class="input" id="loginEmail" type="email" autocomplete="username" required />
         </label>
         <label class="field">
           <span>密码</span>
-          <input class="input" id="loginPassword" type="password" value="admin123" autocomplete="current-password" required />
+          <input class="input" id="loginPassword" type="password" autocomplete="current-password" required />
         </label>
         <button class="primary-button" type="submit">登录后台</button>
         <div class="login-error" id="loginError" role="status"></div>
@@ -686,7 +700,7 @@ function renderFabricMetrics() {
 
 function fabricPreview(item) {
   if (item.mode === "fixed_style_set" && item.styles?.[0]?.file) {
-    return `<span class="fabric-preview" style="background:url('../assets/mvp/materials/${escapeHtml(item.styles[0].file)}') center / cover no-repeat;"></span>`;
+    return `<span class="fabric-preview" style="background:url('../assets/skates/yjs-pro-cim/materials/${escapeHtml(item.styles[0].file)}') center / cover no-repeat;"></span>`;
   }
   if (item.mode === "solid_mask") {
     return `<span class="fabric-preview" style="background:${escapeHtml(item.color || "#8f9298")};"></span>`;
@@ -1422,7 +1436,7 @@ function hydrateFabricForm(form, draft) {
       panel.classList.toggle("is-active", panel.dataset.modePanel === modeSelect.value);
     });
     if (modeSelect.value === "fixed_style_set" && styleList && !styleList.querySelector("[data-fabric-style-row]")) {
-      styleList.innerHTML = fixedStrawStyleSeeds.map((style) => fabricStyleRow(style)).join("");
+      styleList.innerHTML = officialStyleSeeds.map((style) => fabricStyleRow(style)).join("");
     }
   };
   bindUpload(form.querySelector("#tintUploadZone"), form.querySelector("#tintUploadInput"), (file) => {

@@ -75,6 +75,12 @@
   function materialsForPart(schema, partKey) {
     const part = (schema.parts || []).find((item) => item.key === partKey);
     if (!part) return [];
+    if (part.renderMode === "mask_tint" && schema.materialAvailability?.[partKey]?.length) {
+      const availableIds = new Set(schema.materialAvailability[partKey]);
+      return (schema.materialCategories || []).filter((category) => {
+        return (schema.materialTextures || []).some((texture) => texture.categoryId === category.id && availableIds.has(texture.id));
+      });
+    }
     const materials = materialMap(schema);
     return (part.materialIds || []).map((id) => materials.get(id)).filter(Boolean);
   }
@@ -100,6 +106,9 @@
       assets: { ...clone(schema.assets || {}), ...clone(publishedShoe.assets || {}) },
       palettes: publishedShoe.palettes ? clone(publishedShoe.palettes) : clone(schema.palettes || {}),
       materials: publishedShoe.materials?.length ? mergeById(schema.materials || [], publishedShoe.materials) : clone(schema.materials || []),
+      materialCategories: publishedShoe.materialCategories?.length ? mergeById(schema.materialCategories || [], publishedShoe.materialCategories) : clone(schema.materialCategories || []),
+      materialTextures: publishedShoe.materialTextures?.length ? mergeById(schema.materialTextures || [], publishedShoe.materialTextures) : clone(schema.materialTextures || []),
+      materialAvailability: publishedShoe.materialAvailability ? clone(publishedShoe.materialAvailability) : clone(schema.materialAvailability || {}),
       fixedStyleSets: publishedShoe.fixedStyleSets ? clone(publishedShoe.fixedStyleSets) : clone(schema.fixedStyleSets || {}),
       fixedVariants: publishedShoe.fixedVariants ? clone(publishedShoe.fixedVariants) : clone(schema.fixedVariants || {}),
       parts: publishedShoe.parts?.length ? mergeParts(schema.parts || [], publishedShoe.parts) : clone(schema.parts || []),

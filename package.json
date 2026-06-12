@@ -6,6 +6,6 @@
   "scripts": {
     "dev": "node server/local-server.mjs",
     "dev:lan": "HOST=0.0.0.0 node server/local-server.mjs",
-    "test": "node --test tests/local-backend.test.mjs tests/pages-confirmation-email.test.mjs"
+    "test": "node --test tests/local-backend.test.mjs tests/pages-confirmation-email.test.mjs tests/official-material-library.test.mjs"
   }
 }
