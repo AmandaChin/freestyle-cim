@@ -1,11 +1,12 @@
 (function () {
   const ASSET_ROOT = "./assets/skates/yjs-pro-cim/";
-  const ASSET_VERSION = "20260613-official-materials-v1";
+  const ASSET_VERSION = "20260627-official-materials-v2";
 
   const categorySeed = [
     ["scale", "鳞片", ["43", "44", "45", "46", "47", "48"]],
     ["bear", "小熊", ["7", "8"]],
     ["others", "OTHERS", ["6", "12", "14", "15", "49", "50", "51", "52", "53"]],
+    ["reflective-marble", "反光大理石", ["11", "13"]],
     ["straw", "草席", ["18", "31", "32", "35", "36", "37", "39", "41"]],
     ["twill-dot", "斜纹点子布", ["16", "33"]],
     ["pu", "PU", ["1", "2", "3", "5", "9"]],
