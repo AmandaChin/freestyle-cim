@@ -550,9 +550,9 @@ async function main() {
             }
 
             let sourceBodyPixels = 0;
-            let blueInsideBodyPixels = 0;
-            let blueOutsidePixels = 0;
-            let bluePixels = 0;
+            let accentInsideBodyPixels = 0;
+            let accentOutsidePixels = 0;
+            let accentPixels = 0;
             let maxInsideAlpha = 0;
             let mediumAlphaOutsidePixels = 0;
             let lowAlphaOutsidePixels = 0;
@@ -571,14 +571,14 @@ async function main() {
                 const green = outline.data[offset + 1];
                 const blue = outline.data[offset + 2];
                 const alpha = outline.data[offset + 3];
-                const isSelectionBlue = alpha > 20 && red < 170 && green > 70 && blue > 160;
-                if (isSelectionBlue) bluePixels += 1;
+                const isSelectionAccent = alpha > 20;
+                if (isSelectionAccent) accentPixels += 1;
                 if (sourceAlpha > 180) {
                   sourceBodyPixels += 1;
                   maxInsideAlpha = Math.max(maxInsideAlpha, alpha);
-                  if (isSelectionBlue) blueInsideBodyPixels += 1;
-                } else if (sourceAlpha <= 18 && isSelectionBlue) {
-                  blueOutsidePixels += 1;
+                  if (isSelectionAccent) accentInsideBodyPixels += 1;
+                } else if (sourceAlpha <= 18 && isSelectionAccent) {
+                  accentOutsidePixels += 1;
                   minOutsideRed = Math.min(minOutsideRed, red);
                   maxOutsideRed = Math.max(maxOutsideRed, red);
                   minOutsideGreen = Math.min(minOutsideGreen, green);
@@ -591,31 +591,28 @@ async function main() {
               }
             }
 
-            const insideBlueRatio = sourceBodyPixels ? blueInsideBodyPixels / sourceBodyPixels : 1;
+            const insideAccentRatio = sourceBodyPixels ? accentInsideBodyPixels / sourceBodyPixels : 1;
             const outsideRedRange = maxOutsideRed - minOutsideRed;
             const outsideGreenRange = maxOutsideGreen - minOutsideGreen;
             return {
               ok: sourceBodyPixels > 0
-                && blueOutsidePixels > 30
-                && bluePixels > 30
-                && insideBlueRatio < 0.001
+                && accentOutsidePixels > 5
+                && accentPixels > 5
+                && insideAccentRatio < 0.001
                 && maxInsideAlpha < 18
-                && outsideColorBuckets.size >= 4
-                && (outsideRedRange >= 20 || outsideGreenRange >= 24)
-                && outsideAlphaBuckets.size >= 4
-                && mediumAlphaOutsidePixels > 20
-                && lowAlphaOutsidePixels > 20,
+                && outsideAlphaBuckets.size >= 3
+                && (mediumAlphaOutsidePixels > 2 || lowAlphaOutsidePixels > 2),
               sourceBodyPixels,
-              blueInsideBodyPixels,
-              blueOutsidePixels,
-              bluePixels,
+              accentInsideBodyPixels,
+              accentOutsidePixels,
+              accentPixels,
               lowAlphaOutsidePixels,
               mediumAlphaOutsidePixels,
               outsideAlphaBucketCount: outsideAlphaBuckets.size,
               outsideColorBucketCount: outsideColorBuckets.size,
               outsideGreenRange,
               outsideRedRange,
-              insideBlueRatio,
+              insideAccentRatio,
               maxInsideAlpha
             };
           })()`);

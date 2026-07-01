@@ -177,6 +177,39 @@ async function assertMobileCustomizerLayout(page, viewport) {
   await page.waitFor("document.body.dataset.view === 'builder' && Boolean(document.querySelector('#customizerToggleButton'))");
   await page.evaluate(`(() => {
     const toggle = document.querySelector('#customizerToggleButton');
+    if (toggle.getAttribute('aria-expanded') === 'true') toggle.click();
+  })()`);
+  await page.waitFor("document.querySelector('#customizerToggleButton').getAttribute('aria-expanded') === 'false'");
+
+  const collapsedLayout = await page.evaluate(`(() => {
+    const bounds = (selector) => {
+      const element = document.querySelector(selector);
+      const rect = element.getBoundingClientRect().toJSON();
+      return { ...rect, display: getComputedStyle(element).display };
+    };
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      workspace: bounds('#workspace'),
+      preview: bounds('.preview-stage'),
+      customizer: bounds('#customizerPanel'),
+      partRail: bounds('.part-rail-block'),
+      documentScrollWidth: document.documentElement.scrollWidth
+    };
+  })()`);
+  const label = `${viewport.name} ${viewport.width}x${viewport.height}`;
+
+  assert(collapsedLayout.customizer.display === 'none', `${label}: collapsed mobile material panel should be hidden`);
+  assert(collapsedLayout.partRail.display !== 'none', `${label}: collapsed mobile part rail should remain available`);
+  assert(collapsedLayout.preview.width > 0, `${label}: collapsed mobile preview should remain visible`);
+  assert(collapsedLayout.partRail.height >= 40, `${label}: collapsed mobile part rail should keep tappable height, got ${collapsedLayout.partRail.height}`);
+  assert(collapsedLayout.preview.right <= collapsedLayout.viewport.width + 1, `${label}: collapsed mobile preview should stay inside viewport`);
+  assert(collapsedLayout.partRail.right <= collapsedLayout.viewport.width + 1, `${label}: collapsed mobile part rail should stay inside viewport`);
+  assert(collapsedLayout.preview.bottom <= collapsedLayout.partRail.top + 10, `${label}: collapsed mobile preview should not push the part rail out of the workspace`);
+  assert(collapsedLayout.partRail.bottom <= collapsedLayout.workspace.bottom + 1, `${label}: collapsed mobile part rail should stay inside workspace`);
+  assert(collapsedLayout.documentScrollWidth <= collapsedLayout.viewport.width + 1, `${label}: collapsed mobile layout should not overflow horizontally`);
+
+  await page.evaluate(`(() => {
+    const toggle = document.querySelector('#customizerToggleButton');
     if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
   })()`);
   await page.waitFor("document.querySelector('#customizerToggleButton').getAttribute('aria-expanded') === 'true'");
@@ -193,12 +226,17 @@ async function assertMobileCustomizerLayout(page, viewport) {
       columns: getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length,
       swatches: Array.from(grid.querySelectorAll('.swatch-button')).map((button) => button.getBoundingClientRect().toJSON())
     }));
+    const textureButtons = Array.from(document.querySelectorAll('#textureList .texture-button')).map((button) => ({
+      rect: button.getBoundingClientRect().toJSON(),
+      pressed: button.getAttribute('aria-pressed') === 'true'
+    }));
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
       customizer: bounds('#customizerPanel'),
       swatchGrid: bounds('#swatchGrid'),
       swatches,
       inlineSwatchGrids,
+      textureButtons,
       customizerScrollWidth: customizer.scrollWidth,
       customizerClientWidth: customizer.clientWidth,
       swatchGridScrollWidth: swatchGrid.scrollWidth,
@@ -206,14 +244,19 @@ async function assertMobileCustomizerLayout(page, viewport) {
       columns: getComputedStyle(swatchGrid).gridTemplateColumns.split(' ').filter(Boolean).length
     };
   })()`);
-  const label = `${viewport.name} ${viewport.width}x${viewport.height}`;
 
   assert(layout.customizer.width >= 118, `${label}: mobile customizer should be wide enough for controls, got ${layout.customizer.width}`);
   assert(layout.customizer.right <= layout.viewport.width + 1, `${label}: mobile customizer should stay inside viewport`);
   assert(layout.customizerScrollWidth <= layout.customizerClientWidth + 1, `${label}: mobile customizer should not have horizontal overflow (${layout.customizerScrollWidth}/${layout.customizerClientWidth})`);
   assert(layout.swatchGridScrollWidth <= layout.swatchGridClientWidth + 1, `${label}: mobile color grid should not have horizontal overflow (${layout.swatchGridScrollWidth}/${layout.swatchGridClientWidth})`);
   assert(layout.columns >= 2, `${label}: mobile color grid should keep at least two columns, got ${layout.columns}`);
-  assert(layout.inlineSwatchGrids.length > 0, `${label}: selected material should render a color sub-list`);
+  assert(layout.textureButtons.length > 0, `${label}: material panel should render selectable material or texture buttons`);
+  assert(layout.textureButtons.some((button) => button.pressed), `${label}: material panel should expose a selected material or texture`);
+  layout.textureButtons.forEach((button, index) => {
+    assert(button.rect.width >= 30 && button.rect.height >= 30, `${label}: material button #${index} should remain tappable, got ${button.rect.width}x${button.rect.height}`);
+    assert(button.rect.left >= layout.customizer.left - 1, `${label}: material button #${index} should not clip left`);
+    assert(button.rect.right <= layout.customizer.right + 1, `${label}: material button #${index} should not clip right`);
+  });
   layout.inlineSwatchGrids.forEach((grid, gridIndex) => {
     assert(grid.columns === 1, `${label}: inline color sub-list #${gridIndex} should be vertical, got ${grid.columns} columns`);
     assert(grid.scrollWidth <= grid.clientWidth + 1, `${label}: inline color sub-list #${gridIndex} should not overflow horizontally (${grid.scrollWidth}/${grid.clientWidth})`);

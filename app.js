@@ -131,7 +131,7 @@ function productFromSchema(schema) {
     homeFeatures: productSchema.homeFeatures || PRODUCT_COPY.productDefaults.homeFeatures,
     realProductImages: productSchema.assets?.realProducts || [],
     accentA: "#f0b7c8",
-    accentB: "#ad94ff",
+    accentB: "#d9d2c5",
     angles: (productSchema.angles || [])
       .filter((angle) => angle.active !== false)
       .map((angle) => ({ id: angle.key, key: angle.key, label: angle.label || angle.i18n || { zh: angle.name, en: angle.en || angle.name }, meta: angle.meta || angle.label || angle.i18n || { zh: angle.name, en: angle.en || angle.name } })),
@@ -535,7 +535,7 @@ function sideSvg() {
           ${[226, 348, 470, 592, 714]
             .map(
               (cx) => `
-              <circle cx="${cx}" cy="403" r="58" fill="#ad94ff" opacity=".45"/>
+              <circle cx="${cx}" cy="403" r="58" fill="#d9d2c5" opacity=".45"/>
               <circle cx="${cx}" cy="403" r="58" fill="url(#wheelGloss)"/>
               <circle cx="${cx}" cy="403" r="10" fill="#f9f9fb" stroke="#b4b5bb" stroke-width="4"/>
             `
@@ -1050,9 +1050,9 @@ function colorizeAlphaCanvas(sourceCanvas) {
   const startY = bounds ? bounds.minY : 0;
   const endY = bounds ? bounds.maxY : canvas.height;
   const gradient = context.createLinearGradient(startX, startY, endX, endY);
-  gradient.addColorStop(0, "rgba(84, 224, 255, 0.88)");
-  gradient.addColorStop(0.48, "rgba(0, 113, 227, 0.94)");
-  gradient.addColorStop(1, "rgba(126, 91, 255, 0.9)");
+  gradient.addColorStop(0, "rgba(255, 255, 255, 0.92)");
+  gradient.addColorStop(0.42, "rgba(17, 17, 17, 0.88)");
+  gradient.addColorStop(1, "rgba(91, 86, 78, 0.82)");
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
   return canvas;
@@ -1240,10 +1240,12 @@ function renderHome() {
   const productCardWidth = productColumns === 1 ? 420 : productColumns === 2 ? 360 : 320;
   const productGap = 18;
 
-  els.homeProductTag.textContent = "Skate Studio";
-  els.homeProductName.textContent = "Create your own skates";
-  els.homeProductDescription.textContent = t("homeDescription");
-  els.homeProductMeta.innerHTML = (item.homeFeatures || [item.code, "Layered 2.5D MVP"]).map((feature) => `<span>${escapeHtml(translateFeature(feature))}</span>`).join("");
+  els.homeProductTag.textContent = state.language === "en" ? "Current model" : "当前鞋款";
+  els.homeProductName.textContent = "FREESTYLE CIM";
+  els.homeProductDescription.textContent = productName(item);
+  els.homeProductMeta.innerHTML = [item.code, state.language === "en" ? "Custom open" : "已开放定制"]
+    .map((feature) => `<span>${escapeHtml(feature)}</span>`)
+    .join("");
   els.homeShoeArt.innerHTML = homeShoeMarkup();
   els.homeProductGrid.style.setProperty("--product-columns", productColumns);
   els.homeProductGrid.style.setProperty("--product-grid-width", `${productColumns * productCardWidth + (productColumns - 1) * productGap}px`);
@@ -1261,7 +1263,6 @@ function renderHome() {
           <strong>${escapeHtml(productName(catalogItem))}</strong>
           <span>${escapeHtml(localized(catalogItem.description, catalogItem.description))}</span>
         </span>
-        <span class="home-card-meta">${selected ? t("selected") : t("select")}</span>
       </button>`;
   }).join("");
   els.homeView.style.setProperty("--home-accent-a", item.accentA);
@@ -1275,7 +1276,6 @@ function renderModelStrip() {
       <button class="model-pill" type="button" data-product="${item.id}" aria-pressed="${item.id === state.productId}" style="--thumb-a:${item.accentA};--thumb-b:${item.accentB};">
         <span>
           <strong>${productName(item)}</strong>
-          <span>${t("proCustom")}</span>
         </span>
       </button>`
   ).join("");
@@ -1474,8 +1474,8 @@ function renderSummary() {
     material: materialName(config.material, component)
   };
 
-  els.modelName.textContent = productName(item);
-  els.modelDescription.textContent = localized(item.description, item.description);
+  els.modelName.textContent = state.language === "en" ? "Material Book" : "材料样本";
+  els.modelDescription.textContent = productName(item);
   els.angleMeta.textContent = angleMeta(currentAngleConfig(item)) || t("effectImage", { angle: angleLabel(currentAngleConfig(item)) });
   els.modelMeta.textContent = `${item.code} · ${t("partCount", { count: item.components.filter((part) => part.editable).length })}`;
   els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${componentName(component)}` : "";
@@ -1904,7 +1904,7 @@ function confirmationSheetStyles() {
       --line: #d8dce2;
       --paper: #ffffff;
       --soft: #f5f7fa;
-      --blue: #0071e3;
+      --blue: #111111;
     }
     * { box-sizing: border-box; }
     body {
