@@ -37,6 +37,7 @@ window.SKATE_CIM_CONFIG = {
         {
           key: "front",
           name: "正面",
+          en: "Front",
           active: true,
           baseFile: "front/base.png",
           layerAssets: {
@@ -58,6 +59,7 @@ window.SKATE_CIM_CONFIG = {
         {
           key: "forty_five",
           name: "45度",
+          en: "45°",
           active: true,
           baseFile: "forty_five/base.png",
           layerAssets: {
@@ -84,6 +86,7 @@ window.SKATE_CIM_CONFIG = {
         {
           key: "side",
           name: "侧面",
+          en: "Side",
           active: true,
           baseFile: "side/base.png",
           layerAssets: {

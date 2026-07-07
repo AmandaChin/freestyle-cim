@@ -10,6 +10,11 @@ const HIT_ALPHA_THRESHOLD = 18;
 const SELECTION_RING_RADIUS = 14;
 const SELECTION_RING_STEP = 3;
 const SELECTION_RING_BLUR = 8;
+const SELECTION_RING_GRADIENT_STOPS = [
+  { offset: 0, color: "rgba(74, 89, 184, 0.82)" },
+  { offset: 0.55, color: "rgba(104, 91, 196, 0.76)" },
+  { offset: 1, color: "rgba(63, 72, 156, 0.72)" }
+];
 const SHOE_ART_ASPECT_RATIO = 2401 / 1601;
 const SHOE_SNAPSHOT_MAX_WIDTH = 1200;
 const APP_VERSION = window.SKATE_CIM_VERSION || "0.0.0";
@@ -410,6 +415,11 @@ function colorName(value, component = selectedComponent()) {
   return localizeTerm(colorOptions(component).find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value);
 }
 
+function componentColorName(component, config = componentConfig(component.id)) {
+  if (officialTextureById(config?.material)) return t("materialOriginalColor");
+  return colorName(config.color, component);
+}
+
 function defaultFixedOption(component) {
   if (!component.fixedOptions) return null;
   return component.fixedOptions.find((option) => option.id === component.defaultVariant) || component.fixedOptions[0];
@@ -454,6 +464,7 @@ function shouldExpandMaterial(component, config, material) {
 }
 
 function componentColorValue(component, config = componentConfig(component.id)) {
+  if (officialTextureById(config?.material)) return "-";
   if (component.fixedColorOptions) return config.color || component.color;
   const option = fixedOption(component, config);
   return option?.swatch || config.color;
@@ -1036,7 +1047,7 @@ function alphaBounds(sourceCanvas, threshold = HIT_ALPHA_THRESHOLD) {
   return bounds;
 }
 
-function colorizeAlphaCanvas(sourceCanvas) {
+function colorizeSelectionAlphaCanvas(sourceCanvas) {
   const canvas = document.createElement("canvas");
   canvas.width = sourceCanvas.width;
   canvas.height = sourceCanvas.height;
@@ -1050,9 +1061,9 @@ function colorizeAlphaCanvas(sourceCanvas) {
   const startY = bounds ? bounds.minY : 0;
   const endY = bounds ? bounds.maxY : canvas.height;
   const gradient = context.createLinearGradient(startX, startY, endX, endY);
-  gradient.addColorStop(0, "rgba(255, 255, 255, 0.92)");
-  gradient.addColorStop(0.42, "rgba(17, 17, 17, 0.88)");
-  gradient.addColorStop(1, "rgba(91, 86, 78, 0.82)");
+  SELECTION_RING_GRADIENT_STOPS.forEach(({ offset, color }) => {
+    gradient.addColorStop(offset, color);
+  });
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
   return canvas;
@@ -1082,9 +1093,9 @@ async function createSelectionRingDataUrl(source) {
   if (!hitCanvas?.canvas) return "";
 
   const sourceCanvas = hitCanvas.canvas;
-  const blueCanvas = colorizeAlphaCanvas(sourceCanvas);
+  const accentCanvas = colorizeSelectionAlphaCanvas(sourceCanvas);
   const cutoutCanvas = thresholdAlphaCanvas(sourceCanvas);
-  if (!blueCanvas || !cutoutCanvas) return "";
+  if (!accentCanvas || !cutoutCanvas) return "";
 
   const coreCanvas = document.createElement("canvas");
   coreCanvas.width = sourceCanvas.width;
@@ -1094,7 +1105,7 @@ async function createSelectionRingDataUrl(source) {
 
   selectionRingOffsets().forEach((offset) => {
     coreContext.globalAlpha = offset.alpha;
-    coreContext.drawImage(blueCanvas, offset.dx, offset.dy);
+    coreContext.drawImage(accentCanvas, offset.dx, offset.dy);
   });
 
   const ringCanvas = document.createElement("canvas");
@@ -1104,10 +1115,10 @@ async function createSelectionRingDataUrl(source) {
   if (!ringContext) return "";
 
   ringContext.filter = `blur(${SELECTION_RING_BLUR}px)`;
-  ringContext.globalAlpha = 0.68;
+  ringContext.globalAlpha = 0.74;
   ringContext.drawImage(coreCanvas, 0, 0);
   ringContext.filter = "none";
-  ringContext.globalAlpha = 0.92;
+  ringContext.globalAlpha = 1;
   ringContext.drawImage(coreCanvas, 0, 0);
 
   // 删除原裁片 alpha，只保留外侧 3-6px 的提示圈，避免改变裁片自身颜色和材质。
@@ -1242,13 +1253,13 @@ function renderHome() {
 
   els.homeProductTag.textContent = state.language === "en" ? "Current model" : "当前鞋款";
   els.homeProductName.textContent = "FREESTYLE CIM";
-  els.homeProductDescription.textContent = productName(item);
-  els.homeProductMeta.innerHTML = [item.code, state.language === "en" ? "Custom open" : "已开放定制"]
-    .map((feature) => `<span>${escapeHtml(feature)}</span>`)
-    .join("");
+  els.homeProductDescription.textContent = item.code || productName(item);
+  els.homeProductMeta.hidden = true;
+  els.homeProductMeta.innerHTML = "";
   els.homeShoeArt.innerHTML = homeShoeMarkup();
   els.homeProductGrid.style.setProperty("--product-columns", productColumns);
   els.homeProductGrid.style.setProperty("--product-grid-width", `${productColumns * productCardWidth + (productColumns - 1) * productGap}px`);
+  const homeCardAction = state.language === "en" ? "Start custom" : "开启定制";
   els.homeProductGrid.innerHTML = PRODUCT_CATALOG.map((catalogItem) => {
     const selected = catalogItem.id === state.productId;
     return `
@@ -1259,9 +1270,7 @@ function renderHome() {
         </span>
         <span class="home-card-dot" aria-hidden="true"></span>
         <span class="home-card-body">
-          <span class="home-card-kicker">${escapeHtml(translateFeature(catalogItem.homeLabel))}</span>
-          <strong>${escapeHtml(productName(catalogItem))}</strong>
-          <span>${escapeHtml(localized(catalogItem.description, catalogItem.description))}</span>
+          <span class="home-card-action">${escapeHtml(homeCardAction)}</span>
         </span>
       </button>`;
   }).join("");
@@ -1398,7 +1407,7 @@ function buildExportData(options = {}) {
         code: component.code,
         component: component.en,
         name: componentName(component),
-        color: colorName(config.color, component),
+        color: componentColorName(component, config),
         colorValue: componentColorValue(component, config),
         material: materialName(config.material, component)
       };
@@ -1469,7 +1478,7 @@ function renderSummary() {
     version: APP_VERSION,
     product: item.id,
     selectedPart: component.code,
-    color: colorName(config.color),
+    color: componentColorName(component, config),
     colorValue: componentColorValue(component, config),
     material: materialName(config.material, component)
   };
@@ -1480,7 +1489,7 @@ function renderSummary() {
   els.modelMeta.textContent = `${item.code} · ${t("partCount", { count: item.components.filter((part) => part.editable).length })}`;
   els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${componentName(component)}` : "";
   els.selectedPartTitle.textContent = t("editingPart", { part: componentName(component) });
-  els.selectedColorName.textContent = colorName(config.color);
+  els.selectedColorName.textContent = componentColorName(component, config);
   els.selectedTextureName.textContent = materialName(config.material, component);
   els.configPreview.textContent = JSON.stringify(output, null, 2);
 }
@@ -1511,7 +1520,7 @@ function render() {
   els.copyConfigButton.textContent = t("copyJson");
   document.querySelector('.part-rail-block .section-title h3').textContent = t("parts");
   els.pageEyebrow.textContent = isHome ? "Skate Studio" : t("customizer");
-  els.pageTitle.textContent = isHome ? "Freestyle CIM" : productName(product());
+  els.pageTitle.textContent = isHome ? "Freestyle CIM" : product().code || productName(product());
   renderHome();
   renderModelStrip();
   renderAngleTabs();

@@ -48,6 +48,11 @@ const RESPONSIVE_VIEWPORTS = [
   { name: "tablet landscape", width: 1024, height: 640 },
   { name: "narrow desktop", width: 900, height: 640 }
 ];
+const EXPECTED_SELECTION_RING_STOPS = [
+  "rgba(74, 89, 184, 0.82)",
+  "rgba(104, 91, 196, 0.76)",
+  "rgba(63, 72, 156, 0.72)"
+];
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -85,6 +90,13 @@ async function assertSharedSchemaContract() {
   assert(!abrasivePad.hitMask, "L should not need a separate hit mask after fixed PNG assets are transparent");
   assert(!abrasivePad.variants, "L should not use a separate fixed variant matrix");
   assert(!abrasivePad.fixedStyleSet, "L should not use generated fixedStyleSet mapping");
+}
+
+async function assertSelectionRingPaletteContract() {
+  const appSource = await readFile(path.join(ROOT_DIR, "app.js"), "utf8");
+  for (const color of EXPECTED_SELECTION_RING_STOPS) {
+    assert(appSource.includes(`color: "${color}"`), `selection ring should use understated indigo-purple stop ${color}`);
+  }
 }
 
 async function assertCanonicalShoePartSchema() {
@@ -322,6 +334,7 @@ async function assertBuilderLayout(page, viewport) {
 
 async function main() {
   await assertSharedSchemaContract();
+  await assertSelectionRingPaletteContract();
   await assertCanonicalShoePartSchema();
   const server = await startStaticServer();
   const chrome = await startChrome();
@@ -556,6 +569,8 @@ async function main() {
             let maxInsideAlpha = 0;
             let mediumAlphaOutsidePixels = 0;
             let lowAlphaOutsidePixels = 0;
+            let bluePurpleOutsidePixels = 0;
+            let whiteOutsidePixels = 0;
             let minOutsideRed = 255;
             let maxOutsideRed = 0;
             let minOutsideGreen = 255;
@@ -587,11 +602,15 @@ async function main() {
                   outsideColorBuckets.add([Math.floor(red / 24), Math.floor(green / 24), Math.floor(blue / 24)].join(":"));
                   if (alpha >= 64 && alpha <= 180) mediumAlphaOutsidePixels += 1;
                   if (alpha >= 21 && alpha < 64) lowAlphaOutsidePixels += 1;
+                  if (blue >= 130 && red >= 36 && blue > green + 18 && green <= 190) bluePurpleOutsidePixels += 1;
+                  if (red >= 220 && green >= 220 && blue >= 220) whiteOutsidePixels += 1;
                 }
               }
             }
 
             const insideAccentRatio = sourceBodyPixels ? accentInsideBodyPixels / sourceBodyPixels : 1;
+            const bluePurpleOutsideRatio = accentOutsidePixels ? bluePurpleOutsidePixels / accentOutsidePixels : 0;
+            const whiteOutsideRatio = accentOutsidePixels ? whiteOutsidePixels / accentOutsidePixels : 1;
             const outsideRedRange = maxOutsideRed - minOutsideRed;
             const outsideGreenRange = maxOutsideGreen - minOutsideGreen;
             return {
@@ -601,11 +620,17 @@ async function main() {
                 && insideAccentRatio < 0.001
                 && maxInsideAlpha < 18
                 && outsideAlphaBuckets.size >= 3
-                && (mediumAlphaOutsidePixels > 2 || lowAlphaOutsidePixels > 2),
+                && (mediumAlphaOutsidePixels > 2 || lowAlphaOutsidePixels > 2)
+                && bluePurpleOutsideRatio >= 0.72
+                && whiteOutsideRatio <= 0.04,
               sourceBodyPixels,
               accentInsideBodyPixels,
               accentOutsidePixels,
               accentPixels,
+              bluePurpleOutsidePixels,
+              bluePurpleOutsideRatio,
+              whiteOutsidePixels,
+              whiteOutsideRatio,
               lowAlphaOutsidePixels,
               mediumAlphaOutsidePixels,
               outsideAlphaBucketCount: outsideAlphaBuckets.size,

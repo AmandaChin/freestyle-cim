@@ -4,6 +4,17 @@ import vm from "node:vm";
 
 const ROOT_DIR = path.resolve(import.meta.dirname, "..");
 const MATERIAL_ROOT = path.join(ROOT_DIR, "assets", "skates", "yjs-pro-cim", "materials");
+const REAL_PRODUCT_ROOT = path.join(ROOT_DIR, "assets", "skates", "yjs-pro-cim", "real-products");
+const DEFAULT_BASE_COLOR = "#f7f7f8";
+// 来源：/Users/bytedance/Documents/hobby/prd/CIM三视图.xls，Sheet1「皮料材质」列。
+const SOURCE_TABLE_TEXTURE_IDS = [
+  "13", "11", "43", "46", "48", "47", "44", "45", "39", "31", "32", "36", "37", "18", "35", "41",
+  "8", "7", "16", "33", "3", "9", "4", "1", "5", "2", "23", "29", "40", "25", "26", "19",
+  "42", "28", "21", "20", "30", "27", "14", "15", "6", "10", "12", "38", "24", "22", "34",
+  "17", "49", "50", "51", "52", "53"
+];
+// 表格包含这三个编号，但当前工程和 PRD 皮料包都没有对应官方素材文件；上线契约只能启用有资源的编号。
+const MISSING_SOURCE_ASSET_IDS = ["4", "10", "21"];
 const EXPECTED_CATEGORIES = {
   "鳞片": ["43", "44", "45", "46", "47", "48"],
   "小熊": ["7", "8"],
@@ -18,7 +29,54 @@ const EXPECTED_CATEGORIES = {
   TPU: ["23", "25", "26", "29", "40"]
 };
 const ALL_TEXTURE_IDS = Object.values(EXPECTED_CATEGORIES).flat().sort((a, b) => Number(a) - Number(b));
-const TOE_EXCLUDED_IDS = new Set(["1", "2", "3", "5", "9", "23", "25", "26", "29", "40"]);
+const TOE_EXCLUDED_IDS = new Set(["1", "2", "3", "4", "5", "9", "23", "25", "26", "29", "40"]);
+const EXPECTED_REAL_PRODUCT_ORDER = [
+  "white-pink-1.jpg",
+  "brown-1.jpg",
+  "white-red-1.jpg",
+  "pink-purple-1.jpg",
+  "black-gold-1.jpg",
+  "silver-white-1.jpg",
+  "black-purple-2.jpg"
+];
+const EXPECTED_DEFAULT_COLORS = {
+  A: DEFAULT_BASE_COLOR,
+  B: DEFAULT_BASE_COLOR,
+  C: DEFAULT_BASE_COLOR,
+  C1: DEFAULT_BASE_COLOR,
+  C2: DEFAULT_BASE_COLOR,
+  C3: DEFAULT_BASE_COLOR,
+  F: DEFAULT_BASE_COLOR,
+  F1: DEFAULT_BASE_COLOR,
+  G: DEFAULT_BASE_COLOR,
+  H: DEFAULT_BASE_COLOR,
+  I: DEFAULT_BASE_COLOR,
+  J: DEFAULT_BASE_COLOR,
+  K: DEFAULT_BASE_COLOR
+};
+const EXPECTED_DEFAULT_MATERIALS = {
+  A: "19",
+  B: "19",
+  C: "19",
+  C1: "34",
+  C2: "34",
+  C3: "19",
+  F: "19",
+  F1: "34",
+  G: "19",
+  H: "19",
+  I: "34",
+  J: "19",
+  K: "19"
+};
+const EXPECTED_FIXED_DEFAULTS = {
+  D: "cuff-silver",
+  D1: "mushroom-nail-white",
+  E: "sole-silver",
+  L: "pad-new-white",
+  M: "upper-strap-white",
+  N: "lower-strap-white"
+};
 const OLD_TEST_TOKENS = [
   "smooth",
   "matte",
@@ -59,6 +117,29 @@ assert(schema, "schema should expose SKATE_CIM_SCHEMA");
 assert(schema.materialCategories, "schema should expose materialCategories");
 assert(schema.materialTextures, "schema should expose materialTextures");
 assert(schema.materialAvailability, "schema should expose materialAvailability");
+assert(JSON.stringify(schema.assets.realProducts.map((item) => item.file)) === JSON.stringify(EXPECTED_REAL_PRODUCT_ORDER), "real product order should feature white-pink first");
+
+for (const fileName of EXPECTED_REAL_PRODUCT_ORDER) {
+  await access(path.join(REAL_PRODUCT_ROOT, fileName));
+}
+
+const leatherWhite = schema.palettes.leather.find((item) => item.id === "white");
+const chinoiserieDefault = schema.materialTextures.find((item) => item.id === "34");
+assert(leatherWhite?.value === DEFAULT_BASE_COLOR, "leather white palette should match the neutral default base");
+assert(chinoiserieDefault?.file === "中国风/34.jpg", "former pink visual panels should default to China-style 34 texture");
+
+const partsByKey = Object.fromEntries(schema.parts.map((part) => [part.key, part]));
+for (const [partKey, expectedColor] of Object.entries(EXPECTED_DEFAULT_COLORS)) {
+  assert(partsByKey[partKey]?.defaultStyle?.color === expectedColor, `${partKey} should default to the white-pink color palette`);
+  assert(partsByKey[partKey]?.defaultStyle?.material === EXPECTED_DEFAULT_MATERIALS[partKey], `${partKey} should default to the white-pink material mapping`);
+}
+for (const [partKey, expectedVariant] of Object.entries(EXPECTED_FIXED_DEFAULTS)) {
+  assert(partsByKey[partKey]?.defaultStyle?.variant === expectedVariant, `${partKey} should default to the white-pink fixed variant`);
+}
+// CUFF 和蘑菇钉是外露五金，需要压在下鞋身片之上，避免预览时被 F 层遮住。
+for (const partKey of ["D", "D1"]) {
+  assert(partsByKey[partKey]?.renderOrder > partsByKey.F?.renderOrder, `${partKey} should render above lower body F`);
+}
 
 for (const token of OLD_TEST_TOKENS) {
   assert(!schemaSource.includes(token), `shared schema should remove old test material token ${token}`);
@@ -66,7 +147,11 @@ for (const token of OLD_TEST_TOKENS) {
 }
 
 assert(JSON.stringify(schema.materialCategories.map((item) => item.name)) === JSON.stringify(Object.keys(EXPECTED_CATEGORIES)), "category order should follow source folders");
-assert(JSON.stringify(sorted(schema.materialTextures.map((item) => item.id))) === JSON.stringify(ALL_TEXTURE_IDS), "all official texture ids should be present exactly once");
+assert(
+  JSON.stringify(SOURCE_TABLE_TEXTURE_IDS.filter((id) => !MISSING_SOURCE_ASSET_IDS.includes(id)).sort((a, b) => Number(a) - Number(b))) === JSON.stringify(ALL_TEXTURE_IDS),
+  "enabled texture contract should follow CIM三视图.xls, excluding only source ids without assets"
+);
+assert(JSON.stringify(sorted(schema.materialTextures.map((item) => item.id))) === JSON.stringify(ALL_TEXTURE_IDS), "all available official texture ids should be present exactly once");
 
 for (const [categoryName, ids] of Object.entries(EXPECTED_CATEGORIES)) {
   const category = schema.materialCategories.find((item) => item.name === categoryName);
@@ -87,7 +172,9 @@ for (const part of ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "J", "
 }
 
 const toeIds = sorted(schema.materialAvailability.H);
-const expectedToeIds = ALL_TEXTURE_IDS.filter((id) => !TOE_EXCLUDED_IDS.has(id));
+const expectedToeIds = SOURCE_TABLE_TEXTURE_IDS
+  .filter((id) => !MISSING_SOURCE_ASSET_IDS.includes(id) && !TOE_EXCLUDED_IDS.has(id))
+  .sort((a, b) => Number(a) - Number(b));
 assert(JSON.stringify(toeIds) === JSON.stringify(expectedToeIds), "H toe part should exclude PU and TPU textures");
 
 const generatedFiles = [];
@@ -100,5 +187,7 @@ for (const categoryName of await readdir(MATERIAL_ROOT)) {
 assert(generatedFiles.length === ALL_TEXTURE_IDS.length, "asset folder should contain one generated file per texture id");
 assert(appSource.includes("officialTextureById"), "C-side should resolve selected texture id through official material schema");
 assert(appSource.includes("renderOfficialTextureStyles"), "C-side should render category child texture buttons");
+assert(!appSource.includes("officialTextureBackground"), "official texture rendering should use the material's own image color, not a default part-color overlay");
+assert(!appSource.includes("colorToRgba"), "official texture snapshots should not tint materials with a default base color");
 
 console.log("official material library contract is valid");
