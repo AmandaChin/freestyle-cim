@@ -25,7 +25,6 @@ window.SKATE_CIM_CONFIG = {
       defaultPartKey: "G",
       updatedAt: "2026-05-09 18:20",
       description: "高帮轮滑鞋上鞋定制，面向进阶训练与比赛配置。",
-      notes: "专业上鞋定制，侧面图层已接入 MVP。",
       homeLabel: "专业支撑款",
       homeFeatures: ["YJS-PRO", "高帮支撑", "CIM 表格导出"],
       assets: window.SKATE_CIM_SCHEMA.assets,

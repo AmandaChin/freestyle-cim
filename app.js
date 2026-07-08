@@ -121,7 +121,10 @@ function publishedShoeForSchema(schema = SHOE_SCHEMA) {
 }
 
 function productFromSchema(schema) {
-  const productSchema = SCHEMA_UTILS.mergePublishedShoe(schema, publishedShoeForSchema(schema));
+  const publishedShoe = publishedShoeForSchema(schema);
+  const productSchema = SCHEMA_UTILS.mergePublishedShoe(schema, publishedShoe);
+  // 确认单备注只使用 B 端显式发布内容，避免 schema 技术说明透出给客户。
+  const publishedNote = Object.prototype.hasOwnProperty.call(publishedShoe || {}, "notes") ? publishedShoe.notes : "";
   return {
     id: productSchema.shoeId,
     shoeId: productSchema.shoeId,
@@ -132,7 +135,7 @@ function productFromSchema(schema) {
     homeTag: "Pro Custom",
     homeLabel: productSchema.homeLabel || PRODUCT_COPY.productDefaults.homeLabel,
     description: productSchema.description || PRODUCT_COPY.productDefaults.description,
-    note: productSchema.notes || PRODUCT_COPY.productDefaults.note,
+    note: publishedNote || "",
     homeFeatures: productSchema.homeFeatures || PRODUCT_COPY.productDefaults.homeFeatures,
     realProductImages: productSchema.assets?.realProducts || [],
     accentA: "#f0b7c8",
@@ -2285,10 +2288,14 @@ function buildConfirmationSheetHtml(data) {
         </div>
       </section>
 
-      <section class="sheet-section">
-        <h2>Note</h2>
-        <div class="sheet-note">${escapeHtml(data.note || "-")}</div>
-      </section>
+      ${
+        data.note
+          ? `<section class="sheet-section">
+              <h2>Note</h2>
+              <div class="sheet-note">${escapeHtml(data.note)}</div>
+            </section>`
+          : ""
+      }
     </main>
   </body>
 </html>`;
