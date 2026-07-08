@@ -53,6 +53,28 @@ button,
   background: #ffffff;
 }
 
+.site-record {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 6px clamp(16px, 3vw, 40px) 18px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.site-record a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-record a:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .topbar {
   display: flex;
   align-items: center;

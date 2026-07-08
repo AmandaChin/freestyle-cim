@@ -277,6 +277,29 @@ svg {
   background: var(--surface-soft);
 }
 
+.admin-record-link {
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.admin-record-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-shell.is-collapsed .admin-record-link {
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 1.35;
+  word-break: break-all;
+}
+
 .icon-button {
   width: 40px;
   padding: 0;
@@ -1163,6 +1186,10 @@ button:not(:disabled):hover,
   .return-link,
   #collapseButton {
     display: none;
+  }
+
+  .admin-record-link {
+    margin-top: 0;
   }
 
   .admin-brand-copy,
