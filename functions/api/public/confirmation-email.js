@@ -1,4 +1,8 @@
 const RESEND_EMAIL_ENDPOINT = "https://api.resend.com/emails";
+const CONFIRMATION_DOCUMENT_TYPE = "skate-cim-confirmation-sheet";
+const CONFIRMATION_DOCUMENT_MARKER = '<meta name="skate-cim-document" content="confirmation-sheet"';
+const MAX_REQUEST_BODY_BYTES = 12 * 1024 * 1024;
+const REQUEST_TOO_LARGE = Symbol("request-too-large");
 
 function jsonResponse(status, payload) {
   return new Response(JSON.stringify(payload), {
@@ -54,9 +58,21 @@ function payloadProductName(product) {
   return product?.name || product?.title || product?.model || "Skate CIM";
 }
 
+function isConfirmationSheetPayload(payload, html) {
+  // 新版确认单使用与语言无关的文档契约；保留中文标题识别以兼容旧客户端。
+  const structuredDocument = payload?.documentType === CONFIRMATION_DOCUMENT_TYPE
+    && Number(payload.documentVersion) >= 1
+    && html.includes(CONFIRMATION_DOCUMENT_MARKER);
+  return structuredDocument || html.includes("定制确认单");
+}
+
 async function readJson(request) {
+  const declaredBytes = Number(request.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredBytes) && declaredBytes > MAX_REQUEST_BODY_BYTES) return REQUEST_TOO_LARGE;
   try {
-    return await request.json();
+    const body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > MAX_REQUEST_BODY_BYTES) return REQUEST_TOO_LARGE;
+    return body ? JSON.parse(body) : null;
   } catch {
     return null;
   }
@@ -69,6 +85,8 @@ export async function onRequestPost({ request, env }) {
   const resendFrom = env.RESEND_FROM || "";
   const fetchImpl = env.fetch || fetch;
   const payload = await readJson(request);
+
+  if (payload === REQUEST_TOO_LARGE) return jsonResponse(413, { ok: false, message: "确认单请求内容过大" });
 
   console.log("[confirmation-email] Pages request", {
     hasRecipient: Boolean(confirmationEmailTo),
@@ -84,13 +102,14 @@ export async function onRequestPost({ request, env }) {
   if (!resendApiKey || !resendFrom) return jsonResponse(500, { ok: false, message: "Resend 邮件配置缺失" });
 
   const html = String(payload.html || "");
-  if (!html.includes("定制确认单")) return jsonResponse(400, { ok: false, message: "确认单内容不完整" });
+  if (!isConfirmationSheetPayload(payload, html)) return jsonResponse(400, { ok: false, message: "确认单内容不完整" });
 
   const customerName = String(payload.customer?.name || "customer").trim() || "customer";
   const validCustomerEmail = payload.customer?.email && isValidEmail(payload.customer.email) ? payload.customer.email : "";
   const recipients = [confirmationEmailTo, ...(validCustomerEmail ? [validCustomerEmail] : [])];
   const productName = String(payloadProductName(payload.product)).trim() || "Skate CIM";
-  const subject = `${productName} 定制确认单 - ${customerName}`;
+  const confirmationLabel = payload.language === "en" ? "Confirmation Sheet" : "定制确认单";
+  const subject = `${productName} ${confirmationLabel} - ${customerName}`;
   const confirmationAttachment = {
     filename: `${safeFileName(productName)}-${safeFileName(customerName)}-confirmation.html`,
     content: htmlToBase64(html)

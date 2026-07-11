@@ -72,7 +72,8 @@ function schemaParts() {
     renderOrder: part.renderOrder,
     materialIds: part.materialIds || [],
     defaultStyle: part.defaultStyle || {},
-    ...(part.fixedVariants ? { fixedVariants: part.fixedVariants.map((variant) => ({ ...variant })) } : {})
+    ...(part.fixedVariants ? { fixedVariants: part.fixedVariants.map((variant) => ({ ...variant })) } : {}),
+    ...(part.fixedStyleSet ? { fixedStyleSet: SCHEMA_UTILS.clone(part.fixedStyleSet) } : {})
   }));
 }
 

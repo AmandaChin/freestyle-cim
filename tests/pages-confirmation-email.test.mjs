@@ -91,3 +91,64 @@ test("Pages function ignores invalid customer email while sending to the project
   assert.deepEqual(resendRequests[0].body.to, ["orders@example.com"]);
   assert.equal("reply_to" in resendRequests[0].body, false);
 });
+
+test("Pages function accepts an English structured confirmation sheet", async () => {
+  const resendRequests = [];
+  const response = await onRequestPost({
+    env: {
+      CONFIRMATION_EMAIL_TO: "orders@example.com",
+      RESEND_API_KEY: "re_test_key",
+      RESEND_FROM: "Skate CIM <orders@example.com>",
+      fetch: async (url, options) => {
+        resendRequests.push({ url, body: JSON.parse(options.body) });
+        return new Response(JSON.stringify({ id: "email_test_en" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    },
+    request: new Request("https://freestyle-cim.pages.dev/api/public/confirmation-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        documentType: "skate-cim-confirmation-sheet",
+        documentVersion: 1,
+        language: "en",
+        product: "YJS Pro CIM",
+        customer: { name: "English User", email: "customer@example.com" },
+        embroidery: [],
+        html: '<!doctype html><html lang="en"><head><meta name="skate-cim-document" content="confirmation-sheet"></head><body><h1>Customization Confirmation Sheet</h1></body></html>'
+      })
+    })
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(resendRequests.length, 1);
+  assert.equal(resendRequests[0].body.subject, "YJS Pro CIM Confirmation Sheet - English User");
+});
+
+test("Pages function rejects oversized confirmation requests before sending", async () => {
+  let resendCalled = false;
+  const response = await onRequestPost({
+    env: {
+      CONFIRMATION_EMAIL_TO: "orders@example.com",
+      RESEND_API_KEY: "re_test_key",
+      RESEND_FROM: "Skate CIM <orders@example.com>",
+      fetch: async () => {
+        resendCalled = true;
+        return new Response("{}", { status: 200 });
+      }
+    },
+    request: new Request("https://freestyle-cim.pages.dev/api/public/confirmation-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": String(12 * 1024 * 1024 + 1)
+      },
+      body: JSON.stringify({ html: "<h1>定制确认单</h1>" })
+    })
+  });
+
+  assert.equal(response.status, 413);
+  assert.equal(resendCalled, false);
+});

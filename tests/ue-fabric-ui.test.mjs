@@ -140,6 +140,32 @@ try {
   assert(state.texture.includes("TPU/23.jpg"), `shoe layer should use TPU/23.jpg, got ${JSON.stringify(state)}`);
   assert(Math.abs(state.scrollTop - scrollBeforeMaterialSelect) <= 2, `selecting visible material should not move drawer scroll, before ${scrollBeforeMaterialSelect}, got ${JSON.stringify(state)}`);
   assert(state.selectedVisible, `selected material should remain visible after update, got ${JSON.stringify(state)}`);
+
+  await page.evaluate("document.querySelector('#languageToggleButton').click()");
+  await page.waitFor("document.documentElement.lang === 'en'");
+  const englishCopy = await page.evaluate(`(() => ({
+    selectedTexture: document.querySelector('#selectedTextureName')?.textContent.trim() || '',
+    chinoiserieCategory: document.querySelector('[data-material="chinoiserie"] strong')?.textContent.trim() || ''
+  }))()`);
+  assert(englishCopy.selectedTexture === "Leather No. 23", `English mode should localize official texture ids, got ${JSON.stringify(englishCopy)}`);
+  assert(englishCopy.chinoiserieCategory === "Chinoiserie", `English mode should localize material categories, got ${JSON.stringify(englishCopy)}`);
+
+  await page.evaluate("document.querySelector('.part-button[data-part=\"D\"]')?.click()");
+  await page.waitFor("Boolean(document.querySelector('[data-part-id=\"D\"][data-color]'))");
+  const fixedLabels = await page.evaluate("Array.from(document.querySelectorAll('[data-part-id=\"D\"][data-color]')).map((button) => button.getAttribute('aria-label'))");
+  assert(fixedLabels.length > 0 && fixedLabels.every((label) => label && !/\p{Script=Han}/u.test(label)), `English mode should localize fixed variant labels, got ${JSON.stringify(fixedLabels)}`);
+  await page.evaluate("document.querySelector('.part-button[data-part=\"J\"]')?.click()");
+  await page.waitFor("Boolean(document.querySelector('[data-part-id=\"J\"][data-color]'))");
+  const laceOptions = await page.evaluate(`(() => ({
+    colors: Array.from(document.querySelectorAll('[data-part-id="J"][data-color]')).map((button) => button.dataset.color),
+    materialIds: Array.from(document.querySelectorAll('#textureList [data-part-id="J"][data-material]')).map((button) => button.dataset.material),
+    textureCount: document.querySelectorAll('#textureList [data-part-id="J"][data-texture-id]').length
+  }))()`);
+  assert(JSON.stringify(laceOptions.colors) === JSON.stringify(["#000000", "#ffffff", "#e41c16", "#e2bc00", "#380059"]), `lace should expose only the five fixed colors, got ${JSON.stringify(laceOptions)}`);
+  assert(JSON.stringify(laceOptions.materialIds) === JSON.stringify(["fixed-image"]), `lace should expose only fixed-image material, got ${JSON.stringify(laceOptions)}`);
+  assert(laceOptions.textureCount === 0, `lace should not expose official texture children, got ${JSON.stringify(laceOptions)}`);
+  await page.evaluate("document.querySelector('[data-part-id=\"J\"][data-color=\"#e41c16\"]')?.click()");
+  await page.waitFor("document.querySelector('#shoeArt .mvp-part-layer[data-part=\"J\"]')?.style.getPropertyValue('--part-material') === '#e41c16'");
   const screenshot = await page.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, page.sessionId);
   const screenshotPath = "/private/tmp/skate-cim-ue-fabric-ui.png";
   await writeFile(screenshotPath, Buffer.from(screenshot.data, "base64"));

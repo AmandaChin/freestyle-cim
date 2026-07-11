@@ -84,6 +84,27 @@ test("local backend writes confirmation emails to local outbox", async () => {
   }
 });
 
+test("local backend accepts an English structured confirmation sheet", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
+  try {
+    const backend = await createLocalBackend({ dataDir: workspace, confirmationEmailTo: "orders@example.com" });
+    const result = await backend.queueConfirmationEmail({
+      documentType: "skate-cim-confirmation-sheet",
+      documentVersion: 1,
+      language: "en",
+      customer: { name: "English User", email: "customer@example.com" },
+      product: "YJS Pro CIM",
+      html: '<!doctype html><html lang="en"><head><meta name="skate-cim-document" content="confirmation-sheet"></head><body><h1>Customization Confirmation Sheet</h1></body></html>'
+    });
+
+    assert.equal(result.ok, true);
+    const message = JSON.parse(await readFile(path.join(workspace, "outbox", `${result.id}.json`), "utf8"));
+    assert.equal(message.subject, "YJS Pro CIM Confirmation Sheet - English User");
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 test("local backend requires project-level confirmation recipient", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
   try {

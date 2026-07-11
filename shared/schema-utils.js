@@ -75,6 +75,11 @@
   function materialsForPart(schema, partKey) {
     const part = (schema.parts || []).find((item) => item.key === partKey);
     if (!part) return [];
+    // 固定色值部件只返回固定样式入口，避免被材质可用性列表重新暴露为官方皮料。
+    if (part.fixedStyleSet?.colorOptions?.length) {
+      const materials = materialMap(schema);
+      return (part.materialIds || []).map((id) => materials.get(id)).filter(Boolean);
+    }
     if (part.renderMode === "mask_tint" && schema.materialAvailability?.[partKey]?.length) {
       const availableIds = new Set(schema.materialAvailability[partKey]);
       return (schema.materialCategories || []).filter((category) => {

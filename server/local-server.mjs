@@ -10,6 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PORT = Number(process.env.PORT || 8082);
 const HOST = process.env.HOST || "127.0.0.1";
+const MAX_REQUEST_BODY_BYTES = 12 * 1024 * 1024;
 const CONTENT_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -43,12 +44,15 @@ function sendJson(response, status, payload, headers = {}) {
 function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = "";
+    let receivedBytes = 0;
     request.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 2 * 1024 * 1024) {
+      receivedBytes += chunk.length;
+      if (receivedBytes > MAX_REQUEST_BODY_BYTES) {
         reject(Object.assign(new Error("Payload too large"), { status: 413 }));
         request.destroy();
+        return;
       }
+      body += chunk;
     });
     request.on("end", () => resolve(body ? JSON.parse(body) : {}));
     request.on("error", reject);

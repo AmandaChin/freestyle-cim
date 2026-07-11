@@ -1,47 +1,50 @@
 (function () {
   const ASSET_ROOT = "./assets/skates/yjs-pro-cim/";
-  const ASSET_VERSION = "20260627-official-materials-v2";
+  const ASSET_VERSION = "20260711-patch-assets-v1";
 
   const categorySeed = [
-    ["scale", "鳞片", ["43", "44", "45", "46", "47", "48"]],
-    ["bear", "小熊", ["7", "8"]],
-    ["others", "OTHERS", ["6", "12", "14", "15", "49", "50", "51", "52", "53"]],
-    ["reflective-marble", "反光大理石", ["11", "13"]],
-    ["straw", "草席", ["18", "31", "32", "35", "36", "37", "39", "41"]],
-    ["twill-dot", "斜纹点子布", ["16", "33"]],
-    ["pu", "PU", ["1", "2", "3", "5", "9"]],
-    ["silk-texture", "丝状肌理", ["22", "24", "38"]],
-    ["chinoiserie", "中国风", ["17", "34"]],
-    ["leather", "皮革", ["19", "20", "27", "28", "30", "42"]],
-    ["tpu", "TPU", ["23", "25", "26", "29", "40"]]
+    ["scale", "鳞片", "Scale texture", ["43", "44", "45", "46", "47", "48"]],
+    ["bear", "小熊", "Bear", ["7", "8"]],
+    ["others", "OTHERS", "Others", ["6", "12", "14", "15", "49", "50", "51", "52", "53"]],
+    ["reflective-marble", "反光大理石", "Reflective marble", ["11", "13"]],
+    ["straw", "草席", "Straw texture", ["18", "31", "32", "35", "36", "37", "39", "41"]],
+    ["twill-dot", "斜纹点子布", "Twill dot fabric", ["16", "33"]],
+    ["pu", "PU", "PU", ["1", "2", "3", "5", "9"]],
+    ["silk-texture", "丝状肌理", "Silk texture", ["22", "24", "38"]],
+    ["chinoiserie", "中国风", "Chinoiserie", ["17", "34"]],
+    ["leather", "皮革", "Leather", ["19", "20", "27", "28", "30", "42"]],
+    ["tpu", "TPU", "TPU", ["23", "25", "26", "29", "40"]]
   ];
 
-  const materialCategories = categorySeed.map(([id, name]) => ({
+  const materialCategories = categorySeed.map(([id, name, en]) => ({
     id,
     name,
+    en,
     note: "正式皮料",
     kind: "official_texture_set",
     groups: ["upper", "strap"]
   }));
 
-  const materialTextures = categorySeed.flatMap(([categoryId, categoryName, ids]) => ids.map((id) => ({
+  const materialTextures = categorySeed.flatMap(([categoryId, categoryName, categoryEn, ids]) => ids.map((id) => ({
     id,
     name: `${id}号皮料`,
+    en: `Leather No. ${id}`,
     categoryId,
     categoryName,
+    categoryEn,
     file: `${categoryName}/${id}.jpg`
   })));
 
   const allTextureIds = materialTextures.map((item) => item.id);
   const toeExcludedTextureIds = new Set(["1", "2", "3", "5", "9", "23", "25", "26", "29", "40"]);
   const materialAvailability = Object.fromEntries(
-    ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "J", "K"].map((key) => [key, allTextureIds])
+    ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "K"].map((key) => [key, allTextureIds])
   );
   materialAvailability.H = allTextureIds.filter((id) => !toeExcludedTextureIds.has(id));
 
   const materials = [
     ...materialCategories,
-    { id: "fixed-image", name: "固定样式", note: "", kind: "fixed", groups: ["fixed"] }
+    { id: "fixed-image", name: "固定样式", en: "Fixed style", note: "", kind: "fixed", groups: ["fixed"] }
   ];
 
   const palettes = {
@@ -71,40 +74,50 @@
     ]
   };
 
-  const fixedStyleSets = {};
+  const fixedStyleSets = {
+    lace: {
+      // 鞋带只允许使用产品确认的 5 个固定色值，不能回退到官方皮料库。
+      colorOptions: [
+        { id: "black", name: "黑色", en: "Black", value: "#000000", swatch: "#000000" },
+        { id: "white", name: "白色", en: "White", value: "#ffffff", swatch: "#ffffff" },
+        { id: "red", name: "红色", en: "Red", value: "#e41c16", swatch: "#e41c16" },
+        { id: "ochre", name: "土黄色", en: "Ochre", value: "#e2bc00", swatch: "#e2bc00" },
+        { id: "purple", name: "紫色", en: "Purple", value: "#380059", swatch: "#380059" }
+      ]
+    }
+  };
 
   const fixedVariants = {
     D: [
-      { id: "cuff-black-gold", name: "黑金色 CUFF", swatch: "linear-gradient(135deg, #302010 0 72%, #403020 100%)" },
-      { id: "cuff-silver", name: "银色 CUFF", swatch: "linear-gradient(135deg, #b0b0b0 0 72%, #d8d8d8 100%)" },
-      { id: "cuff-red-black", name: "红黑色 CUFF", swatch: "linear-gradient(135deg, #301010 0 72%, #401818 100%)" },
-      { id: "cuff-black-purple", name: "黑紫色 CUFF", swatch: "linear-gradient(135deg, #281830 0 72%, #302038 100%)" },
-      { id: "cuff-black", name: "黑色 CUFF", swatch: "linear-gradient(135deg, #202020 0 72%, #303030 100%)" }
+      { id: "cuff-black-gold", name: "黑金色 CUFF", en: "Black-gold cuff", swatch: "linear-gradient(135deg, #302010 0 72%, #403020 100%)" },
+      { id: "cuff-silver", name: "银色 CUFF", en: "Silver cuff", swatch: "linear-gradient(135deg, #b0b0b0 0 72%, #d8d8d8 100%)" },
+      { id: "cuff-red-black", name: "红黑色 CUFF", en: "Red-black cuff", swatch: "linear-gradient(135deg, #301010 0 72%, #401818 100%)" },
+      { id: "cuff-black-purple", name: "黑紫色 CUFF", en: "Black-purple cuff", swatch: "linear-gradient(135deg, #281830 0 72%, #302038 100%)" },
+      { id: "cuff-black", name: "黑色 CUFF", en: "Black cuff", swatch: "linear-gradient(135deg, #202020 0 72%, #303030 100%)" }
     ],
     D1: [
-      { id: "mushroom-nail-white", name: "白色蘑菇钉", swatch: "#f7f7f8" },
-      { id: "mushroom-nail-black", name: "黑色蘑菇钉", swatch: "#17171a" }
+      { id: "mushroom-nail-white", name: "白色蘑菇钉", en: "White mushroom nail", swatch: "#f7f7f8" },
+      { id: "mushroom-nail-black", name: "黑色蘑菇钉", en: "Black mushroom nail", swatch: "#17171a" }
     ],
     E: [
-      { id: "sole-silver", name: "银色碳纤鞋壳", swatch: "linear-gradient(135deg, #d8d0d0 0 72%, #e0e0e0 100%)" },
-      { id: "sole-black-red", name: "黑红色碳纤鞋壳", swatch: "linear-gradient(135deg, #301010 0 72%, #401818 100%)" },
-      { id: "sole-black-purple", name: "黑紫色碳纤鞋壳", swatch: "linear-gradient(135deg, #281830 0 72%, #302038 100%)" },
-      { id: "sole-black", name: "黑色碳纤鞋壳", swatch: "linear-gradient(135deg, #202020 0 72%, #282828 100%)" },
-      { id: "sole-black-gold", name: "黑金色碳纤鞋壳", swatch: "linear-gradient(135deg, #302010 0 72%, #403020 100%)" }
+      { id: "sole-silver", name: "银色碳纤鞋壳", en: "Silver carbon shell", swatch: "linear-gradient(135deg, #d8d0d0 0 72%, #e0e0e0 100%)" },
+      { id: "sole-black-red", name: "黑红色碳纤鞋壳", en: "Black-red carbon shell", swatch: "linear-gradient(135deg, #301010 0 72%, #401818 100%)" },
+      { id: "sole-black-purple", name: "黑紫色碳纤鞋壳", en: "Black-purple carbon shell", swatch: "linear-gradient(135deg, #281830 0 72%, #302038 100%)" },
+      { id: "sole-black", name: "黑色碳纤鞋壳", en: "Black carbon shell", swatch: "linear-gradient(135deg, #202020 0 72%, #282828 100%)" }
     ],
     M: [
-      { id: "upper-strap-white", name: "白色上能量带", swatch: "#f7f7f8" },
-      { id: "upper-strap-black", name: "黑色上能量带", swatch: "#17171a" }
+      { id: "upper-strap-white", name: "白色上能量带", en: "White upper energy strap", swatch: "#f7f7f8" },
+      { id: "upper-strap-black", name: "黑色上能量带", en: "Black upper energy strap", swatch: "#17171a" }
     ],
     N: [
-      { id: "lower-strap-white", name: "白色下能量带", swatch: "#f7f7f8" },
-      { id: "lower-strap-black", name: "黑色下能量带", swatch: "#17171a" }
+      { id: "lower-strap-white", name: "白色下能量带", en: "White lower energy strap", swatch: "#f7f7f8" },
+      { id: "lower-strap-black", name: "黑色下能量带", en: "Black lower energy strap", swatch: "#17171a" }
     ],
     L: [
-      { id: "pad-new-white", name: "新防磨片 · 白色", swatch: "#f7f7f8" },
-      { id: "pad-new-black", name: "新防磨片 · 黑色", swatch: "#17171a" },
-      { id: "pad-old-white", name: "旧防磨片 · 白色", swatch: "#f7f7f8" },
-      { id: "pad-old-black", name: "旧防磨片 · 黑色", swatch: "#17171a" }
+      { id: "pad-new-white", name: "新防磨片 · 白色", en: "New abrasion pad · White", swatch: "#f7f7f8" },
+      { id: "pad-new-black", name: "新防磨片 · 黑色", en: "New abrasion pad · Black", swatch: "#17171a" },
+      { id: "pad-old-white", name: "旧防磨片 · 白色", en: "Old abrasion pad · White", swatch: "#f7f7f8" },
+      { id: "pad-old-black", name: "旧防磨片 · 黑色", en: "Old abrasion pad · Black", swatch: "#17171a" }
     ]
   };
 
@@ -128,7 +141,19 @@
     { key: "G", name: "上鞋身片", en: "Main upper", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 45, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
     { key: "H", name: "鞋头下片", en: "Toe lower panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 50, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
     { key: "I", name: "鞋眼片", en: "Eyelet panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 65, defaultStyle: { color: defaultWhite, material: defaultChinoiserieMaterial } },
-    { key: "J", name: "鞋带", en: "Lace", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 80, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
+    {
+      key: "J",
+      name: "鞋带",
+      en: "Lace",
+      group: "strap",
+      selectable: true,
+      renderMode: "mask_tint",
+      renderOrder: 80,
+      defaultStyle: { color: "#ffffff", material: "fixed-image" },
+      materialIds: ["fixed-image"],
+      materialRule: "仅支持黑色、白色、红色、土黄色、紫色固定色值",
+      fixedStyleSet: fixedStyleSets.lace
+    },
     { key: "K", name: "前魔术贴绑带", en: "Front velcro strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 90, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
     {
       key: "L",
@@ -148,7 +173,7 @@
   ];
 
   const angles = [
-    { key: "side", name: "侧面", en: "Side", active: true, baseFile: "side/base.png", stitchFile: "side/stitch.png", layerPartKeys: ["A", "B", "C", "C1", "C2", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"] },
+    { key: "side", name: "侧面", en: "Side", active: true, baseFile: "side/base.png", stitchFile: "side/stitch.png", layerPartKeys: ["A", "B", "C", "C1", "C3", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"] },
     { key: "forty_five", name: "45度", en: "45°", active: true, baseFile: "forty_five/base.png", stitchFile: "forty_five/stitch.png", layerPartKeys: ["A", "C", "C1", "C2", "C3", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"] },
     { key: "front", name: "正面", en: "Front", active: true, baseFile: "front/base.png", stitchFile: "front/stitch.png", layerPartKeys: ["C", "C1", "C2", "C3", "F1", "G", "H", "I", "J", "K", "L", "M", "N"] }
   ];
@@ -161,7 +186,7 @@
     description: "高帮轮滑鞋上鞋定制，面向进阶训练与比赛配置。",
     notes: "鞋款裁片、视角、布料和贴图由统一 schema 驱动。",
     homeLabel: "专业支撑款",
-    homeFeatures: ["YJS-PRO", "高帮支撑", "CIM 表格导出"],
+    homeFeatures: ["YJS-PRO", "CIM 表格导出"],
     defaultAngleKey: "side",
     defaultPartKey: "G",
     assets: {
@@ -170,13 +195,13 @@
       materialDir: "materials/",
       realProductDir: "real-products/",
       realProducts: [
-        { file: "white-pink-1.jpg", alt: "YJS-pro CIM 白粉真实鞋款" },
-        { file: "brown-1.jpg", alt: "YJS-pro CIM 咖色真实鞋款" },
-        { file: "white-red-1.jpg", alt: "YJS-pro CIM 白红真实鞋款" },
-        { file: "pink-purple-1.jpg", alt: "YJS-pro CIM 粉紫真实鞋款" },
-        { file: "black-gold-1.jpg", alt: "YJS-pro CIM 黑金真实鞋款" },
-        { file: "silver-white-1.jpg", alt: "YJS-pro CIM 银白真实鞋款" },
-        { file: "black-purple-2.jpg", alt: "YJS-pro CIM 黑紫真实鞋款" }
+        { file: "white-pink-1.jpg", alt: "YJS-pro CIM 白粉鞋款" },
+        { file: "brown-1.jpg", alt: "YJS-pro CIM 咖色鞋款" },
+        { file: "white-red-1.jpg", alt: "YJS-pro CIM 白红鞋款" },
+        { file: "pink-purple-1.jpg", alt: "YJS-pro CIM 粉紫鞋款" },
+        { file: "black-gold-1.jpg", alt: "YJS-pro CIM 黑金鞋款" },
+        { file: "silver-white-1.jpg", alt: "YJS-pro CIM 银白鞋款" },
+        { file: "black-purple-2.jpg", alt: "YJS-pro CIM 黑紫鞋款" }
       ]
     },
     palettes,

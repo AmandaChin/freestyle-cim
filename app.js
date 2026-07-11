@@ -17,11 +17,15 @@ const SELECTION_RING_GRADIENT_STOPS = [
 ];
 const SHOE_ART_ASPECT_RATIO = 2401 / 1601;
 const SHOE_SNAPSHOT_MAX_WIDTH = 1200;
+const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_CONFIRMATION_REQUEST_BYTES = 12 * 1024 * 1024;
 const APP_VERSION = window.SKATE_CIM_VERSION || "0.0.0";
 const LANGUAGE_STORAGE_KEY = "SKATE_CIM_LANGUAGE";
 const SUPPORTED_LANGUAGES = ["zh", "en"];
 const I18N = window.SKATE_CIM_I18N || {};
-const PRODUCT_COPY = window.SKATE_CIM_PRODUCT_COPY || { fixedItems: [], embroiderySlots: [], productDefaults: {} };
+const PRODUCT_COPY = window.SKATE_CIM_PRODUCT_COPY || { embroiderySlots: [], productDefaults: {} };
+const CONFIRMATION_DOCUMENT_TYPE = "skate-cim-confirmation-sheet";
+const CONFIRMATION_DOCUMENT_VERSION = 1;
 
 function i18nValue(value, language = "zh", fallback = "") {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -64,8 +68,7 @@ function officialCategoryByTextureId(id, schema = activeShoeSchema()) {
 }
 
 function activeShoeSchema() {
-  const publishedShoe = (CIM_SHARED_CONFIG.shoes || []).find((item) => item.shoeId === SHOE_SCHEMA.shoeId || item.id === SHOE_SCHEMA.shoeId);
-  return SCHEMA_UTILS.mergePublishedShoe(SHOE_SCHEMA, publishedShoe);
+  return SHOE_SCHEMA;
 }
 
 function realProductAsset(fileName) {
@@ -101,30 +104,12 @@ function buildComponentsFromSchema(schema) {
 }
 
 const SHARED_PRODUCT_DETAILS = {
-  fixedItems: PRODUCT_COPY.fixedItems,
   padStyles: [],
   embroiderySlots: PRODUCT_COPY.embroiderySlots
 };
 
-const CIM_SHARED_CONFIG = (() => {
-  try {
-    const localConfig = JSON.parse(localStorage.getItem("SKATE_CIM_PUBLISHED_CONFIG") || "null");
-    if (localConfig?.schemaVersion && Array.isArray(localConfig.shoes)) return localConfig;
-  } catch {
-    localStorage.removeItem("SKATE_CIM_PUBLISHED_CONFIG");
-  }
-  return window.SKATE_CIM_CONFIG || {};
-})();
-
-function publishedShoeForSchema(schema = SHOE_SCHEMA) {
-  return (CIM_SHARED_CONFIG.shoes || []).find((item) => item.shoeId === schema.shoeId || item.id === schema.shoeId || item.id === `shoe-${schema.shoeId}`);
-}
-
 function productFromSchema(schema) {
-  const publishedShoe = publishedShoeForSchema(schema);
-  const productSchema = SCHEMA_UTILS.mergePublishedShoe(schema, publishedShoe);
-  // 确认单备注只使用 B 端显式发布内容，避免 schema 技术说明透出给客户。
-  const publishedNote = Object.prototype.hasOwnProperty.call(publishedShoe || {}, "notes") ? publishedShoe.notes : "";
+  const productSchema = schema;
   return {
     id: productSchema.shoeId,
     shoeId: productSchema.shoeId,
@@ -135,7 +120,7 @@ function productFromSchema(schema) {
     homeTag: "Pro Custom",
     homeLabel: productSchema.homeLabel || PRODUCT_COPY.productDefaults.homeLabel,
     description: productSchema.description || PRODUCT_COPY.productDefaults.description,
-    note: publishedNote || "",
+    note: "",
     homeFeatures: productSchema.homeFeatures || PRODUCT_COPY.productDefaults.homeFeatures,
     realProductImages: productSchema.assets?.realProducts || [],
     accentA: "#f0b7c8",
@@ -152,11 +137,7 @@ function productFromSchema(schema) {
   };
 }
 
-const PRODUCT_CATALOG = [productFromSchema(SHOE_SCHEMA)].filter((item) => {
-  const publishedShoes = (CIM_SHARED_CONFIG.shoes || []).filter((shoe) => shoe.status === "published");
-  if (!publishedShoes.length) return true;
-  return publishedShoes.some((shoe) => shoe.shoeId === item.id || shoe.id === item.id || shoe.id === `shoe-${item.id}`);
-});
+const PRODUCT_CATALOG = [productFromSchema(SHOE_SCHEMA)];
 
 PRODUCT_CATALOG.forEach((item) => {
   item.components.forEach((component) => {
@@ -212,6 +193,11 @@ function localized(value, fallback = "") {
   return i18nValue(value, state.language, fallback);
 }
 
+function localizedItemName(item, fallback = "") {
+  if (!item) return fallback;
+  return localized(item.label || item.i18n || { zh: item.name || fallback, en: item.en || item.name || fallback }, item.name || fallback);
+}
+
 function productName(item = product()) {
   return localized(item.label, item.name);
 }
@@ -232,53 +218,9 @@ function slotName(slot) {
   return localized(slot.label, state.language === "en" ? slot.en || slot.cn : slot.cn || slot.en);
 }
 
-function fixedItemName(item) {
-  return localized(item.label, state.language === "en" ? item.en || item.cn : item.cn || item.en);
-}
-
-function fixedItemValue(item) {
-  return localized(item.value, item.value);
-}
-
 function translateFeature(feature) {
   if (feature && typeof feature === "object") return localized(feature);
   return localizeTerm(feature);
-}
-
-function applyPublishedConfig(config) {
-  const publishedShoes = Array.isArray(config?.shoes) ? config.shoes.filter((item) => item.status === "published") : [];
-  if (!publishedShoes.length) return;
-  PRODUCT_CATALOG = PRODUCT_CATALOG
-    .map((productItem) => {
-      const adminItem = publishedShoes.find((item) => item.shoeId === productItem.id);
-      if (!adminItem) return productItem;
-      return {
-        ...productItem,
-        name: adminItem.name || productItem.name,
-        label: adminItem.label || adminItem.i18n || productItem.label,
-        code: adminItem.code || productItem.code,
-        homeLabel: adminItem.homeLabel || productItem.homeLabel,
-        description: adminItem.description || adminItem.notes || productItem.description,
-        homeFeatures: adminItem.homeFeatures || productItem.homeFeatures,
-        defaultAngle: adminItem.defaultAngleKey || adminItem.defaultAngle || productItem.defaultAngle,
-        editablePartId: adminItem.defaultPartKey || productItem.editablePartId
-      };
-    })
-    .filter((productItem) => publishedShoes.some((item) => item.shoeId === productItem.id));
-  DEFAULT_PRODUCT_ID = PRODUCT_CATALOG.find((item) => item.id === state.productId)?.id || PRODUCT_CATALOG[0]?.id || DEFAULT_PRODUCT_ID;
-  DEFAULT_PRODUCT = PRODUCT_CATALOG.find((item) => item.id === DEFAULT_PRODUCT_ID) || PRODUCT_CATALOG[0];
-  state.productId = DEFAULT_PRODUCT_ID;
-  state.selectedPartId = activePartId(DEFAULT_PRODUCT);
-}
-
-async function loadPublishedConfig() {
-  try {
-    const response = await fetch("/api/public/config", { cache: "no-store" });
-    if (!response.ok) return;
-    applyPublishedConfig(await response.json());
-  } catch {
-    // 静态预览时没有本地 API，继续使用内置配置，保证 C 端仍可离线打开。
-  }
 }
 
 const els = {
@@ -356,13 +298,14 @@ function cloneProductConfig(item) {
     components: Object.fromEntries(
       item.components.map((component) => {
         const fixedOption = defaultFixedOption(component);
-        const fixedColor = component.fixedColorOptions?.[0];
+        // 固定色值按部件默认颜色匹配，保证选项顺序调整时仍保持默认白色。
+        const fixedColor = component.fixedColorOptions?.find((item) => item.value.toLowerCase() === component.color.toLowerCase()) || component.fixedColorOptions?.[0];
         return [
           component.id,
           {
             color: fixedColor?.value || fixedOption?.id || component.color,
             variant: fixedOption?.id || "",
-            material: fixedColor ? fixedOption?.id : (fixedOption ? FIXED_MATERIAL_ID : component.material)
+            material: component.fixedColorOptions ? FIXED_MATERIAL_ID : (fixedOption ? FIXED_MATERIAL_ID : component.material)
           }
         ];
       })
@@ -413,9 +356,9 @@ function materialById(id) {
 }
 
 function colorName(value, component = selectedComponent()) {
-  if (component?.fixedColorOptions) return localizeTerm(component.fixedColorOptions.find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value);
-  if (component?.fixedOptions) return localizeTerm(fixedOption(component, { color: value, variant: value })?.name || value);
-  return localizeTerm(colorOptions(component).find((color) => color.value.toLowerCase() === value.toLowerCase())?.name || value);
+  if (component?.fixedColorOptions) return localizedItemName(component.fixedColorOptions.find((color) => color.value.toLowerCase() === value.toLowerCase()), value);
+  if (component?.fixedOptions) return localizedItemName(fixedOption(component, { color: value, variant: value }), value);
+  return localizedItemName(colorOptions(component).find((color) => color.value.toLowerCase() === value.toLowerCase()), value);
 }
 
 function componentColorName(component, config = componentConfig(component.id)) {
@@ -474,11 +417,12 @@ function componentColorValue(component, config = componentConfig(component.id)) 
 }
 
 function materialName(id, component = selectedComponent()) {
-  if (component?.fixedColorOptions) return localizeTerm(fixedOption(component, { material: id, variant: id })?.name || id);
-  return localizeTerm(materialById(id).name);
+  if (component?.fixedColorOptions && component.fixedOptions) return localizedItemName(fixedOption(component, { material: id, variant: id }), id);
+  return localizedItemName(materialById(id), id);
 }
 
 function cssTexture(color, material) {
+  if (material === FIXED_MATERIAL_ID) return color;
   const texture = officialTextureById(material);
   if (texture?.file) {
     return `url('${materialAsset(texture.file)}') center / cover no-repeat`;
@@ -650,6 +594,11 @@ function renderableComponents(item = product()) {
     .sort((left, right) => (left.renderOrder || 0) - (right.renderOrder || 0));
 }
 
+// 正面皮垫套是实体覆盖层，不能让下方的鞋舌三角片通过 multiply 混合透出。
+function isFrontPadCoverLayer(componentId, angleId) {
+  return angleId === "front" && ["C2", "C3"].includes(componentId);
+}
+
 function fixedImageForAngle(component, config, angle) {
   const option = fixedOption(component, config);
   if (!option) return "";
@@ -678,12 +627,22 @@ function loadSnapshotImage(src) {
     const image = new Image();
     image.decoding = "async";
     image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
+    image.onerror = () => {
+      // 失败结果不能长期缓存，否则资源恢复后当前会话仍无法重试。
+      snapshotImageCache.delete(src);
+      resolve(null);
+    };
     image.src = src;
   });
 
   snapshotImageCache.set(src, promise);
   return promise;
+}
+
+async function requireSnapshotImage(src) {
+  const image = await loadSnapshotImage(src);
+  if (!image) throw new Error(`Snapshot asset failed: ${src}`);
+  return image;
 }
 
 function drawRepeatingLines(context, width, height, step, color, alpha, direction = 1) {
@@ -703,18 +662,17 @@ function drawRepeatingLines(context, width, height, step, color, alpha, directio
 async function paintSnapshotMaterial(context, width, height, color, material) {
   const texture = officialTextureById(material);
   if (texture?.file) {
-    const image = await loadSnapshotImage(materialAsset(texture.file));
-    if (image) {
-      const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
-      const drawWidth = image.naturalWidth * scale;
-      const drawHeight = image.naturalHeight * scale;
-      context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
-    }
+    const image = await requireSnapshotImage(materialAsset(texture.file));
+    const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+    const drawWidth = image.naturalWidth * scale;
+    const drawHeight = image.naturalHeight * scale;
+    context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
     return;
   }
 
   context.fillStyle = color;
   context.fillRect(0, 0, width, height);
+  if (material === FIXED_MATERIAL_ID) return;
 
   switch (material) {
     case "webbing":
@@ -752,71 +710,81 @@ async function paintSnapshotMaterial(context, width, height, color, material) {
   }
 }
 
-async function drawSnapshotMaskedMaterial(context, width, height, maskSrc, config) {
-  const mask = await loadSnapshotImage(maskSrc);
-  if (!mask) return;
+async function drawSnapshotMaskedMaterial(context, width, height, maskSrc, config, options = {}) {
+  const mask = await requireSnapshotImage(maskSrc);
   const layerCanvas = document.createElement("canvas");
   layerCanvas.width = width;
   layerCanvas.height = height;
   const layerContext = layerCanvas.getContext("2d");
-  if (!layerContext) return;
+  if (!layerContext) throw new Error("Snapshot canvas context is unavailable");
 
   await paintSnapshotMaterial(layerContext, width, height, config.color, config.material);
   layerContext.globalCompositeOperation = "destination-in";
   layerContext.drawImage(mask, 0, 0, width, height);
 
   context.save();
-  context.globalAlpha = 0.9;
-  context.globalCompositeOperation = "multiply";
+  context.globalAlpha = options.opacity ?? 0.9;
+  context.globalCompositeOperation = options.blendMode || "multiply";
   context.drawImage(layerCanvas, 0, 0);
   context.restore();
 }
 
 async function renderShoeSnapshot(item = product(), angleId = currentAngleConfig(item).id) {
   const angle = angleAssets(angleId);
-  const base = await loadSnapshotImage(angle.base);
-  if (!base) return "";
+  const base = await requireSnapshotImage(angle.base);
   const width = Math.min(SHOE_SNAPSHOT_MAX_WIDTH, base.naturalWidth || SHOE_SNAPSHOT_MAX_WIDTH);
   const height = Math.round(width / SHOE_ART_ASPECT_RATIO);
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d");
-  if (!context) return "";
+  if (!context) throw new Error("Snapshot canvas context is unavailable");
 
   context.drawImage(base, 0, 0, width, height);
   for (const component of renderableComponents(item)) {
     const config = componentConfigFor(item, component.id);
     const fixedImage = fixedImageForAngle(component, config, angle);
     if (fixedImage) {
-      const image = await loadSnapshotImage(fixedImage);
-      if (image) context.drawImage(image, 0, 0, width, height);
+      const image = await requireSnapshotImage(fixedImage);
+      context.drawImage(image, 0, 0, width, height);
       continue;
     }
     if (angle.parts && !angle.parts[component.id]) continue;
     const masks = angle.parts?.[component.id] ? [angle.parts[component.id]] : (component.masks || []);
     for (const mask of masks) {
-      await drawSnapshotMaskedMaterial(context, width, height, mask, config);
+      await drawSnapshotMaskedMaterial(
+        context,
+        width,
+        height,
+        mask,
+        config,
+        isFrontPadCoverLayer(component.id, angleId) ? { opacity: 1, blendMode: "source-over" } : undefined
+      );
     }
   }
-  const stitch = await loadSnapshotImage(angle.stitch);
-  if (stitch) {
-    context.save();
-    context.globalCompositeOperation = "multiply";
-    context.drawImage(stitch, 0, 0, width, height);
-    context.restore();
-  }
+  const stitch = await requireSnapshotImage(angle.stitch);
+  context.save();
+  context.globalCompositeOperation = "multiply";
+  context.drawImage(stitch, 0, 0, width, height);
+  context.restore();
   return canvas.toDataURL("image/png");
 }
 
 async function buildEffectSnapshotRecord(item = product()) {
   window.__shoeSnapshotBuildCount = (window.__shoeSnapshotBuildCount || 0) + 1;
   const previews = await Promise.all(
-    productAngles(item).map(async (angle) => ({
-      id: angle.id,
-      label: angleLabel(angle),
-      dataUrl: await renderShoeSnapshot(item, angle.id)
-    }))
+    productAngles(item).map(async (angle) => {
+      try {
+        return {
+          id: angle.id,
+          label: angleLabel(angle),
+          dataUrl: await renderShoeSnapshot(item, angle.id)
+        };
+      } catch (error) {
+        console.error("Effect snapshot failed", { angleId: angle.id, message: error.message });
+        return { id: angle.id, label: angleLabel(angle), dataUrl: "", error: "asset-load-failed" };
+      }
+    })
   );
   return {
     productId: item.id,
@@ -836,7 +804,12 @@ function cancelConfirmationSheetGeneration() {
 }
 
 function effectSnapshotsReady(item = product()) {
-  return effectSnapshotRecord?.productId === item.id && effectSnapshotRecord.previews?.some((preview) => preview.dataUrl);
+  const expectedAngles = productAngles(item);
+  const previews = effectSnapshotRecord?.previews;
+  return effectSnapshotRecord?.productId === item.id
+    && Array.isArray(previews)
+    && previews.length === expectedAngles.length
+    && expectedAngles.every((angle) => previews.some((preview) => preview.id === angle.id && preview.dataUrl));
 }
 
 function effectSnapshotForAngle(angleId, item = product()) {
@@ -1190,9 +1163,12 @@ function componentLayerMarkup(component, item = product(), angle = angleAssets(c
   const material = cssTexture(config.color, config.material);
   if (angle.parts && !angle.parts[component.id]) return "";
   const masks = angle.parts?.[component.id] ? [angle.parts[component.id]] : (component.masks || []);
+  const isFrontPadCover = isFrontPadCoverLayer(component.id, angle.id);
+  const layerOpacity = isFrontPadCover ? 1 : 0.9;
+  const layerBlendMode = isFrontPadCover ? "normal" : "multiply";
   return masks
     .map((mask) => {
-      const layerStyle = `--layer-index:${layerIndex};--part-material:${escapeHtml(material)};mask-image:url('${escapeHtml(mask)}');-webkit-mask-image:url('${escapeHtml(mask)}');`;
+      const layerStyle = `--layer-index:${layerIndex};--layer-opacity:${layerOpacity};--layer-blend-mode:${layerBlendMode};--part-material:${escapeHtml(material)};mask-image:url('${escapeHtml(mask)}');-webkit-mask-image:url('${escapeHtml(mask)}');`;
       return `
         ${selectionRingMarkup(component, [mask], layerIndex, isSelected)}
         <div class="mvp-upper-fill mvp-part-layer ${selected}" style="${layerStyle}" data-part="${component.id}" aria-hidden="true"></div>`;
@@ -1343,10 +1319,11 @@ function renderMaterialSubChoices(component, config, material) {
 
 function renderInlineSwatches(component, config, title) {
   const swatches = colorOptions(component)
-    .map(
-      (color) => `
-        <button class="swatch-button" type="button" title="${color.name}" aria-label="${color.name}" aria-pressed="${color.value.toLowerCase() === (component.fixedColorOptions ? config.color : (config.variant || config.color)).toLowerCase()}" data-part-id="${component.id}" data-color="${color.value}" style="--swatch:${color.swatch || color.value};"></button>`
-    )
+    .map((color) => {
+      const name = localizedItemName(color, color.name || color.value);
+      return `
+        <button class="swatch-button" type="button" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}" aria-pressed="${color.value.toLowerCase() === (component.fixedColorOptions ? config.color : (config.variant || config.color)).toLowerCase()}" data-part-id="${component.id}" data-color="${color.value}" style="--swatch:${color.swatch || color.value};"></button>`;
+    })
     .join("");
   return `
     <div class="texture-subpanel" role="group" aria-label="${title}">
@@ -1365,7 +1342,7 @@ function renderTextures() {
       <button class="texture-button" type="button" data-part-id="${component.id}" data-material="${material.id}" aria-pressed="${isSelected}">
         <span class="texture-preview" style="--texture:${texturePreview(component, config, material)};"></span>
         <span>
-          <strong>${localizeTerm(material.name)}</strong>
+          <strong>${escapeHtml(localizedItemName(material, material.name))}</strong>
         </span>
         <span class="texture-check">${isSelected ? "✓" : ""}</span>
       </button>
@@ -1379,7 +1356,7 @@ function renderOfficialTextureStyles(component, config, material) {
     <button class="texture-button texture-button--sub" type="button" data-part-id="${component.id}" data-texture-id="${texture.id}" aria-pressed="${texture.id === config.material}">
       <span class="texture-preview" style="--texture:${cssTexture(config.color, texture.id)};"></span>
       <span>
-        <strong>${localizeTerm(texture.name)}</strong>
+        <strong>${escapeHtml(localizedItemName(texture, texture.name))}</strong>
       </span>
       <span class="texture-check">${texture.id === config.material ? "✓" : ""}</span>
     </button>`).join("");
@@ -1415,7 +1392,6 @@ function buildExportData(options = {}) {
         material: materialName(config.material, component)
       };
     }),
-    fixedItems: item.fixedItems.map((entry) => ({ ...entry, code: entry.code || "", name: fixedItemName(entry), value: fixedItemValue(entry) })),
     padStyle: item.padStyles.find((style) => style.id === state.config[state.productId].padStyle)?.name || "",
     embroidery: item.embroiderySlots.map((slot) => {
       const image = state.config[state.productId].embroidery[slot.id].image;
@@ -1450,11 +1426,10 @@ function buildExportData(options = {}) {
   };
 }
 
+// 仅保留阻断订单下一步的字段；电话和脚长允许客户按实际情况选填。
 const REQUIRED_CUSTOMER_FIELDS = [
   ["name", "name"],
-  ["phone", "phone"],
   ["email", "email"],
-  ["footLength", "footLength"],
   ["size", "size"]
 ];
 
@@ -1638,6 +1613,8 @@ function renderEffectPickerModal() {
   const selectedEffect = effectAngleConfig(item);
   const selectedSnapshot = effectSnapshotForAngle(selectedEffect.id, item);
   const angles = productAngles(item);
+  const snapshotBuildFinished = Boolean(effectSnapshotRecord);
+  const snapshotsReady = effectSnapshotsReady(item);
 
   return `
     <div class="confirm-backdrop" data-close-effect></div>
@@ -1660,7 +1637,7 @@ function renderEffectPickerModal() {
             ${
               selectedSnapshot?.dataUrl
                 ? `<img class="effect-preview-snapshot" src="${escapeHtml(selectedSnapshot.dataUrl)}" alt="${escapeHtml(`${productName(item)} ${t("effectImage", { angle: angleLabel(selectedEffect) })}`)}" draggable="false" />`
-                : `<div class="effect-preview-loading">${t("generatingEffect")}</div>`
+                : `<div class="effect-preview-loading">${snapshotBuildFinished ? t("effectFailed") : t("generatingEffect")}</div>`
             }
           </div>
         </section>
@@ -1692,7 +1669,7 @@ function renderEffectPickerModal() {
       <footer class="confirm-actions">
         ${isConfirmationSheetGenerating ? `<span class="confirm-action-status">${t("generatingSheetStatus")}</span>` : ""}
         <button class="glass-button" type="button" data-back-confirm>${t("backToForm")}</button>
-        <button class="primary-button" type="button" data-download-sheet ${isConfirmationSheetGenerating ? "disabled aria-busy=\"true\"" : ""}>${isConfirmationSheetGenerating ? t("generating") : t("generateConfirmation")}</button>
+        <button class="primary-button" type="button" data-download-sheet ${isConfirmationSheetGenerating || !snapshotsReady ? `disabled${isConfirmationSheetGenerating ? " aria-busy=\"true\"" : ""}` : ""}>${isConfirmationSheetGenerating ? t("generating") : t("generateConfirmation")}</button>
       </footer>
     </section>
   `;
@@ -1767,10 +1744,10 @@ function renderConfirmModal() {
           ${canReviewEffect ? "" : `<p class="confirm-required-hint" data-customer-required-hint>${escapeHtml(t("fillFirst", { fields: missingFields.join(state.language === "en" ? ", " : "、") }))}</p>`}
           <div class="field-grid">
             <label>${t("name")}<input data-customer="name" required value="${escapeHtml(state.customer.name)}" placeholder="name" /></label>
-            <label>${t("phone")}<input data-customer="phone" required type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
+            <label><span class="field-label-text">${t("phone")}<span class="field-optional">${t("optional")}</span></span><input data-customer="phone" type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
             <label>${t("email")}<input data-customer="email" required type="email" inputmode="email" value="${escapeHtml(state.customer.email)}" placeholder="email" /></label>
             <label>${t("date")}<input data-customer="date" type="date" value="${escapeHtml(state.customer.date)}" /></label>
-            <label>${t("footLength")}<input data-customer="footLength" required value="${escapeHtml(state.customer.footLength)}" placeholder="foot length" /></label>
+            <label><span class="field-label-text">${t("footLength")}<span class="field-optional">${t("optional")}</span></span><input data-customer="footLength" value="${escapeHtml(state.customer.footLength)}" placeholder="foot length" /></label>
             <label>${t("size")}<input data-customer="size" required value="${escapeHtml(state.customer.size)}" placeholder="size" /></label>
           </div>
         </section>
@@ -1831,18 +1808,6 @@ function renderConfirmModal() {
               })
               .join("")}
           </div>
-          <div class="fixed-list">
-            ${product().fixedItems
-              .map(
-                (item) => `
-                  <div>
-                    <strong>${fixedItemName(item)}</strong>
-                    <span>${state.language === "en" ? item.cn : item.en}</span>
-                    <em>${item.value}</em>
-                  </div>`
-              )
-              .join("")}
-          </div>
         </section>
       </div>
 
@@ -1884,7 +1849,7 @@ async function handleEmbroideryImageInput(input) {
     toast(t("uploadImageFile"));
     return;
   }
-  if (file.size > 10 * 1024 * 1024) {
+  if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
     toast(t("imageTooLarge"));
     return;
   }
@@ -2042,7 +2007,6 @@ function confirmationSheetStyles() {
       gap: 10px;
     }
     .info-item,
-    .fixed-card,
     .image-card {
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -2050,7 +2014,6 @@ function confirmationSheetStyles() {
       padding: 12px;
     }
     .info-item span,
-    .fixed-card span,
     .image-card span {
       display: block;
       color: var(--muted);
@@ -2058,7 +2021,6 @@ function confirmationSheetStyles() {
       font-weight: 700;
     }
     .info-item strong,
-    .fixed-card strong,
     .image-card strong {
       display: block;
       margin-top: 4px;
@@ -2088,7 +2050,6 @@ function confirmationSheetStyles() {
     }
     tr:last-child td { border-bottom: 0; }
     th:last-child, td:last-child { border-right: 0; }
-    .fixed-grid,
     .image-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2125,7 +2086,6 @@ function confirmationSheetStyles() {
       }
       .sheet-meta { text-align: left; }
       .info-grid,
-      .fixed-grid,
       .image-grid,
       .sheet-preview-grid {
         grid-template-columns: 1fr;
@@ -2147,7 +2107,6 @@ function confirmationSheetStyles() {
       .sheet-section { break-inside: avoid; }
       .sheet-preview-card,
       .info-item,
-      .fixed-card,
       .image-card {
         background: #fff;
       }
@@ -2182,7 +2141,6 @@ function buildConfirmationSheetHtml(data) {
   const embroideryRows = data.embroidery.map((entry) => [
     entry.code,
     entry.name,
-    entry.enabled ? t("enabled") : t("disabled"),
     entry.text || "-",
     entry.image ? `${entry.image.name} (${entry.image.size})` : "-"
   ]);
@@ -2192,6 +2150,7 @@ function buildConfirmationSheetHtml(data) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="skate-cim-document" content="confirmation-sheet" />
     <base href="${escapeHtml(baseHref)}" />
     <title>${escapeHtml(data.product)} ${t("customConfirmationSheet")}</title>
     <style>${confirmationSheetStyles()}</style>
@@ -2208,7 +2167,6 @@ function buildConfirmationSheetHtml(data) {
           <p>${escapeHtml(data.product)} · ${t("threeViewFinal")}</p>
         </div>
         <div class="sheet-meta">
-          <span>${t("version")}：${escapeHtml(data.version)}</span>
           <span>${t("generatedAt")}：${escapeHtml(generatedAt)}</span>
           <span>${t("customer")}：${escapeHtml(data.customer.name || "-")}</span>
         </div>
@@ -2256,7 +2214,7 @@ function buildConfirmationSheetHtml(data) {
         </div>
         <table aria-label="${t("embroideryFixed")}">
           <thead>
-            <tr><th>${t("part")}</th><th>${t("name")}</th><th>${t("enabled")}</th><th>${t("textLogoNote")}</th><th>${t("image")}</th></tr>
+            <tr><th>${t("part")}</th><th>${t("name")}</th><th>${t("textLogoNote")}</th><th>${t("image")}</th></tr>
           </thead>
           <tbody>${tableRows(embroideryRows)}</tbody>
         </table>
@@ -2280,13 +2238,6 @@ function buildConfirmationSheetHtml(data) {
             </section>`
           : ""
       }
-
-      <section class="sheet-section">
-        <h2>${t("fixedItems")}</h2>
-        <div class="fixed-grid">
-          ${data.fixedItems.map((entry) => `<div class="fixed-card"><span>${escapeHtml(entry.code || "")}</span><strong>${escapeHtml(entry.name || fixedItemName(entry))}：${escapeHtml(entry.value || fixedItemValue(entry))}</strong></div>`).join("")}
-        </div>
-      </section>
 
       ${
         data.note
@@ -2413,6 +2364,7 @@ async function buildConfirmationSheetDocument() {
   if (!effectSnapshotsReady(product())) {
     effectSnapshotRecord = await buildEffectSnapshotRecord(product());
   }
+  if (!effectSnapshotsReady(product())) throw new Error(t("effectFailed"));
   const data = buildExportData({ includeImageData: true, includeEffectSnapshots: true });
   return {
     data,
@@ -2434,6 +2386,7 @@ async function downloadSheet() {
     if (!effectSnapshotsReady(product())) {
       effectSnapshotRecord = await buildEffectSnapshotRecord(product());
     }
+    if (!effectSnapshotsReady(product())) throw new Error(t("effectFailed"));
     const data = buildExportData({ includeImageData: false, includeEffectSnapshots: false });
     const imageDataUrl = selectedEffectSnapshotData(product());
     if (requestId !== confirmationSheetRequestId) return;
@@ -2493,15 +2446,22 @@ async function sendConfirmationEmail() {
   toast(t("sendingToast"));
   try {
     const { data, html } = await buildConfirmationSheetDocument();
+    const payloadBody = JSON.stringify({
+      documentType: CONFIRMATION_DOCUMENT_TYPE,
+      documentVersion: CONFIRMATION_DOCUMENT_VERSION,
+      language: state.language,
+      product: data.product,
+      customer: data.customer,
+      embroidery: data.embroidery,
+      html
+    });
+    if (new TextEncoder().encode(payloadBody).byteLength > MAX_CONFIRMATION_REQUEST_BYTES) {
+      throw new Error(t("confirmationTooLarge"));
+    }
     const response = await fetch("/api/public/confirmation-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        product: data.product,
-        customer: data.customer,
-        embroidery: data.embroidery,
-        html
-      })
+      body: payloadBody
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.ok === false) throw new Error(result.message || t("sendFailed"));
@@ -2519,7 +2479,7 @@ async function sendConfirmationEmail() {
       target: "confirmation-email"
     });
     confirmationEmailState = "idle";
-    confirmationEmailMessage = t("sendFailed");
+    confirmationEmailMessage = error.message === t("confirmationTooLarge") ? error.message : t("sendFailed");
     refreshQuickConfirmationCard();
     toast(confirmationEmailMessage);
   }
@@ -2845,8 +2805,7 @@ function bindEvents() {
   });
 }
 
-async function init() {
-  await loadPublishedConfig();
+function init() {
   PRODUCT_CATALOG.forEach((item) => {
     state.config[item.id] = cloneProductConfig(item);
   });

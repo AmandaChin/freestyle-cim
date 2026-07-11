@@ -30,21 +30,21 @@ async function main() {
   const publishedConfig = await readFile(path.join(ROOT_DIR, "b-side/data/cim-config.js"), "utf8");
   const prototypePath = path.join(ROOT_DIR, "prototypes/home-immersive-prototype.html");
   const activeCarouselImage = html.match(/<img class="carousel-slide active" src="([^"]+)"/)?.[1] || "";
-  const pageAssetVersion = "20260707-ui-polish-v7";
+  const pageAssetVersions = {
+    "shared/yjs-pro-cim-schema.js": "20260711-patch-assets-v1",
+    "shared/schema-utils.js": "20260707-ui-polish-v7",
+    "version.js": "20260707-ui-polish-v7",
+    "i18n/c-side-copy.js": "20260707-ui-polish-v7",
+    "app.js": "20260707-ui-polish-v7"
+  };
 
   assert(!existsSync(prototypePath), "prototype redesign file should be rolled back; root index is the UI target");
   assert(html.includes('class="home-view"'), "root index should keep the production home view");
   assert(html.includes('id="customizerPanel"'), "root index should keep the production material panel logic");
-  [
-    "shared/yjs-pro-cim-schema.js",
-    "shared/schema-utils.js",
-    "b-side/data/cim-config.js",
-    "version.js",
-    "i18n/c-side-copy.js",
-    "app.js"
-  ].forEach((assetPath) => {
-    assert(html.includes(`${assetPath}?v=${pageAssetVersion}`) || html.includes(`./${assetPath}?v=${pageAssetVersion}`), `${assetPath} should use the latest cache-busting query`);
+  Object.entries(pageAssetVersions).forEach(([assetPath, assetVersion]) => {
+    assert(html.includes(`${assetPath}?v=${assetVersion}`) || html.includes(`./${assetPath}?v=${assetVersion}`), `${assetPath} should use the latest cache-busting query`);
   });
+  assert(!html.includes("b-side/data/cim-config.js"), "C-side entry must not load the unfinished B-side config");
   assert(!html.includes("20260627-official-materials-v2"), "entry html should not keep stale June cache-busting references");
   assert(activeCarouselImage.includes("white-pink-1.jpg"), "home hero should feature the white-pink real product first");
   assert(!css.includes("--blue: #0071e3"), "redesigned root UI should not keep the old Apple-blue selected state token");
@@ -71,7 +71,7 @@ async function main() {
       mobileHomeHeroCss.includes("filter: none"),
     "mobile home image should use top-centered cover framing with side cropping instead of overlay blending"
   );
-  assert(html.includes("styles.css?v=20260707-pc-home-v1") || html.includes("./styles.css?v=20260707-pc-home-v1"), "home CSS cache key should change after the desktop hero overlay update");
+  assert(html.includes("styles.css?v=20260708-beian-v1") || html.includes("./styles.css?v=20260708-beian-v1"), "home CSS cache key should include the latest production update");
   assert(
     hasRule(css, ".home-view", ["min-height: calc(100dvh", "grid-template-rows"]),
     "home view should become a first-screen immersive layout"

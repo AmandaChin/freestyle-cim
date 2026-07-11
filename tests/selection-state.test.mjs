@@ -9,7 +9,7 @@ import vm from "node:vm";
 const ROOT_DIR = path.resolve(import.meta.dirname, "..");
 const CHROME_BIN = process.env.CHROME_BIN || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const VISUAL_SELECTION_PARTS = {
-  side: ["A", "B", "C", "C1", "C2", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
+  side: ["A", "B", "C", "C1", "C3", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
   forty_five: ["A", "C", "C1", "C2", "C3", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
   front: ["C", "C1", "C2", "C3", "F1", "G", "H", "I", "J", "K", "L", "M", "N"]
 };
@@ -37,7 +37,7 @@ const EXPECTED_PART_NAMES = {
 };
 const CANONICAL_PART_KEYS = new Set(Object.keys(EXPECTED_PART_NAMES));
 const EXPECTED_ASSET_FILES = {
-  side: ["A", "B", "C", "C1", "C2", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
+  side: ["A", "B", "C", "C1", "C3", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
   forty_five: ["A", "C", "C1", "C2", "C3", "D", "D1", "E", "F", "F1", "G", "H", "I", "J", "K", "L", "M", "N"],
   front: ["C", "C1", "C2", "C3", "F1", "G", "H", "I", "J", "K", "L", "M", "N"]
 };
@@ -136,6 +136,12 @@ async function assertCanonicalShoePartSchema() {
       failures.push(`${angle}: asset keys mismatch, missing ${missing.join(", ") || "none"}, unexpected ${unexpected.join(", ") || "none"}, non-canonical ${nonCanonical.join(", ") || "none"}`);
     }
   }
+
+  const configSandbox = await loadGlobalScript("shared/yjs-pro-cim-schema.js");
+  await loadGlobalScript("b-side/data/cim-config.js", configSandbox);
+  const publishedShoe = configSandbox.window.SKATE_CIM_CONFIG?.shoes?.find((shoe) => shoe.shoeId === "yjs-pro-cim-upper");
+  const sideAngle = publishedShoe?.angles?.find((angle) => angle.key === "side");
+  assert(sideAngle?.layerAssets?.C3 && !sideAngle.layerAssets.C2, "published side angle should map the visible pad sleeve to C3, not C2");
 
   if (failures.length) throw new Error(`Shoe part schema is not canonical:\n${failures.join("\n")}`);
 }
@@ -340,7 +346,8 @@ async function main() {
   const chrome = await startChrome();
   let page;
   try {
-    page = await openPage(chrome.debugPort, `${server.origin}/`);
+    const origin = process.env.SKATE_CIM_TEST_ORIGIN || server.origin;
+    page = await openPage(chrome.debugPort, `${origin}/`);
     await page.evaluate("document.querySelector('[data-home-product]').click()");
     await page.waitFor("document.body.dataset.view === 'builder' && Boolean(document.querySelector('.mvp-shoe-frame'))");
 
@@ -369,6 +376,29 @@ async function main() {
       const extraEnabledParts = partState.enabledParts.filter((part) => !expectedParts.includes(part));
       if (missingExpectedParts.length || extraEnabledParts.length) {
         failures.push(`${angle}: enabled parts mismatch, missing ${missingExpectedParts.join(", ") || "none"}, extra ${extraEnabledParts.join(", ") || "none"}`);
+      }
+      if (angle === "front") {
+        const frontPadLayerOrder = await page.evaluate(`(() => {
+          const getLayer = (part) => document.querySelector('#shoeArt [data-part="' + part + '"].mvp-part-layer, #shoeArt [data-part="' + part + '"].mvp-fixed-image');
+          const getStyle = (part) => getComputedStyle(getLayer(part));
+          return {
+            C1: Number.parseInt(getStyle("C1").zIndex, 10),
+            C2: Number.parseInt(getStyle("C2").zIndex, 10),
+            C2Opacity: getStyle("C2").opacity,
+            C2BlendMode: getStyle("C2").mixBlendMode,
+            C3Opacity: getStyle("C3").opacity,
+            C3BlendMode: getStyle("C3").mixBlendMode
+          };
+        })()`);
+        if (
+          !(frontPadLayerOrder.C1 < frontPadLayerOrder.C2) ||
+          frontPadLayerOrder.C2Opacity !== "1" ||
+          frontPadLayerOrder.C2BlendMode !== "normal" ||
+          frontPadLayerOrder.C3Opacity !== "1" ||
+          frontPadLayerOrder.C3BlendMode !== "normal"
+        ) {
+          failures.push(`front: pad sleeves should fully cover the lower C1 triangle, got ${JSON.stringify(frontPadLayerOrder)}`);
+        }
       }
       const expectedPartNames = EXPECTED_PART_NAMES;
       for (const part of partState.enabledParts) {
@@ -758,6 +788,11 @@ async function main() {
       failures.push(`toggle close should clear selected visuals, got ${JSON.stringify(toggleCloseState)}`);
     }
 
+    // 验收截图固定停在正面，避免循环结束角度变化导致截图无法对应层级问题。
+    await page.evaluate(`document.querySelector('[data-angle="front"]').click()`);
+    await page.waitFor(`document.querySelector('[data-angle="front"]').getAttribute('aria-selected') === 'true'`);
+    await page.setViewport({ width: 1440, height: 1000 });
+    await page.waitFor("document.querySelector('#shoeArt .mvp-shoe-frame') && window.innerWidth === 1440");
     const screenshot = await page.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, page.sessionId);
     const screenshotPath = path.join(tmpdir(), "skate-cim-selection-state.png");
     await import("node:fs/promises").then(({ writeFile }) => writeFile(screenshotPath, Buffer.from(screenshot.data, "base64")));

@@ -93,7 +93,7 @@ window.SKATE_CIM_CONFIG = {
             B: { maskFile: "side/B/mask.png" },
             C: { maskFile: "side/C/mask.png" },
             C1: { maskFile: "side/C1/mask.png" },
-            C2: { maskFile: "side/C2/mask.png" },
+            C3: { maskFile: "side/C3/mask.png" },
             D: { maskFile: "side/D/fixed.png" },
             D1: { maskFile: "side/D1/fixed.png" },
             E: { maskFile: "side/E/fixed.png" },

@@ -175,6 +175,21 @@ try {
     await new Promise((resolve) => requestAnimationFrame(resolve));
     const changedMaterialSnapshot = await renderShoeSnapshot(product(), "front");
     const after = buildExportData().components.find((component) => component.code === "G");
+    const missingSnapshotSrc = "/missing-snapshot-test.png";
+    snapshotImageCache.delete(missingSnapshotSrc);
+    const missingSnapshotImage = await loadSnapshotImage(missingSnapshotSrc);
+    const failedImageCached = snapshotImageCache.has(missingSnapshotSrc);
+    const previousEffectSnapshotRecord = effectSnapshotRecord;
+    effectSnapshotRecord = {
+      productId: product().id,
+      previews: [
+        { id: "side", dataUrl: "data:image/png;base64,AA" },
+        { id: "forty_five", dataUrl: "" },
+        { id: "front", dataUrl: "data:image/png;base64,AA" }
+      ]
+    };
+    const partialSnapshotsReady = effectSnapshotsReady(product());
+    effectSnapshotRecord = previousEffectSnapshotRecord;
     return {
       before,
       after,
@@ -182,7 +197,10 @@ try {
       hasColorOnlySnapshot: colorOnlySnapshot.startsWith("data:image/png"),
       hasChangedMaterialSnapshot: changedMaterialSnapshot.startsWith("data:image/png"),
       colorOnlySnapshotsMatch: defaultSnapshot === colorOnlySnapshot,
-      materialSnapshotsMatch: defaultSnapshot === changedMaterialSnapshot
+      materialSnapshotsMatch: defaultSnapshot === changedMaterialSnapshot,
+      missingSnapshotImageLoaded: Boolean(missingSnapshotImage),
+      failedImageCached,
+      partialSnapshotsReady
     };
   })()`);
 
@@ -195,6 +213,9 @@ try {
   assert(snapshotResult.after?.colorValue === "-", `G should still hide base color values after a color-only change, got ${JSON.stringify(snapshotResult.after)}`);
   assert(snapshotResult.colorOnlySnapshotsMatch, "official texture snapshots should ignore part base color changes");
   assert(!snapshotResult.materialSnapshotsMatch, "official texture snapshots should change when the selected material id changes");
+  assert(!snapshotResult.missingSnapshotImageLoaded, "missing snapshot assets should fail to load");
+  assert(!snapshotResult.failedImageCached, "failed snapshot assets must be evicted so a later retry can recover");
+  assert(!snapshotResult.partialSnapshotsReady, "all configured angles must exist before snapshots are considered ready");
 
   console.log("effect-snapshot-color: ok");
 } finally {

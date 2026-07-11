@@ -312,6 +312,10 @@ async function main() {
         assert(await page.evaluate("Boolean(document.querySelector('#confirmModal [data-review-effect]'))"), `${viewport.name}: form modal should expose the next-step effect button`);
         assert(await page.evaluate("Boolean(document.querySelector('#confirmModal [data-review-effect][disabled]'))"), `${viewport.name}: next-step button should be disabled before required personal info is complete`);
         assert(await page.evaluate("document.querySelector('#confirmModal')?.textContent.includes('请先填写')"), `${viewport.name}: form modal should explain required personal info before next step`);
+        assert(await page.evaluate("!document.querySelector('#confirmModal .fixed-list')"), `${viewport.name}: confirmation form should not show unreliable fixed accessory data`);
+        assert(await page.evaluate("document.querySelector('[data-customer=\"phone\"]')?.required === false"), `${viewport.name}: phone should be optional`);
+        assert(await page.evaluate("document.querySelector('[data-customer=\"footLength\"]')?.required === false"), `${viewport.name}: foot length should be optional`);
+        assert(await page.evaluate("document.querySelectorAll('#confirmModal .field-optional').length === 2"), `${viewport.name}: optional fields should show their optional labels`);
         await page.click("[data-review-effect]");
         assert(await page.evaluate("!document.querySelector('#effectPickerModal.is-visible')"), `${viewport.name}: disabled next-step button should not open effect confirmation`);
         assert(await page.evaluate(`(() => {
@@ -325,12 +329,8 @@ async function main() {
         await page.evaluate(`(() => {
           document.querySelector('[data-customer="name"]').value = '测试用户';
           document.querySelector('[data-customer="name"]').dispatchEvent(new Event('input', { bubbles: true }));
-          document.querySelector('[data-customer="phone"]').value = '13800138000';
-          document.querySelector('[data-customer="phone"]').dispatchEvent(new Event('input', { bubbles: true }));
           document.querySelector('[data-customer="email"]').value = "15732152800@163.com'";
           document.querySelector('[data-customer="email"]').dispatchEvent(new Event('input', { bubbles: true }));
-          document.querySelector('[data-customer="footLength"]').value = '245mm';
-          document.querySelector('[data-customer="footLength"]').dispatchEvent(new Event('input', { bubbles: true }));
           document.querySelector('[data-customer="size"]').value = '39';
           document.querySelector('[data-customer="size"]').dispatchEvent(new Event('input', { bubbles: true }));
         })()`);
@@ -340,12 +340,8 @@ async function main() {
         await page.evaluate(`(() => {
           document.querySelector('[data-customer="name"]').value = '测试用户';
           document.querySelector('[data-customer="name"]').dispatchEvent(new Event('input', { bubbles: true }));
-          document.querySelector('[data-customer="phone"]').value = '13800138000';
-          document.querySelector('[data-customer="phone"]').dispatchEvent(new Event('input', { bubbles: true }));
           document.querySelector('[data-customer="email"]').value = 'customer@example.com';
           document.querySelector('[data-customer="email"]').dispatchEvent(new Event('input', { bubbles: true }));
-          document.querySelector('[data-customer="footLength"]').value = '245mm';
-          document.querySelector('[data-customer="footLength"]').dispatchEvent(new Event('input', { bubbles: true }));
           document.querySelector('[data-customer="size"]').value = '39';
           document.querySelector('[data-customer="size"]').dispatchEvent(new Event('input', { bubbles: true }));
           const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='), (char) => char.charCodeAt(0));
@@ -359,10 +355,11 @@ async function main() {
         await page.waitFor("Boolean(document.querySelector('.embroidery-upload.has-image img')) && document.querySelector('[data-embroidery-toggle]').checked");
 
         const formData = await page.evaluate("window.buildExportData()");
+        assert(!Object.hasOwn(formData, "fixedItems"), `${viewport.name}: exported confirmation data should not include fixed accessories`);
         assert(formData.customer.name === "测试用户", `${viewport.name}: customer form input should update export data`);
-        assert(formData.customer.phone === "13800138000", `${viewport.name}: customer phone input should update export data`);
+        assert(formData.customer.phone === "", `${viewport.name}: optional customer phone may stay empty`);
         assert(formData.customer.email === "customer@example.com", `${viewport.name}: customer email input should update export data`);
-        assert(formData.customer.footLength === "245mm", `${viewport.name}: customer foot length input should update export data`);
+        assert(formData.customer.footLength === "", `${viewport.name}: optional foot length may stay empty`);
         assert(formData.customer.size === "39", `${viewport.name}: customer size input should update export data`);
         assert(formData.embroidery.some((item) => item.image?.name === "logo.png"), `${viewport.name}: uploaded special customization image should be exported as file metadata`);
         assert(await page.evaluate("!document.querySelector('#confirmModal [data-review-effect][disabled]')"), `${viewport.name}: next-step button should be enabled after required personal info is complete`);
@@ -387,19 +384,22 @@ async function main() {
         assert(confirmationHtml.includes("最终效果图"), `${viewport.name}: confirmation sheet should include the selected UI preview`);
         assert(confirmationHtml.includes("data:image/png") && !confirmationHtml.includes("mvp-shoe-frame"), `${viewport.name}: confirmation sheet should embed static PNG previews instead of live shoe markup`);
         assert(confirmationHtml.includes("测试用户"), `${viewport.name}: confirmation sheet should include customer data`);
-        assert(confirmationHtml.includes("13800138000"), `${viewport.name}: confirmation sheet should include customer phone`);
+        assert(!confirmationHtml.includes("13800138000"), `${viewport.name}: confirmation sheet should tolerate an empty customer phone`);
         assert(confirmationHtml.includes("customer@example.com"), `${viewport.name}: confirmation sheet should include customer email`);
         assert(confirmationHtml.includes("配色选型"), `${viewport.name}: confirmation sheet should keep the original confirmation table data`);
         assert(confirmationHtml.includes("logo.png") && confirmationHtml.includes("data:image/png;base64,"), `${viewport.name}: confirmation sheet should include uploaded reference images`);
+        assert(!confirmationHtml.includes("固定配件") && !confirmationHtml.includes("Fixed Items"), `${viewport.name}: confirmation sheet should remove the fixed accessories section`);
+        assert(!confirmationHtml.includes("<th>是</th>") && !confirmationHtml.includes("<th>Yes</th>"), `${viewport.name}: special customization table should hide the enabled column`);
+        assert(!confirmationHtml.includes("版本：") && !confirmationHtml.includes("Version:"), `${viewport.name}: confirmation sheet header should hide the version number`);
 
         await page.click("[data-back-confirm]");
         await page.waitFor("document.querySelector('#confirmModal.is-visible #confirmTitle')?.textContent === '填写定制信息'");
         assert(await page.evaluate("document.body.dataset.view === 'builder'"), `${viewport.name}: returning to form should stay in builder instead of home`);
         assert(await page.evaluate("!document.querySelector('#effectPickerModal.is-visible')"), `${viewport.name}: returning to form should close effect confirmation`);
         assert(await page.evaluate("document.querySelector('[data-customer=\"name\"]')?.value === '测试用户'"), `${viewport.name}: returning to form should preserve customer input`);
-        assert(await page.evaluate("document.querySelector('[data-customer=\"phone\"]')?.value === '13800138000'"), `${viewport.name}: returning to form should preserve customer phone input`);
+        assert(await page.evaluate("document.querySelector('[data-customer=\"phone\"]')?.value === ''"), `${viewport.name}: returning to form should preserve an empty optional phone`);
         assert(await page.evaluate("document.querySelector('[data-customer=\"email\"]')?.value === 'customer@example.com'"), `${viewport.name}: returning to form should preserve customer email input`);
-        assert(await page.evaluate("document.querySelector('[data-customer=\"footLength\"]')?.value === '245mm'"), `${viewport.name}: returning to form should preserve customer foot length input`);
+        assert(await page.evaluate("document.querySelector('[data-customer=\"footLength\"]')?.value === ''"), `${viewport.name}: returning to form should preserve an empty optional foot length`);
         assert(await page.evaluate("document.querySelector('[data-customer=\"size\"]')?.value === '39'"), `${viewport.name}: returning to form should preserve customer size input`);
 
         await page.tap("[data-review-effect]");

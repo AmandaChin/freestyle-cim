@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node server/local-server.mjs",
     "dev:lan": "HOST=0.0.0.0 node server/local-server.mjs",
-    "test": "node --test tests/local-backend.test.mjs tests/pages-confirmation-email.test.mjs tests/official-material-library.test.mjs"
+    "test:unit": "node --test tests/c-side-production-guard.test.mjs tests/customer-optional-fields.test.mjs tests/home-redesign-contract.test.mjs tests/local-backend.test.mjs tests/official-material-library.test.mjs tests/pages-confirmation-email.test.mjs tests/straw-fixed-fabric.test.mjs tests/ue-fabric-sets.test.mjs",
+    "test:e2e": "node --test --test-concurrency=1 tests/confirm-flow.test.mjs tests/effect-snapshot-color.test.mjs tests/mobile-customizer-layout.test.mjs tests/selection-state.test.mjs tests/ue-fabric-ui.test.mjs",
+    "test": "npm run test:unit && npm run test:e2e"
   }
 }

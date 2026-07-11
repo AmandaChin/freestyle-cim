@@ -12,6 +12,8 @@ const SHARED_CONFIG_PATH = path.join(PROJECT_ROOT, "b-side", "data", "cim-config
 const DEFAULT_ADMIN_EMAIL = "admin@skate-cim.local";
 const DEFAULT_ADMIN_PASSWORD = "admin123";
 const RESEND_EMAIL_ENDPOINT = "https://api.resend.com/emails";
+const CONFIRMATION_DOCUMENT_TYPE = "skate-cim-confirmation-sheet";
+const CONFIRMATION_DOCUMENT_MARKER = '<meta name="skate-cim-document" content="confirmation-sheet"';
 
 function nowString() {
   const date = new Date();
@@ -39,6 +41,14 @@ function dataUrlAttachmentContent(dataUrl = "") {
 
 function isValidEmail(value) {
   return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(value || "").trim());
+}
+
+function isConfirmationSheetPayload(payload, html) {
+  // 新版确认单使用与语言无关的文档契约；保留中文标题识别以兼容旧客户端。
+  const structuredDocument = payload?.documentType === CONFIRMATION_DOCUMENT_TYPE
+    && Number(payload.documentVersion) >= 1
+    && html.includes(CONFIRMATION_DOCUMENT_MARKER);
+  return structuredDocument || html.includes("定制确认单");
 }
 
 function embroideryImageAttachments(embroidery = []) {
@@ -305,9 +315,10 @@ export async function createLocalBackend(options = {}) {
       const customerName = String(payload.customer?.name || "customer").trim() || "customer";
       const productName = String(payload.product || "Skate CIM").trim() || "Skate CIM";
       const html = String(payload.html || "");
-      if (!html.includes("定制确认单")) {
+      if (!isConfirmationSheetPayload(payload, html)) {
         return { ok: false, status: 400, message: "确认单内容不完整" };
       }
+      const confirmationLabel = payload.language === "en" ? "Confirmation Sheet" : "定制确认单";
       const id = `confirmation-${Date.now()}-${randomBytes(4).toString("hex")}`;
       const attachment = {
         filename: `${safeFileName(productName)}-${safeFileName(customerName)}-confirmation.html`,
@@ -319,7 +330,7 @@ export async function createLocalBackend(options = {}) {
         id,
         transport: "local-outbox",
         to: recipients,
-        subject: `${productName} 定制确认单 - ${customerName}`,
+        subject: `${productName} ${confirmationLabel} - ${customerName}`,
         createdAt: nowString(),
         customer: payload.customer || {},
         attachments: [attachment, ...imageAttachments]

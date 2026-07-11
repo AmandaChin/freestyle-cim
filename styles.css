@@ -933,8 +933,8 @@ h1 {
 .mvp-upper-fill {
   z-index: var(--layer-index, 2);
   background: var(--part-material);
-  opacity: 0.9;
-  mix-blend-mode: multiply;
+  opacity: var(--layer-opacity, 0.9);
+  mix-blend-mode: var(--layer-blend-mode, multiply);
   mask-size: 100% 100%;
   mask-repeat: no-repeat;
   -webkit-mask-size: 100% 100%;
@@ -1247,6 +1247,18 @@ pre {
   font-weight: 700;
 }
 
+.field-label-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.field-optional {
+  color: rgba(86, 86, 92, 0.72);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .field-grid input,
 .embroidery-row input[type="text"],
 .embroidery-row input:not([type]) {
@@ -1376,8 +1388,7 @@ pre {
   font-size: 12px;
 }
 
-.embroidery-list,
-.fixed-list {
+.embroidery-list {
   display: grid;
   gap: 8px;
 }
@@ -1476,37 +1487,6 @@ pre {
 
 .embroidery-remove {
   min-height: 36px;
-}
-
-.fixed-list div {
-  display: grid;
-  grid-template-columns: minmax(72px, 0.8fr) minmax(0, 1fr);
-  gap: 2px 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.56);
-}
-
-.fixed-list strong {
-  font-size: 13px;
-}
-
-.fixed-list span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.fixed-list em {
-  grid-column: 1 / -1;
-  color: var(--blue);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 700;
 }
 
 .summary-block {

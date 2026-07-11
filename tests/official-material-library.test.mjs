@@ -51,7 +51,7 @@ const EXPECTED_DEFAULT_COLORS = {
   G: DEFAULT_BASE_COLOR,
   H: DEFAULT_BASE_COLOR,
   I: DEFAULT_BASE_COLOR,
-  J: DEFAULT_BASE_COLOR,
+  J: "#ffffff",
   K: DEFAULT_BASE_COLOR
 };
 const EXPECTED_DEFAULT_MATERIALS = {
@@ -66,7 +66,7 @@ const EXPECTED_DEFAULT_MATERIALS = {
   G: "19",
   H: "19",
   I: "34",
-  J: "19",
+  J: "fixed-image",
   K: "19"
 };
 const EXPECTED_FIXED_DEFAULTS = {
@@ -77,6 +77,13 @@ const EXPECTED_FIXED_DEFAULTS = {
   M: "upper-strap-white",
   N: "lower-strap-white"
 };
+const EXPECTED_LACE_COLORS = [
+  { name: "黑色", value: "#000000" },
+  { name: "白色", value: "#ffffff" },
+  { name: "红色", value: "#e41c16" },
+  { name: "土黄色", value: "#e2bc00" },
+  { name: "紫色", value: "#380059" }
+];
 const OLD_TEST_TOKENS = [
   "smooth",
   "matte",
@@ -99,9 +106,13 @@ function assert(condition, message) {
 function loadSchema() {
   const sandbox = { window: {} };
   const source = vm.runInNewContext;
-  return readFile(path.join(ROOT_DIR, "shared", "yjs-pro-cim-schema.js"), "utf8").then((schemaSource) => {
+  return Promise.all([
+    readFile(path.join(ROOT_DIR, "shared", "yjs-pro-cim-schema.js"), "utf8"),
+    readFile(path.join(ROOT_DIR, "shared", "schema-utils.js"), "utf8")
+  ]).then(([schemaSource, schemaUtilsSource]) => {
     source(schemaSource, sandbox, { filename: "shared/yjs-pro-cim-schema.js" });
-    return { schema: sandbox.window.SKATE_CIM_SCHEMA, schemaSource };
+    source(schemaUtilsSource, sandbox, { filename: "shared/schema-utils.js" });
+    return { schema: sandbox.window.SKATE_CIM_SCHEMA, schemaSource, schemaUtils: sandbox.window.SKATE_CIM_SCHEMA_UTILS };
   });
 }
 
@@ -109,7 +120,7 @@ function sorted(values) {
   return [...values].sort((a, b) => Number(a) - Number(b));
 }
 
-const { schema, schemaSource } = await loadSchema();
+const { schema, schemaSource, schemaUtils } = await loadSchema();
 const configSource = await readFile(path.join(ROOT_DIR, "b-side", "data", "cim-config.js"), "utf8");
 const appSource = await readFile(path.join(ROOT_DIR, "app.js"), "utf8");
 
@@ -129,6 +140,11 @@ assert(leatherWhite?.value === DEFAULT_BASE_COLOR, "leather white palette should
 assert(chinoiserieDefault?.file === "中国风/34.jpg", "former pink visual panels should default to China-style 34 texture");
 
 const partsByKey = Object.fromEntries(schema.parts.map((part) => [part.key, part]));
+const lace = partsByKey.J;
+assert(JSON.stringify(lace?.fixedStyleSet?.colorOptions?.map(({ name, value }) => ({ name, value }))) === JSON.stringify(EXPECTED_LACE_COLORS), "J should expose only the five approved fixed lace colors in order");
+assert(lace?.defaultStyle?.color === "#ffffff", "J should keep white as the default fixed lace color");
+assert(lace?.materialIds?.length === 1 && lace.materialIds[0] === "fixed-image", "J should use the fixed-image material entry");
+assert(JSON.stringify(schemaUtils.materialsForPart(schema, "J").map((material) => material.id)) === JSON.stringify(["fixed-image"]), "J should expose only the fixed-image material entry");
 for (const [partKey, expectedColor] of Object.entries(EXPECTED_DEFAULT_COLORS)) {
   assert(partsByKey[partKey]?.defaultStyle?.color === expectedColor, `${partKey} should default to the white-pink color palette`);
   assert(partsByKey[partKey]?.defaultStyle?.material === EXPECTED_DEFAULT_MATERIALS[partKey], `${partKey} should default to the white-pink material mapping`);
@@ -167,7 +183,7 @@ for (const [categoryName, ids] of Object.entries(EXPECTED_CATEGORIES)) {
   }
 }
 
-for (const part of ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "J", "K"]) {
+for (const part of ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "K"]) {
   assert(JSON.stringify(sorted(schema.materialAvailability[part])) === JSON.stringify(ALL_TEXTURE_IDS), `${part} should allow all official textures`);
 }
 
