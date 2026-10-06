@@ -1,0 +1,147 @@
+    <main class="special-app" id="specialApp">
+      <header class="special-header">
+        <div class="special-brand" aria-label="Freestyle CIM">
+          <img src="./assets/logo.png" alt="" />
+          <span><strong>Freestyle CIM</strong><small>Custom Skate Studio</small></span>
+        </div>
+        <div class="header-copy">
+          <p class="eyebrow">STEP 2 / 2 · EMBROIDERY DESIGN</p>
+          <h1>电绣片定制</h1>
+          <p>选择电绣位置，在对应贴片范围内排版文字或图片。</p>
+        </div>
+        <div class="header-actions">
+          <button class="glass-button" type="button" data-back-builder>上一步</button>
+          <button class="primary-button" type="button" data-save-plan>保存方案</button>
+        </div>
+      </header>
+
+      <section class="slot-bar" aria-label="选择电绣位置">
+        <div>
+          <p class="eyebrow">EMBROIDERY SLOT</p>
+          <strong id="slotTitle">鞋舌电绣片</strong>
+        </div>
+        <div class="slot-tabs" id="slotTabs" role="tablist"></div>
+      </section>
+
+      <section class="editor-layout">
+        <section class="stage-panel" aria-label="裁片编辑区">
+          <div class="stage-toolbar">
+            <div>
+              <span class="toolbar-label">裁片平面</span>
+              <span class="toolbar-note">所选皮料预览 · 坐标仅作示意</span>
+              <span class="sync-status" id="syncStatus" role="status" aria-live="polite">正在连接本地保存服务…</span>
+            </div>
+            <div class="toolbar-actions">
+              <button class="icon-button" id="undoButton" type="button" title="撤销">↶</button>
+              <button class="icon-button" id="redoButton" type="button" title="重做">↷</button>
+              <button class="glass-button" id="jsonButton" type="button" hidden>设计数据</button>
+            </div>
+          </div>
+
+          <div class="artboard-wrap">
+            <div class="artboard-shadow">
+              <svg id="artboard" class="artboard" viewBox="0 0 600 760" role="img" aria-label="电绣裁片编辑画布">
+                <defs>
+                  <pattern id="materialPattern" width="180" height="180" patternUnits="userSpaceOnUse">
+                    <image id="materialPatternImage" href="" x="0" y="0" width="180" height="180" preserveAspectRatio="xMidYMid slice" />
+                  </pattern>
+                  <pattern id="gridPattern" width="24" height="24" patternUnits="userSpaceOnUse">
+                    <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#d8d3cb" stroke-width="1" opacity="0.55" />
+                  </pattern>
+                  <pattern id="checkerPattern" width="18" height="18" patternUnits="userSpaceOnUse">
+                    <rect width="18" height="18" fill="#f7f7f7" />
+                    <rect width="9" height="9" fill="#e8e8e8" />
+                    <rect x="9" y="9" width="9" height="9" fill="#e8e8e8" />
+                  </pattern>
+                  <mask id="pieceMask" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="760">
+                    <rect width="600" height="760" fill="#000" />
+                    <image id="pieceMaskImage" href="" preserveAspectRatio="none" />
+                  </mask>
+                </defs>
+                <image id="pieceTemplateImage" class="piece-template" href="" preserveAspectRatio="none" />
+                <rect id="pieceBaseColorLayer" class="piece-base-color-layer" x="0" y="0" width="600" height="760" fill="#f7f7f8" mask="url(#pieceMask)" />
+                <rect id="pieceMaterialLayer" class="piece-material-layer" x="0" y="0" width="600" height="760" fill="url(#materialPattern)" mask="url(#pieceMask)" />
+                <rect class="grid-layer" x="0" y="0" width="600" height="760" mask="url(#pieceMask)" />
+                <g id="objectLayer" mask="url(#pieceMask)"></g>
+                <g id="selectionLayer"></g>
+              </svg>
+            </div>
+            <div class="stage-legend">
+              <span><i class="legend-dot legend-piece"></i>正面贴片范围</span>
+              <span><i class="legend-dot legend-safe"></i>内容将裁切在贴片内</span>
+              <span id="stageHint">点击对象后可调整属性</span>
+            </div>
+          </div>
+
+          <div class="quick-tools" aria-label="添加对象">
+            <button class="tool-button" id="addTextButton" type="button"><span>Ｔ</span><strong>文字</strong></button>
+            <label class="tool-button" for="imageInput"><span>＋</span><strong>图片</strong><input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden /></label>
+          </div>
+        </section>
+
+        <aside class="inspector-panel" aria-label="对象属性">
+          <div class="inspector-heading">
+            <div>
+              <p class="eyebrow">OBJECT INSPECTOR</p>
+              <h2 id="inspectorTitle">未选择对象</h2>
+            </div>
+            <span class="object-count" id="objectCount">0 / 6</span>
+          </div>
+
+          <div class="empty-inspector" id="emptyInspector">
+            <div class="empty-icon">✦</div>
+            <strong>先添加一个对象</strong>
+            <p>文字或图片会出现在裁片平面内，选中后可拖动或调整下方属性。</p>
+          </div>
+
+          <div class="inspector-content" id="inspectorContent" hidden>
+            <label class="field full-field" id="textField">
+              <span>文字内容</span>
+              <input id="textInput" type="text" maxlength="30" placeholder="输入文字" />
+              <small id="textCounter">0 / 30</small>
+            </label>
+
+            <div class="field-grid">
+              <label class="field" id="fontField"><span>字体</span><select id="fontSelect"><option value="system-sans">黑体 · 系统</option><option value="system-serif">宋体 · 系统</option><option value="system-kai">楷体 · 系统</option></select></label>
+              <label class="field" id="sizeField"><span>字号</span><input id="sizeInput" type="number" min="4" max="48" step="1" /></label>
+            </div>
+
+
+            <div class="field-row" id="styleField">
+              <span class="field-label">样式</span>
+              <div class="segmented-control">
+                <button type="button" data-style="normal">常规</button>
+                <button type="button" data-style="bold">粗体</button>
+                <button type="button" data-style="italic">斜体</button>
+              </div>
+            </div>
+
+            <div class="field-row" id="colorField">
+              <span class="field-label">刺绣线色</span>
+              <div class="color-options" id="colorOptions"></div>
+            </div>
+
+
+            <div class="constraint-note" id="constraintNote">安全区与最小尺寸提示会在接入真实裁片模板后校验。</div>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="special-footer">
+        <div><strong>电绣片定制</strong><span>内容会跟随当前贴片形状保存</span></div>
+        <div class="footer-actions">
+          <button class="glass-button" type="button" data-back-builder>上一步</button>
+          <button class="text-button" id="clearButton" type="button">清空当前裁片</button>
+          <button class="primary-button" type="button" data-save-plan>保存方案</button>
+        </div>
+      </footer>
+    </main>
+
+    <div class="modal-backdrop" id="jsonModal" hidden>
+      <section class="json-dialog" role="dialog" aria-modal="true" aria-labelledby="jsonTitle">
+        <div class="modal-header"><div><p class="eyebrow">DESIGN DOCUMENT</p><h2 id="jsonTitle">当前设计 JSON</h2></div><button class="icon-button" id="closeJsonButton" type="button">×</button></div>
+        <p class="modal-note">只保存结构化设计数据；原始图片不写入 localStorage，后续由 assetId 关联云端素材。</p>
+        <pre id="jsonOutput"></pre>
+        <div class="modal-actions"><button class="glass-button" id="copyJsonButton" type="button">复制 JSON</button><button class="primary-button" id="closeJsonAction" type="button">完成</button></div>
+      </section>
+    </div>

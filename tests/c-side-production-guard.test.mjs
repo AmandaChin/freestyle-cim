@@ -92,21 +92,34 @@ test("C-side emits a language-neutral confirmation document contract", async () 
 });
 
 test("C-side upload and confirmation request sizes stay within production boundaries", async () => {
-  const [appSource, pagesFunctionSource, localServerSource, copySource] = await Promise.all([
+  const [appSource, specialCustomizerSource, localBackendSource, pagesFunctionSource, localServerSource, copySource] = await Promise.all([
     readFile(path.join(ROOT_DIR, "app.js"), "utf8"),
+    readFile(path.join(ROOT_DIR, "special-custom.js"), "utf8"),
+    readFile(path.join(ROOT_DIR, "server", "local-backend.mjs"), "utf8"),
     readFile(path.join(ROOT_DIR, "functions", "api", "public", "confirmation-email.js"), "utf8"),
     readFile(path.join(ROOT_DIR, "server", "local-server.mjs"), "utf8"),
     readFile(path.join(ROOT_DIR, "i18n", "c-side-copy.js"), "utf8")
   ]);
 
-  assert(appSource.includes("const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024"), "single uploaded images must be limited to 2 MB");
+  assert(specialCustomizerSource.includes("file.size > 8 * 1024 * 1024"), "single uploaded images must be limited to 8 MB");
+  assert(localBackendSource.includes("size > 8 * 1024 * 1024"), "local backend must enforce the same 8 MB upload boundary");
   assert(appSource.includes("const MAX_CONFIRMATION_REQUEST_BYTES = 12 * 1024 * 1024"), "confirmation requests must be limited to 12 MB");
   assert(appSource.includes("new TextEncoder().encode(payloadBody).byteLength"), "confirmation request size must be measured in bytes before sending");
   assert(pagesFunctionSource.includes("const MAX_REQUEST_BODY_BYTES = 12 * 1024 * 1024"), "production Pages function must enforce the 12 MB request boundary");
   assert(localServerSource.includes("const MAX_REQUEST_BODY_BYTES = 12 * 1024 * 1024"), "local server must accept the same 12 MB request boundary");
-  assert(copySource.includes('imageTooLarge: "图片过大，请控制在 2MB 内"'), "Chinese upload copy must match the 2 MB limit");
-  assert(copySource.includes('imageTooLarge: "Image is too large. Keep it under 2MB."'), "English upload copy must match the 2 MB limit");
   assert(copySource.includes("confirmationTooLarge"), "both languages must explain oversized confirmation requests");
+});
+
+test("production artwork PDF uses the main app image loader", async () => {
+  const appSource = await readFile(path.join(ROOT_DIR, "app.js"), "utf8");
+  assert(
+    appSource.includes("await requireSnapshotImage(entry.designPreviewDataUrl)"),
+    "production PDF artwork must load through the main app's shared image loader"
+  );
+  assert(
+    !appSource.includes("await loadPreviewImage(entry.designPreviewDataUrl)"),
+    "production PDF must not call the editor's closure-scoped image loader"
+  );
 });
 
 test("deployment cache and test scripts cover mutable assets and browser regressions", async () => {

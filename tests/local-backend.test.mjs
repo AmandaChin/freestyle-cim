@@ -6,6 +6,49 @@ import test from "node:test";
 
 import { createLocalBackend } from "../server/local-backend.mjs";
 
+test("local backend stores design documents and image assets with cloud-shaped identifiers", async () => {
+  const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-design-backend-"));
+  const backend = await createLocalBackend({ dataDir: workspace, logger: { info() {}, error() {} } });
+  try {
+    const uploadTicket = await backend.createAssetUploadTicket({
+      fileName: "logo.png",
+      mimeType: "image/png",
+      sizeBytes: 8
+    });
+    assert.equal(uploadTicket.ok, true);
+    assert.equal(uploadTicket.asset.status, "pending");
+    assert.match(uploadTicket.asset.objectKey, /^design-assets\/asset_[a-f0-9]+$/);
+
+    const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const uploaded = await backend.storeAssetContent(uploadTicket.asset.assetId, pngHeader);
+    assert.equal(uploaded.ok, true);
+    assert.equal(uploaded.asset.status, "ready");
+    assert.deepEqual(await readFile((await backend.getAsset(uploadTicket.asset.assetId)).path), pngHeader);
+    assert.equal((await backend.completeAssetUpload(uploadTicket.asset.assetId)).ok, true);
+
+    const document = {
+      schemaVersion: 1,
+      id: "design_local_test",
+      productId: "yjs-pro-cim",
+      slotId: "tongue",
+      templateVersion: 1,
+      revision: 2,
+      productionFrame: { widthMm: null, heightMm: null, isPlaceholder: true },
+      objects: [{ id: "obj_logo", type: "image", sourceAssetId: uploadTicket.asset.assetId }]
+    };
+    assert.equal((await backend.saveDesignDocument(document)).ok, true);
+    assert.deepEqual(await backend.listDesignDocuments("yjs-pro-cim"), [document]);
+    assert.equal((await backend.saveDesignDocument({ ...document, revision: 1 })).status, 409);
+    assert.equal((await backend.saveDesignDocument({ ...document, id: "design_inline_image", objects: [{ id: "obj", type: "image", dataUrl: "data:image/png;base64,AA==" }] })).status, 413);
+    assert.equal((await backend.createAssetUploadTicket({ fileName: "bad.gif", mimeType: "image/gif", sizeBytes: 4 })).status, 415);
+    const mismatchedTicket = await backend.createAssetUploadTicket({ fileName: "spoof.png", mimeType: "image/png", sizeBytes: 4 });
+    assert.equal((await backend.storeAssetContent(mismatchedTicket.asset.assetId, Buffer.from([1, 2, 3, 4]))).status, 415);
+  } finally {
+    backend.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 test("local backend signs in allowlisted admins and rejects unknown users", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "skate-cim-backend-"));
   try {

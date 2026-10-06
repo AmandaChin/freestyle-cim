@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
@@ -27,6 +27,18 @@ function deepClone(value) {
 
 function safeFileName(value) {
   return String(value || "customer").replace(/[\\/:*?"<>|]/g, "-");
+}
+
+function imageBytesMatchType(bytes, mimeType) {
+  if (!Buffer.isBuffer(bytes)) return false;
+  if (mimeType === "image/png") return bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (mimeType === "image/jpeg") return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mimeType === "image/webp") return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  return false;
+}
+
+function htmlToBase64(value) {
+  return Buffer.from(String(value), "utf8").toString("base64");
 }
 
 function dataUrlAttachmentContent(dataUrl = "") {
@@ -160,6 +172,27 @@ function ensureSchema(db) {
       detail TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS design_documents (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      slot_id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      document_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS design_assets (
+      id TEXT PRIMARY KEY,
+      object_key TEXT NOT NULL UNIQUE,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -191,6 +224,7 @@ export async function createLocalBackend(options = {}) {
   const emailTransport = options.emailTransport || process.env.EMAIL_TRANSPORT || "outbox";
   const resendApiKey = options.resendApiKey || process.env.RESEND_API_KEY || "";
   const resendFrom = options.resendFrom || process.env.RESEND_FROM || "";
+  const uploadsDir = path.join(dataDir, "uploads");
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const logger = options.logger || console;
   logger.info?.("[confirmation-email] config", {
@@ -202,13 +236,19 @@ export async function createLocalBackend(options = {}) {
   });
   await mkdir(dataDir, { recursive: true });
   await mkdir(path.join(dataDir, "releases"), { recursive: true });
-  await mkdir(path.join(dataDir, "uploads"), { recursive: true });
+  await mkdir(uploadsDir, { recursive: true });
   await mkdir(outboxDir, { recursive: true });
 
   const db = new DatabaseSync(path.join(dataDir, "skate-cim.db"));
   ensureSchema(db);
   seedAdmin(db);
   await seedDraftConfig(db);
+  if (options.resetDesignCacheOnStart === true) {
+    // 本地画板和上传素材只是联调缓存；保留后台账号、配置和发布记录。
+    db.exec("DELETE FROM design_documents; DELETE FROM design_assets; DELETE FROM sessions;");
+    const cachedUploads = await readdir(uploadsDir).catch(() => []);
+    await Promise.all(cachedUploads.map((name) => rm(path.join(uploadsDir, name), { recursive: true, force: true })));
+  }
 
   function adminForSession(sessionId) {
     if (!sessionId) return null;
@@ -313,6 +353,98 @@ export async function createLocalBackend(options = {}) {
 
     async getPublicConfig() {
       return deepClone(readConfig("public"));
+    },
+
+    async listDesignDocuments(productId) {
+      const rows = db.prepare(`
+        SELECT document_json FROM design_documents
+        WHERE product_id = ? ORDER BY slot_id
+      `).all(String(productId || ""));
+      return rows.map((row) => JSON.parse(row.document_json));
+    },
+
+    async saveDesignDocument(document) {
+      if (!document || document.schemaVersion !== 1 || !document.id || !document.productId || !document.slotId || !Array.isArray(document.objects)) {
+        return { ok: false, status: 400, message: "设计文档结构无效" };
+      }
+      if (document.objects.length > 6) return { ok: false, status: 400, message: "单个裁片最多保存 6 个对象" };
+      const serializedDocument = JSON.stringify(document);
+      if (Buffer.byteLength(serializedDocument) > 1024 * 1024 || /data:image\/[^;,]+;base64,/i.test(serializedDocument)) {
+        return { ok: false, status: 413, message: "设计文档过大或包含内嵌图片数据" };
+      }
+      for (const object of document.objects) {
+        if (object.sourceAssetId) {
+          const asset = db.prepare("SELECT status FROM design_assets WHERE id = ?").get(String(object.sourceAssetId));
+          if (!asset || asset.status !== "ready") return { ok: false, status: 400, message: "设计引用了未完成的图片素材" };
+        }
+      }
+      const existing = db.prepare("SELECT revision FROM design_documents WHERE id = ?").get(document.id);
+      const revision = Math.max(0, Number(document.revision) || 0);
+      // 本地联调也按 revision 拒绝旧写入，避免页面并发保存时回滚较新的设计。
+      if (existing && revision < existing.revision) {
+        return { ok: false, status: 409, message: "设计版本已更新，请重新载入后再保存" };
+      }
+      const now = nowString();
+      db.prepare(`
+        INSERT INTO design_documents (id, product_id, slot_id, revision, document_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          product_id = excluded.product_id,
+          slot_id = excluded.slot_id,
+          revision = excluded.revision,
+          document_json = excluded.document_json,
+          updated_at = excluded.updated_at
+      `).run(document.id, document.productId, document.slotId, revision, serializedDocument, now, now);
+      writeAudit(db, "local-customer", "save_design", `${document.productId}/${document.slotId} revision ${revision}`);
+      return { ok: true, id: document.id, revision, updatedAt: now };
+    },
+
+    async createAssetUploadTicket({ fileName, mimeType, sizeBytes } = {}) {
+      const name = safeFileName(fileName || "upload").slice(0, 180);
+      const type = String(mimeType || "").toLowerCase();
+      const size = Number(sizeBytes);
+      if (!/^image\/(png|jpeg|webp)$/.test(type)) return { ok: false, status: 415, message: "仅支持 PNG、JPEG 或 WebP 图片" };
+      if (!Number.isInteger(size) || size <= 0 || size > 8 * 1024 * 1024) return { ok: false, status: 413, message: "图片需小于 8MB" };
+      const id = `asset_${randomBytes(16).toString("hex")}`;
+      const objectKey = `design-assets/${id}`;
+      const now = nowString();
+      db.prepare(`
+        INSERT INTO design_assets (id, object_key, file_name, mime_type, size_bytes, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+      `).run(id, objectKey, name, type, size, now, now);
+      return {
+        ok: true,
+        asset: { assetId: id, objectKey, fileName: name, mimeType: type, sizeBytes: size, status: "pending" },
+        uploadUrl: `/api/public/assets/${id}/content`,
+        uploadMethod: "PUT",
+        uploadHeaders: { "Content-Type": type },
+        expiresAt: Date.now() + 10 * 60 * 1000
+      };
+    },
+
+    async storeAssetContent(assetId, bytes) {
+      const asset = db.prepare("SELECT * FROM design_assets WHERE id = ?").get(String(assetId || ""));
+      if (!asset) return { ok: false, status: 404, message: "素材上传票据不存在" };
+      if (asset.status !== "pending") return { ok: false, status: 409, message: "素材已完成上传" };
+      if (!Buffer.isBuffer(bytes) || bytes.length !== asset.size_bytes) return { ok: false, status: 400, message: "上传内容大小与票据不符" };
+      if (!imageBytesMatchType(bytes, asset.mime_type)) return { ok: false, status: 415, message: "图片内容与声明格式不一致" };
+      const filePath = path.join(uploadsDir, asset.id);
+      // 本地把票据映射到隔离目录；云端实现将用相同逻辑字段换成 OSS 临时直传地址。
+      await writeFile(filePath, bytes, { flag: "wx" });
+      db.prepare("UPDATE design_assets SET status = 'ready', updated_at = ? WHERE id = ?").run(nowString(), asset.id);
+      return { ok: true, asset: { assetId: asset.id, objectKey: asset.object_key, fileName: asset.file_name, mimeType: asset.mime_type, sizeBytes: asset.size_bytes, status: "ready" } };
+    },
+
+    async completeAssetUpload(assetId) {
+      const asset = db.prepare("SELECT * FROM design_assets WHERE id = ? AND status = 'ready'").get(String(assetId || ""));
+      if (!asset) return { ok: false, status: 409, message: "素材尚未完成上传" };
+      return { ok: true, asset: { assetId: asset.id, objectKey: asset.object_key, fileName: asset.file_name, mimeType: asset.mime_type, sizeBytes: asset.size_bytes, status: asset.status } };
+    },
+
+    async getAsset(assetId) {
+      const asset = db.prepare("SELECT * FROM design_assets WHERE id = ? AND status = 'ready'").get(String(assetId || ""));
+      if (!asset) return null;
+      return { path: path.join(uploadsDir, asset.id), mimeType: asset.mime_type, fileName: asset.file_name, sizeBytes: asset.size_bytes };
     },
 
     async queueConfirmationEmail(payload = {}) {

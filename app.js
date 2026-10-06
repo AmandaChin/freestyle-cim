@@ -17,7 +17,6 @@ const SELECTION_RING_GRADIENT_STOPS = [
 ];
 const SHOE_ART_ASPECT_RATIO = 2401 / 1601;
 const SHOE_SNAPSHOT_MAX_WIDTH = 1200;
-const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_CONFIRMATION_REQUEST_BYTES = 12 * 1024 * 1024;
 const APP_VERSION = window.SKATE_CIM_VERSION || "0.0.0";
 const LANGUAGE_STORAGE_KEY = "SKATE_CIM_LANGUAGE";
@@ -26,6 +25,22 @@ const I18N = window.SKATE_CIM_I18N || {};
 const PRODUCT_COPY = window.SKATE_CIM_PRODUCT_COPY || { embroiderySlots: [], productDefaults: {} };
 const CONFIRMATION_DOCUMENT_TYPE = "skate-cim-confirmation-sheet";
 const CONFIRMATION_DOCUMENT_VERSION = 1;
+const CONFIRMATION_ARTWORK_SLOTS = new Set(["B1", "tongue", "pad-upper", "toe-left"]);
+const CUSTOMIZATION_HANDOFF_KEY = "SKATE_CIM_CUSTOMIZATION_HANDOFF_V1";
+const LOCAL_RUNTIME_CACHE_KEY = "SKATE_CIM_LOCAL_RUNTIME_ID";
+const localRuntimeId = window.__SKATE_CIM_LOCAL_RUNTIME_ID__;
+if (localRuntimeId) {
+  try {
+    if (localStorage.getItem(LOCAL_RUNTIME_CACHE_KEY) !== localRuntimeId) {
+      localStorage.removeItem("SKATE_CIM_SPECIAL_CUSTOM_DEMO_V1");
+      localStorage.removeItem(CUSTOMIZATION_HANDOFF_KEY);
+      sessionStorage.removeItem(CUSTOMIZATION_HANDOFF_KEY);
+      localStorage.setItem(LOCAL_RUNTIME_CACHE_KEY, localRuntimeId);
+    }
+  } catch {
+    // 浏览器禁用存储时仍可使用当前会话内的定制状态。
+  }
+}
 
 // 按 YJSPRO 尺码图逐项录入；UK/US 的重复值保留原图，不使用通用换算公式。
 const SHOE_SIZE_OPTIONS = [
@@ -204,6 +219,9 @@ const state = {
     country: "中国",
     size: ""
   },
+  specialDesigns: {},
+  specialDesignPreviews: {},
+  specialDesignLastSlot: "tongue",
   config: {}
 };
 
@@ -247,8 +265,11 @@ function translateFeature(feature) {
 }
 
 const els = {
+  topbar: document.querySelector(".topbar"),
+  siteRecord: document.querySelector(".site-record"),
   homeView: document.querySelector("#homeView"),
   workspace: document.querySelector("#workspace"),
+  specialCustomizerView: document.querySelector("#specialCustomizerView"),
   pageEyebrow: document.querySelector("#pageEyebrow"),
   pageTitle: document.querySelector("#pageTitle"),
   homeProductTag: document.querySelector("#homeProductTag"),
@@ -750,6 +771,94 @@ async function drawSnapshotMaskedMaterial(context, width, height, maskSrc, confi
   context.restore();
 }
 
+async function drawSnapshotEmbroideryOverlay(context, width, height, componentId, angleId) {
+  const preview = embroideryPreviewForComponent(componentId, angleId);
+  const mapping = preview?.mapping;
+  if (!preview?.dataUrl || !mapping) return;
+  const maskSrc = angleAssets(angleId).parts?.[componentId];
+  if (!maskSrc) return;
+  const image = await requireSnapshotImage(preview.dataUrl);
+  const mask = await requireSnapshotImage(maskSrc);
+  const maskBounds = await snapshotImageAlphaBounds(maskSrc, mask);
+  if (!maskBounds) return;
+  const sourceScaleX = width / mapping.sourceWidth;
+  const sourceScaleY = height / mapping.sourceHeight;
+  const frame = mapping.cropFrame || { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight };
+  const frameScaleX = image.naturalWidth / 600;
+  const frameScaleY = image.naturalHeight / 760;
+  const overlay = document.createElement("canvas");
+  overlay.width = width;
+  overlay.height = height;
+  const overlayContext = overlay.getContext("2d");
+  if (!overlayContext) return;
+  overlayContext.drawImage(
+    image,
+    frame.x * frameScaleX,
+    frame.y * frameScaleY,
+    frame.width * frameScaleX,
+    frame.height * frameScaleY,
+    maskBounds.x * sourceScaleX,
+    maskBounds.y * sourceScaleY,
+    maskBounds.width * sourceScaleX,
+    maskBounds.height * sourceScaleY
+  );
+  overlayContext.globalCompositeOperation = "destination-in";
+  overlayContext.drawImage(mask, 0, 0, width, height);
+  context.save();
+  context.globalCompositeOperation = "source-over";
+  context.drawImage(overlay, 0, 0);
+  context.restore();
+}
+
+const snapshotAlphaBoundsCache = new Map();
+const snapshotAlphaBoundsPending = new Map();
+async function snapshotImageAlphaBounds(src, image) {
+  if (snapshotAlphaBoundsCache.has(src)) return snapshotAlphaBoundsCache.get(src);
+  const probe = document.createElement("canvas");
+  const probeWidth = 480;
+  const probeHeight = Math.max(1, Math.round(probeWidth * image.naturalHeight / image.naturalWidth));
+  probe.width = probeWidth;
+  probe.height = probeHeight;
+  const probeContext = probe.getContext("2d", { willReadFrequently: true });
+  if (!probeContext) return null;
+  probeContext.drawImage(image, 0, 0, probeWidth, probeHeight);
+  const pixels = probeContext.getImageData(0, 0, probeWidth, probeHeight).data;
+  let minX = probeWidth;
+  let minY = probeHeight;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < probeHeight; y += 1) {
+    for (let x = 0; x < probeWidth; x += 1) {
+      if (pixels[(y * probeWidth + x) * 4 + 3] < 16) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+  const bounds = {
+    x: minX / probeWidth * image.naturalWidth,
+    y: minY / probeHeight * image.naturalHeight,
+    width: (maxX - minX + 1) / probeWidth * image.naturalWidth,
+    height: (maxY - minY + 1) / probeHeight * image.naturalHeight
+  };
+  snapshotAlphaBoundsCache.set(src, bounds);
+  return bounds;
+}
+
+function preloadSnapshotAlphaBounds(src) {
+  if (!src || snapshotAlphaBoundsCache.has(src) || snapshotAlphaBoundsPending.has(src)) return;
+  const pending = requireSnapshotImage(src)
+    .then((image) => snapshotImageAlphaBounds(src, image))
+    .then(() => window.requestAnimationFrame(() => {
+      if (state.view === "builder") render();
+    }))
+    .catch((error) => console.warn("Embroidery alignment mask failed", { src, message: error.message }))
+    .finally(() => snapshotAlphaBoundsPending.delete(src));
+  snapshotAlphaBoundsPending.set(src, pending);
+}
+
 async function renderShoeSnapshot(item = product(), angleId = currentAngleConfig(item).id) {
   const angle = angleAssets(angleId);
   const base = await requireSnapshotImage(angle.base);
@@ -768,6 +877,7 @@ async function renderShoeSnapshot(item = product(), angleId = currentAngleConfig
     if (fixedImage) {
       const image = await requireSnapshotImage(fixedImage);
       context.drawImage(image, 0, 0, width, height);
+      await drawSnapshotEmbroideryOverlay(context, width, height, component.id, angleId);
       continue;
     }
     if (angle.parts && !angle.parts[component.id]) continue;
@@ -782,6 +892,7 @@ async function renderShoeSnapshot(item = product(), angleId = currentAngleConfig
         isFrontPadCoverLayer(component.id, angleId) ? { opacity: 1, blendMode: "source-over" } : undefined
       );
     }
+    await drawSnapshotEmbroideryOverlay(context, width, height, component.id, angleId);
   }
   const stitch = await requireSnapshotImage(angle.stitch);
   context.save();
@@ -1197,6 +1308,113 @@ function componentLayerMarkup(component, item = product(), angle = angleAssets(c
     .join("");
 }
 
+const DEFAULT_EMBROIDERY_PREVIEWS = new Map();
+const DEFAULT_EMBROIDERY_PREVIEW_PENDING = new Set();
+const DEFAULT_EMBROIDERY_ARTWORK = {
+  B1: { angleId: "side", componentId: "B", sourceWidth: 2401, sourceHeight: 1600, templatePath: "side/parts/B.png", templateBounds: { x: 252, y: 232, width: 347, height: 273 }, artwork: "B1.png", artworkBounds: { x: 296, y: 284, width: 259, height: 170 } },
+  tongue: { angleId: "front", componentId: "C1", sourceWidth: 2401, sourceHeight: 1601, templatePath: "front/parts/C1.png", templateBounds: { x: 1088, y: 339, width: 226, height: 173 }, artwork: "C.png", artworkBounds: { x: 1153, y: 386, width: 94, height: 94 } },
+  "pad-upper": { angleId: "front", componentId: "C3", sourceWidth: 2401, sourceHeight: 1601, templatePath: "front/parts/C3.png", templateBounds: { x: 1194, y: 452, width: 232, height: 189 }, artwork: "C3.png", artworkBounds: { x: 1271, y: 505, width: 94, height: 94 } },
+  "toe-left": { angleId: "front", componentId: "K", sourceWidth: 2401, sourceHeight: 1601, templatePath: "front/parts/K.png", templateBounds: { x: 1039, y: 933, width: 349, height: 228 }, artwork: "K-L.png", artworkBounds: { x: 1064, y: 978, width: 298, height: 124 } },
+  "toe-right": { angleId: "front", componentId: "K", sourceWidth: 2401, sourceHeight: 1601, templatePath: "front/parts/K.png", templateBounds: { x: 1039, y: 933, width: 349, height: 228 }, artwork: "K-R.png", artworkBounds: { x: 1075, y: 962, width: 281, height: 164 }, mirror: true }
+};
+
+function startDefaultEmbroideryPreview(slotId) {
+  const metadata = DEFAULT_EMBROIDERY_ARTWORK[slotId];
+  if (!metadata || DEFAULT_EMBROIDERY_PREVIEWS.has(slotId) || DEFAULT_EMBROIDERY_PREVIEW_PENDING.has(slotId)) return;
+  // 主选料页直接生成与刺绣画板相同坐标系的默认图预览，避免必须先打开编辑器才能看到默认刺绣。
+  DEFAULT_EMBROIDERY_PREVIEW_PENDING.add(slotId);
+  const schema = activeShoeSchema();
+  const templateSrc = `${schema.assets.root}${metadata.templatePath}`;
+  const artworkSrc = `${schema.assets.root}embroidery-defaults/${metadata.artwork}`;
+  Promise.all([requireSnapshotImage(templateSrc), requireSnapshotImage(artworkSrc)]).then(([template, artwork]) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 600;
+    canvas.height = 760;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const bounds = metadata.templateBounds;
+    const scale = Math.min(500 / bounds.width, 610 / bounds.height);
+    const visibleWidth = bounds.width * scale;
+    const visibleHeight = bounds.height * scale;
+    const visibleX = (canvas.width - visibleWidth) / 2;
+    const visibleY = (canvas.height - visibleHeight) / 2;
+    const imageX = visibleX - bounds.x * scale;
+    const imageY = visibleY - bounds.y * scale;
+    const art = metadata.artworkBounds;
+    context.drawImage(artwork, visibleX + (art.x - bounds.x) * scale, visibleY + (art.y - bounds.y) * scale, art.width * scale, art.height * scale);
+    context.globalCompositeOperation = "destination-in";
+    context.save();
+    if (metadata.mirror) {
+      context.translate(canvas.width, 0);
+      context.scale(-1, 1);
+    }
+    context.drawImage(template, imageX, imageY, metadata.sourceWidth * scale, metadata.sourceHeight * scale);
+    context.restore();
+    const preview = {
+      dataUrl: canvas.toDataURL("image/png"),
+      objectCount: 1,
+      mapping: {
+        angleId: metadata.angleId,
+        componentId: metadata.componentId,
+        sourceWidth: metadata.sourceWidth,
+        sourceHeight: metadata.sourceHeight,
+        x: -imageX / scale,
+        y: -imageY / scale,
+        width: canvas.width / scale,
+        height: canvas.height / scale,
+        cropFrame: { x: visibleX, y: visibleY, width: visibleWidth, height: visibleHeight }
+      }
+    };
+    DEFAULT_EMBROIDERY_PREVIEWS.set(slotId, preview);
+    if (state.view === "builder") render();
+  }).catch(() => {}).finally(() => DEFAULT_EMBROIDERY_PREVIEW_PENDING.delete(slotId));
+}
+
+function embroideryPreviewForComponent(componentId, angleId) {
+  // 生产贴片只映射到用户指定的视角与位置，避免同一裁片在其他角度重复出现。
+  const slotIds = angleId === "side" && componentId === "B"
+    ? ["B1"]
+    : angleId === "front" && componentId === "C1"
+      ? ["tongue"]
+      : angleId === "front" && componentId === "C3"
+        ? ["pad-upper"]
+        : angleId === "front" && componentId === "K"
+          ? ["toe-left"]
+          : [];
+  for (const slotId of slotIds) {
+    const savedPreview = state.specialDesignPreviews[slotId];
+    if (savedPreview?.dataUrl && savedPreview.objectCount > 0) return savedPreview;
+    // 编辑器保存过的空设计代表用户主动清除了默认图，此时不能再补回默认预览。
+    if (Object.prototype.hasOwnProperty.call(state.specialDesigns, slotId)) continue;
+    const fallback = DEFAULT_EMBROIDERY_PREVIEWS.get(slotId);
+    if (fallback) return fallback;
+    startDefaultEmbroideryPreview(slotId);
+  }
+  return null;
+}
+
+function embroideryOverlayMarkup(component, angleId) {
+  const preview = embroideryPreviewForComponent(component.id, angleId);
+  const mapping = preview?.mapping;
+  if (!preview || !mapping) return "";
+  const angle = angleAssets(angleId);
+  const maskSrc = angle.parts?.[component.id];
+  if (!maskSrc) return "";
+  const maskBounds = snapshotAlphaBoundsCache.get(maskSrc);
+  if (!maskBounds) {
+    preloadSnapshotAlphaBounds(maskSrc);
+    return "";
+  }
+  const frame = mapping.cropFrame || { x: 0, y: 0, width: 600, height: 760 };
+  const left = maskBounds.x / mapping.sourceWidth * 100;
+  const top = maskBounds.y / mapping.sourceHeight * 100;
+  const width = maskBounds.width / mapping.sourceWidth * 100;
+  const height = maskBounds.height / mapping.sourceHeight * 100;
+  // CSS z-index 只接受整数；用目标裁片 renderOrder 后的第一层整数，避免贴图退到默认层级被后续裁片盖住。
+  const overlayLayerIndex = Math.floor(component.renderOrder || 1) + 1;
+  return `<svg class="mvp-embroidery-overlay" viewBox="${frame.x} ${frame.y} ${frame.width} ${frame.height}" preserveAspectRatio="none" aria-hidden="true" style="--layer-index:${overlayLayerIndex};left:${left}%;top:${top}%;width:${width}%;height:${height}%;"><image href="${escapeHtml(preview.dataUrl)}" x="0" y="0" width="600" height="760" preserveAspectRatio="none" /></svg>`;
+}
+
 function shoeMarkup(item = product(), alt = `${productName(product())} ${t("preview")}`, angleOverrideId = "", options = {}) {
   const selectedAngle = angleOverrideId
     ? currentAngleConfig(item, angleOverrideId)
@@ -1206,7 +1424,7 @@ function shoeMarkup(item = product(), alt = `${productName(product())} ${t("prev
   return `
     <div class="mvp-shoe-frame">
       <img class="mvp-base-image" src="${escapeHtml(assets.base)}" alt="${escapeHtml(alt)}" draggable="false" />
-      ${renderableComponents(item).map((component) => componentLayerMarkup(component, item, angle, options)).join("")}
+      ${renderableComponents(item).map((component) => `${componentLayerMarkup(component, item, angle, options)}${embroideryOverlayMarkup(component, angle.id)}`).join("")}
       <img class="mvp-stitch-image" src="${escapeHtml(assets.stitch)}" alt="" aria-hidden="true" draggable="false" />
     </div>`;
 }
@@ -1405,19 +1623,21 @@ function buildExportData(options = {}) {
     }),
     padStyle: item.padStyles.find((style) => style.id === state.config[state.productId].padStyle)?.name || "",
     embroidery: item.embroiderySlots.map((slot) => {
-      const image = state.config[state.productId].embroidery[slot.id].image;
+      const designDocument = state.specialDesigns[slot.id] || null;
+      const supportedSlot = CONFIRMATION_ARTWORK_SLOTS.has(slot.id);
+      const isColorOnly = supportedSlot && Boolean(designDocument?.objects?.length) && !designDocument.confirmationImageRequired;
+      const threadColor = designDocument?.objects?.find((object) => object.type === "image")?.threadColor || "";
       return {
+        slotId: slot.id,
         code: slot.code,
         name: slotName(slot),
-        enabled: state.config[state.productId].embroidery[slot.id].enabled,
-        text: state.config[state.productId].embroidery[slot.id].text,
-        image: image
-          ? {
-              name: image.name,
-              size: image.size,
-              type: image.type,
-              ...(includeImageData ? { dataUrl: image.dataUrl } : {})
-            }
+        enabled: supportedSlot && Boolean(designDocument?.objects?.length),
+        // 设计对象本身已合成为贴片图；仅色值变化时才写一条简短生产备注。
+        text: isColorOnly && threadColor ? `${t("artworkColorValue")}: ${threadColor}` : "",
+        image: null,
+        designDocument,
+        designPreviewDataUrl: includeImageData && supportedSlot && designDocument?.confirmationImageRequired
+          ? state.specialDesignPreviews[slot.id]?.dataUrl || null
           : null
       };
     }),
@@ -1488,18 +1708,24 @@ function render() {
   normalizeAngleForProduct();
   normalizeSelectedPartForAngle();
   const isHome = state.view === "home";
+  const isSpecial = state.view === "special";
   document.body.dataset.view = state.view;
   document.documentElement.lang = state.language === "en" ? "en" : "zh-CN";
+  els.topbar.hidden = isSpecial;
+  els.siteRecord.hidden = isSpecial;
+  const specialStyles = document.querySelector("#specialCustomizerStylesheet");
+  if (specialStyles) specialStyles.disabled = !isSpecial;
   els.homeView.classList.toggle("is-hidden", !isHome);
-  els.workspace.classList.toggle("is-hidden", isHome);
-  els.homeButton.hidden = isHome;
-  els.resetButton.hidden = isHome;
-  els.saveButton.hidden = isHome;
+  els.workspace.classList.toggle("is-hidden", isHome || isSpecial);
+  els.specialCustomizerView.hidden = !isSpecial;
+  els.homeButton.hidden = isHome || isSpecial;
+  els.resetButton.hidden = isHome || isSpecial;
+  els.saveButton.hidden = isHome || isSpecial;
   els.languageToggleButton.textContent = state.language === "zh" ? "EN" : t("languageChineseShort");
   els.languageToggleButton.setAttribute("aria-label", state.language === "zh" ? t("switchToEnglish") : t("switchToChinese"));
-  els.homeButton.textContent = t("home");
+  els.homeButton.textContent = t("previousStep");
   els.resetButton.title = t("resetTitle");
-  els.saveButton.textContent = t("savePlan");
+  els.saveButton.textContent = t("nextStep");
   els.customizerToggleButton.textContent = state.isCustomizerOpen ? t("collapsePanel") : t("expandPanel");
   els.drawerCloseButton.title = t("close");
   document.querySelector('.home-picker .section-title h3').textContent = t("chooseProduct");
@@ -1590,6 +1816,59 @@ async function openEffectPickerModal() {
 function closeEffectPickerModal() {
   document.querySelector("#effectPickerModal")?.classList.remove("is-visible");
   cancelConfirmationSheetGeneration();
+  clearEffectSnapshots();
+}
+
+function renderSpecialDesignReviewModal() {
+  const item = product();
+  const ready = effectSnapshotsReady(item);
+  const previews = productAngles(item).map((angle) => {
+    const snapshot = effectSnapshotForAngle(angle.id, item);
+    return `
+      <article class="special-review-card">
+        <h3>${escapeHtml(angleLabel(angle))}</h3>
+        <div class="special-review-image-frame">
+          ${snapshot?.dataUrl
+            ? `<img src="${escapeHtml(snapshot.dataUrl)}" alt="${escapeHtml(`${productName(item)} ${angleLabel(angle)}`)}" draggable="false" />`
+            : `<span class="effect-preview-loading">${effectSnapshotRecord ? t("effectFailed") : t("generatingEffect")}</span>`}
+        </div>
+      </article>`;
+  }).join("");
+  return `
+    <div class="confirm-backdrop" data-close-special-review></div>
+    <section class="effect-dialog special-review-dialog" role="dialog" aria-modal="true" aria-labelledby="specialReviewTitle">
+      <header class="confirm-header">
+        <div><p class="eyebrow">DESIGN REVIEW</p><h2 id="specialReviewTitle">${t("specialReviewTitle")}</h2><p class="special-review-hint">${t("specialReviewHint")}</p></div>
+        <button class="icon-button" type="button" data-close-special-review aria-label="${t("close")}">×</button>
+      </header>
+      <div class="special-review-grid">${previews}</div>
+      <footer class="confirm-actions">
+        <button class="glass-button" type="button" data-back-special-editor>${t("backToSpecialEditor")}</button>
+        <button class="primary-button" type="button" data-confirm-special-review ${ready ? "" : "disabled"}>${t("confirmSpecialReview")}</button>
+      </footer>
+    </section>`;
+}
+
+async function openSpecialDesignReviewModal() {
+  let modal = document.querySelector("#specialDesignReviewModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "specialDesignReviewModal";
+    modal.className = "confirm-modal special-review-modal";
+    document.body.appendChild(modal);
+  }
+  const requestId = effectSnapshotRequestId + 1;
+  effectSnapshotRequestId = requestId;
+  modal.innerHTML = renderSpecialDesignReviewModal();
+  modal.classList.add("is-visible");
+  const snapshots = await buildEffectSnapshotRecord(product());
+  if (requestId !== effectSnapshotRequestId || !modal.classList.contains("is-visible")) return;
+  effectSnapshotRecord = snapshots;
+  modal.innerHTML = renderSpecialDesignReviewModal();
+}
+
+function closeSpecialDesignReviewModal() {
+  document.querySelector("#specialDesignReviewModal")?.classList.remove("is-visible");
   clearEffectSnapshots();
 }
 
@@ -1788,43 +2067,7 @@ function renderConfirmModal() {
           </div>
         </section>
 
-        <section class="confirm-section confirm-special-section">
-          <div class="section-title">
-            <h3>${t("specialCustom")}</h3>
-            <span>${t("embroideryFixed")}</span>
-          </div>
-          <div class="embroidery-list">
-            ${product().embroiderySlots
-              .map((slot) => {
-                const slotConfig = state.config[state.productId].embroidery[slot.id];
-                return `
-                  <div class="embroidery-card">
-                    <label class="embroidery-row">
-                      <input type="checkbox" data-embroidery-toggle="${slot.id}" ${slotConfig.enabled ? "checked" : ""} />
-                      <span class="component-code">${slot.code}</span>
-                      <span>${slotName(slot)}</span>
-                      <input type="text" data-embroidery-text="${slot.id}" value="${escapeHtml(slotConfig.text)}" placeholder="${t("textLogoNote")}" />
-                    </label>
-                    <div class="embroidery-upload-row">
-                      <label class="embroidery-upload ${slotConfig.image ? "has-image" : ""}">
-                        <input type="file" accept="image/*" hidden data-embroidery-image="${slot.id}" />
-                        ${
-                          slotConfig.image?.dataUrl
-                            ? `<img src="${escapeHtml(slotConfig.image.dataUrl)}" alt="${escapeHtml(`${slotName(slot)} ${t("referenceImage")}`)}" />`
-                            : `<span class="embroidery-thumb-placeholder">${t("image")}</span>`
-                        }
-                        <span>
-                          <strong>${escapeHtml(slotConfig.image?.name || t("uploadImage"))}</strong>
-                          <em>${escapeHtml(slotConfig.image?.size || t("logoReference"))}</em>
-                        </span>
-                      </label>
-                      ${slotConfig.image ? `<button class="text-button embroidery-remove" type="button" data-remove-embroidery-image="${slot.id}">${t("remove")}</button>` : ""}
-                    </div>
-                  </div>`;
-              })
-              .join("")}
-          </div>
-        </section>
+
       </div>
 
       <footer class="confirm-actions">
@@ -1833,59 +2076,6 @@ function renderConfirmModal() {
       </footer>
     </section>
   `;
-}
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
-  const units = ["B", "KB", "MB"];
-  let size = bytes;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-async function handleEmbroideryImageInput(input) {
-  const slotId = input.dataset.embroideryImage;
-  const file = input.files?.[0];
-  input.value = "";
-  if (!slotId || !file) return;
-  if (!file.type.startsWith("image/")) {
-    toast(t("uploadImageFile"));
-    return;
-  }
-  if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-    toast(t("imageTooLarge"));
-    return;
-  }
-
-  try {
-    const dataUrl = await readFileAsDataUrl(file);
-    const slotConfig = state.config[state.productId].embroidery[slotId];
-    if (!slotConfig) return;
-    slotConfig.enabled = true;
-    slotConfig.image = {
-      name: file.name,
-      size: formatBytes(file.size),
-      type: file.type,
-      dataUrl
-    };
-    refreshConfirmModal();
-    toast(t("imageAdded"));
-  } catch {
-    toast(t("imageReadFailed"));
-  }
 }
 
 function confirmationSheetStyles() {
@@ -2145,7 +2335,7 @@ function buildConfirmationSheetHtml(data) {
   const allAnglePreviews = data.effectSnapshots?.previews?.length
     ? data.effectSnapshots.previews
     : productAngles(item).map((angle) => ({ id: angle.id, label: angleLabel(angle), dataUrl: "" }));
-  const embroideryImages = data.embroidery.filter((entry) => entry.image?.dataUrl);
+  const embroideryImages = data.embroidery.filter((entry) => CONFIRMATION_ARTWORK_SLOTS.has(entry.slotId) && (entry.image?.dataUrl || entry.designPreviewDataUrl));
   const customerRows = [
     [t("name"), data.customer.name || "-"],
     [t("phone"), data.customer.phone || "-"],
@@ -2155,12 +2345,6 @@ function buildConfirmationSheetHtml(data) {
     [t("sizeFootLength"), shoeSizeLabel(data.customer.size)]
   ];
   const componentRows = data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]);
-  const embroideryRows = data.embroidery.map((entry) => [
-    entry.code,
-    entry.name,
-    entry.text || "-",
-    entry.image ? `${entry.image.name} (${entry.image.size})` : "-"
-  ]);
 
   return `<!doctype html>
 <html lang="${state.language === "en" ? "en" : "zh-CN"}">
@@ -2224,30 +2408,18 @@ function buildConfirmationSheetHtml(data) {
         </table>
       </section>
 
-      <section class="sheet-section">
-        <h2>${t("specialCustom")}</h2>
-        <div class="info-grid">
-          ${data.padStyle ? `<div class="info-item"><span>L1</span><strong>${escapeHtml(data.padStyle)}</strong></div>` : ""}
-        </div>
-        <table aria-label="${t("embroideryFixed")}">
-          <thead>
-            <tr><th>${t("part")}</th><th>${t("name")}</th><th>${t("textLogoNote")}</th><th>${t("image")}</th></tr>
-          </thead>
-          <tbody>${tableRows(embroideryRows)}</tbody>
-        </table>
-      </section>
 
       ${
         embroideryImages.length
           ? `<section class="sheet-section">
-              <h2>${t("uploadImage")}</h2>
+              <h2>${t("specialCustom")}</h2>
               <div class="image-grid">
                 ${embroideryImages
                   .map(
                     (entry) => `<div class="image-card">
                       <span>${escapeHtml(entry.code)} · ${escapeHtml(entry.name)}</span>
-                      <strong>${escapeHtml(entry.image.name)} (${escapeHtml(entry.image.size)})</strong>
-                      <img src="${escapeHtml(entry.image.dataUrl)}" alt="${escapeHtml(`${entry.name} ${t("referenceImage")}`)}" />
+                      <strong>${escapeHtml(entry.image ? `${entry.image.name} (${entry.image.size})` : t("designObjects", { count: entry.designDocument?.objects?.length || 0 }))}</strong>
+                      <img src="${escapeHtml(entry.designPreviewDataUrl || entry.image?.dataUrl || "")}" alt="${escapeHtml(`${entry.name} ${t("referenceImage")}`)}" />
                     </div>`
                   )
                   .join("")}
@@ -2282,14 +2454,8 @@ function buildConfirmationEmailHtml(data) {
     [t("sizeFootLength"), shoeSizeLabel(data.customer.size)]
   ];
   const componentRows = data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]);
-  const embroideryRows = data.embroidery.map((entry) => [
-    entry.code,
-    entry.name,
-    entry.text || "-",
-    entry.image ? `${entry.image.name} (${entry.image.size})` : "-"
-  ]);
 
-  // 邮件正文只保留三块结构化信息，效果图通过独立图片附件发送。
+  // 邮件正文仅保留客户与配色信息，图片和贴片均收在 ZIP 附件中。
   return `<!doctype html>
 <html lang="${state.language === "en" ? "en" : "zh-CN"}">
   <head>
@@ -2328,19 +2494,6 @@ function buildConfirmationEmailHtml(data) {
             <tr><th>${t("no")}</th><th>Component</th><th>${t("part")}</th><th>${t("color")}</th><th>${t("leather")}</th></tr>
           </thead>
           <tbody>${tableRows(componentRows)}</tbody>
-        </table>
-      </section>
-
-      <section class="sheet-section">
-        <h2>${t("specialCustom")}</h2>
-        <div class="info-grid">
-          ${data.padStyle ? `<div class="info-item"><span>L1</span><strong>${escapeHtml(data.padStyle)}</strong></div>` : ""}
-        </div>
-        <table aria-label="${t("embroideryFixed")}">
-          <thead>
-            <tr><th>${t("part")}</th><th>${t("name")}</th><th>${t("textLogoNote")}</th><th>${t("image")}</th></tr>
-          </thead>
-          <tbody>${tableRows(embroideryRows)}</tbody>
         </table>
       </section>
     </main>
@@ -2634,15 +2787,31 @@ async function buildCustomerInfoPdf(data) {
   ], [130, 300, 390, 350, 230], 250);
   pages.push(colorPage.canvas);
 
-  const specialPage = createPdfPage(data, t("specialCustom"));
-  const specialRows = [
-    [t("part"), t("name"), t("textLogoNote"), t("image")],
-    ...data.embroidery.map((entry) => [entry.code, entry.name, entry.text || "-", entry.image ? `${entry.image.name} (${entry.image.size})` : "-"])
-  ];
-  if (data.padStyle) specialRows.push(["L1", t("specialCustom"), data.padStyle, "-"]);
-  if (data.note) specialRows.push(["Note", "Note", data.note, "-"]);
-  drawPdfTable(specialPage.context, specialRows, [180, 360, 650, 210], 250);
-  pages.push(specialPage.canvas);
+  const colorNotes = data.embroidery.filter((entry) => entry.text);
+  if (colorNotes.length || data.note) {
+    const specialPage = createPdfPage(data, t("specialCustom"));
+    const specialRows = [
+      [t("part"), t("name"), t("textLogoNote")],
+      ...colorNotes.map((entry) => [entry.code, entry.name, entry.text])
+    ];
+    if (data.note) specialRows.push(["Note", "Note", data.note]);
+    drawPdfTable(specialPage.context, specialRows, [240, 420, 740], 250);
+    pages.push(specialPage.canvas);
+  }
+
+  // 每个电绣裁片独立成页，确保完整生产单内能直接查看画板生成的贴片图。
+  for (const entry of data.embroidery.filter((item) => item.designPreviewDataUrl)) {
+    const artworkPage = createPdfPage(data, `${entry.code} · ${entry.name}`);
+    // 复用主应用的快照图片加载器；special-custom.js 的加载器位于闭包内，不能跨脚本调用。
+    const image = await requireSnapshotImage(entry.designPreviewDataUrl);
+    const maxWidth = 1360;
+    const maxHeight = 1780;
+    const scale = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    artworkPage.context.drawImage(image, (1600 - width) / 2, 250 + (maxHeight - height) / 2, width, height);
+    pages.push(artworkPage.canvas);
+  }
 
   return buildJpegPdf(pages.map((canvas) => {
     const jpeg = parseBase64DataUrl(canvas.toDataURL("image/jpeg", 0.92));
@@ -2661,6 +2830,12 @@ async function buildConfirmationZip(data) {
     const angle = String(preview.label || preview.id || `view-${index + 1}`).replace(/[\\/:*?"<>|]/g, "-");
     entries.push({ name: `${baseName}_${angle}.${extension}`, bytes: parsed.bytes });
   });
+  data.embroidery.filter((entry) => CONFIRMATION_ARTWORK_SLOTS.has(entry.slotId) && entry.designPreviewDataUrl).forEach((entry) => {
+    const parsed = parseBase64DataUrl(entry.designPreviewDataUrl);
+    if (!parsed || parsed.contentType !== "image/png") return;
+    const position = String(entry.name || entry.code).replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, "_");
+    entries.push({ name: `${baseName}_裁片_${entry.code}_${position}.png`, bytes: parsed.bytes });
+  });
   entries.push({ name: `${baseName}_定制确认单.pdf`, bytes: await buildCustomerInfoPdf(data) });
   return {
     filename: `${baseName}.zip`,
@@ -2678,16 +2853,8 @@ function quickColorSummary(data) {
     .slice(0, 6);
 }
 
-function quickCustomSummary(data) {
-  const embroidery = data.embroidery
-    .filter((entry) => entry.enabled && (entry.text || entry.image))
-    .map((entry) => `${entry.code} ${entry.text || entry.image?.name || t("uploadImage")}`);
-  return [data.padStyle ? `L1: ${data.padStyle}` : "", ...embroidery].filter(Boolean);
-}
-
 function renderQuickConfirmationCard(data, imageDataUrl) {
   const colorRows = quickColorSummary(data);
-  const customRows = quickCustomSummary(data);
   const isLocalOutboxSent = confirmationEmailState === "sent" && confirmationEmailTransport === "local-outbox";
   const sendLabel = confirmationEmailState === "sending" ? t("sending") : confirmationEmailState === "sent" ? (isLocalOutboxSent ? t("saved") : t("sent")) : t("confirmAndSend");
   const statusText = confirmationEmailState === "sending"
@@ -2737,15 +2904,6 @@ function renderQuickConfirmationCard(data, imageDataUrl) {
           </div>
         </section>
 
-        <section class="quick-confirm-section">
-          <h4>${t("specialCustom")}</h4>
-          <div class="quick-summary-list">
-            ${customRows.length
-              ? customRows.map((entry) => `<div><span>${escapeHtml(entry)}</span><strong>${t("recorded")}</strong></div>`).join("")
-              : `<div><span>${t("noSpecialCustom")}</span><strong>-</strong></div>`
-            }
-          </div>
-        </section>
 
         <div class="quick-send-status" data-send-status="${confirmationEmailState}">${statusText}</div>
       </div>
@@ -2855,7 +3013,7 @@ async function sendConfirmationEmail() {
       product: data.product,
       customer: data.customer,
       embroidery: data.embroidery,
-      // 邮件只发送一个 ZIP，内含三视角图片和客户信息 PDF。
+      // 邮件只发送一个 ZIP，内含三视角图片、贴片 PNG 和完整生产单 PDF。
       confirmationZip,
       html: emailHtml
     });
@@ -2896,6 +3054,128 @@ function copyConfig() {
     .catch(() => toast(t("copyDenied")));
 }
 
+function persistCustomizationHandoff() {
+  const payload = {
+    schemaVersion: 1,
+    productId: state.productId,
+    selectedPartId: state.selectedPartId,
+    angle: state.angle,
+    selectedEffectAngle: state.selectedEffectAngle,
+    language: state.language,
+    customer: { ...state.customer },
+    specialDesigns: state.specialDesigns,
+    specialDesignPreviews: state.specialDesignPreviews,
+    config: state.config,
+    updatedAt: new Date().toISOString()
+  };
+  const serialized = JSON.stringify(payload);
+  try {
+    sessionStorage.setItem(CUSTOMIZATION_HANDOFF_KEY, serialized);
+  } catch {
+    // localStorage 仅作导航状态回退；图片预览快照体积较大，不在此长期保存。
+    localStorage.setItem(CUSTOMIZATION_HANDOFF_KEY, JSON.stringify({ ...payload, specialDesignPreviews: {} }));
+  }
+}
+
+function restoreCustomizationHandoff() {
+  try {
+    let serialized = null;
+    try {
+      serialized = sessionStorage.getItem(CUSTOMIZATION_HANDOFF_KEY);
+    } catch {
+      // file:// 直开时部分浏览器会限制 sessionStorage，回退到同源 localStorage。
+    }
+    const payload = JSON.parse(serialized || localStorage.getItem(CUSTOMIZATION_HANDOFF_KEY) || "null");
+    if (!payload || payload.schemaVersion !== 1) return false;
+    if (PRODUCT_CATALOG.some((item) => item.id === payload.productId)) state.productId = payload.productId;
+    if (payload.config && typeof payload.config === "object") {
+      const incomingProductConfig = payload.config[payload.productId];
+      const currentProductConfig = state.config[payload.productId] || cloneProductConfig(product());
+      state.config = { ...state.config, ...payload.config };
+      if (incomingProductConfig && typeof incomingProductConfig === "object") {
+        // Handoff 可能来自旧版本；合并新增槽位默认值，避免确认单读取到 undefined。
+        state.config[payload.productId] = {
+          ...currentProductConfig,
+          ...incomingProductConfig,
+          components: { ...currentProductConfig.components, ...(incomingProductConfig.components || {}) },
+          embroidery: { ...currentProductConfig.embroidery, ...(incomingProductConfig.embroidery || {}) }
+        };
+      }
+    }
+    if (payload.customer && typeof payload.customer === "object") state.customer = { ...state.customer, ...payload.customer };
+    if (payload.specialDesigns && typeof payload.specialDesigns === "object") state.specialDesigns = payload.specialDesigns;
+    if (payload.specialDesignPreviews && typeof payload.specialDesignPreviews === "object") state.specialDesignPreviews = payload.specialDesignPreviews;
+    if (payload.specialDesignLastSlot) state.specialDesignLastSlot = payload.specialDesignLastSlot;
+    if (SUPPORTED_LANGUAGES.includes(payload.language)) state.language = payload.language;
+    state.selectedPartId = payload.selectedPartId || activePartId(product());
+    state.angle = payload.angle || product().defaultAngle || "side";
+    state.selectedEffectAngle = payload.selectedEffectAngle || state.angle;
+    state.view = "builder";
+    state.isCustomizerOpen = defaultCustomizerOpen();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let specialCustomizerLoadPromise = null;
+
+// 画板视图按需挂载；界面片段、样式和交互脚本保持独立，页面地址仍停留在 index.html。
+async function ensureSpecialCustomizerLoaded() {
+  if (window.SKATE_CIM_SPECIAL_CUSTOMIZER_READY) return;
+  if (specialCustomizerLoadPromise) return specialCustomizerLoadPromise;
+  specialCustomizerLoadPromise = (async () => {
+    let stylesheet = document.querySelector("#specialCustomizerStylesheet");
+    if (!stylesheet) {
+      stylesheet = document.createElement("link");
+      stylesheet.id = "specialCustomizerStylesheet";
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = "./special-custom.css?v=20261006-inpage-v5";
+      document.head.appendChild(stylesheet);
+    }
+    stylesheet.disabled = false;
+    if (!stylesheet.sheet) await new Promise((resolve, reject) => {
+      stylesheet.onload = resolve;
+      stylesheet.onerror = () => reject(new Error("画板样式加载失败"));
+    });
+    const response = await fetch("./special-custom-view.html", { cache: "no-store" });
+    if (!response.ok) throw new Error(`画板界面加载失败 (${response.status})`);
+    els.specialCustomizerView.innerHTML = await response.text();
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "./special-custom.js?v=20261006-inpage-v5";
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("画板交互模块加载失败"));
+      document.body.appendChild(script);
+    });
+  })().catch((error) => {
+    specialCustomizerLoadPromise = null;
+    throw error;
+  });
+  return specialCustomizerLoadPromise;
+}
+
+async function openEmbroideryCustomizer() {
+  // 用当前裁片映射默认编辑槽位，并通过会话交接选料配置，页面本身不跳转。
+  const slotForPart = { B: "B1", C1: "tongue", C3: "pad-upper", K: "toe-left" };
+  state.specialDesignLastSlot = slotForPart[state.selectedPartId] || state.specialDesignLastSlot || "tongue";
+  persistCustomizationHandoff();
+  state.view = "special";
+  render();
+  try {
+    await ensureSpecialCustomizerLoaded();
+    window.dispatchEvent(new CustomEvent("skate-cim:open-special", {
+      detail: { slotId: state.specialDesignLastSlot }
+    }));
+  } catch (error) {
+    state.view = "builder";
+    const specialStyles = document.querySelector("#specialCustomizerStylesheet");
+    if (specialStyles) specialStyles.disabled = true;
+    render();
+    toast(error.message || "画板打开失败，请重试");
+  }
+}
+
 function showHome() {
   state.view = "home";
   state.isCustomizerOpen = false;
@@ -2928,6 +3208,19 @@ function escapeHtml(value) {
 }
 
 function bindEvents() {
+  // 画板完成后接收结构化设计与预览，再回到当前页面继续效果确认流程。
+  window.addEventListener("skate-cim:special-finish", (event) => {
+    const resumeStep = event.detail?.resumeStep || "builder";
+    restoreCustomizationHandoff();
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (resumeStep === "special-preview") {
+      window.requestAnimationFrame(() => void openSpecialDesignReviewModal());
+    } else if (resumeStep === "confirmation") {
+      window.requestAnimationFrame(openConfirmModal);
+    }
+  });
+
   els.homeProductGrid.addEventListener("click", (event) => {
     const button = event.target.closest("[data-home-product]");
     if (!button) return;
@@ -3019,12 +3312,29 @@ function bindEvents() {
     refreshQuickConfirmationCard();
     render();
   });
-  els.saveButton.addEventListener("click", openConfirmModal);
+  els.saveButton.addEventListener("click", () => void openEmbroideryCustomizer());
   els.resetButton.addEventListener("click", resetProduct);
 
   document.addEventListener("click", (event) => {
-    if (event.target.closest("[data-close-effect]")) {
+  if (event.target.closest("[data-close-effect]")) {
       closeEffectPickerModal();
+      return;
+    }
+
+    if (event.target.closest("[data-close-special-review]")) {
+      closeSpecialDesignReviewModal();
+      return;
+    }
+
+    if (event.target.closest("[data-back-special-editor]")) {
+      closeSpecialDesignReviewModal();
+      void openEmbroideryCustomizer();
+      return;
+    }
+
+    if (event.target.closest("[data-confirm-special-review]")) {
+      closeSpecialDesignReviewModal();
+      openConfirmModal();
       return;
     }
 
@@ -3068,15 +3378,6 @@ function bindEvents() {
       return;
     }
 
-    const removeEmbroideryImageButton = event.target.closest("[data-remove-embroidery-image]");
-    if (removeEmbroideryImageButton) {
-      const slotConfig = state.config[state.productId].embroidery[removeEmbroideryImageButton.dataset.removeEmbroideryImage];
-      if (!slotConfig) return;
-      slotConfig.image = null;
-      refreshConfirmModal();
-      toast(t("imageRemoved"));
-      return;
-    }
 
     if (event.target.closest("[data-review-effect]")) {
       if (!customerInfoComplete()) {
@@ -3106,10 +3407,7 @@ function bindEvents() {
       return;
     }
 
-    const embroideryKey = event.target.dataset.embroideryText;
-    if (embroideryKey) {
-      state.config[state.productId].embroidery[embroideryKey].text = event.target.value;
-    }
+
   });
 
   document.addEventListener("change", (event) => {
@@ -3120,16 +3418,6 @@ function bindEvents() {
       return;
     }
 
-    if (event.target.dataset.embroideryImage) {
-      void handleEmbroideryImageInput(event.target);
-      return;
-    }
-
-    const embroideryKey = event.target.dataset.embroideryToggle;
-    if (embroideryKey) {
-      state.config[state.productId].embroidery[embroideryKey].enabled = event.target.checked;
-      return;
-    }
 
     if (event.target.dataset.padStyle !== undefined) {
       state.config[state.productId].padStyle = event.target.value;
@@ -3213,8 +3501,49 @@ function init() {
   PRODUCT_CATALOG.forEach((item) => {
     state.config[item.id] = cloneProductConfig(item);
   });
+  // 硬刷新代表重新开始画板设计；流程内的上一步/返回不会触发此分支。
+  clearSpecialDesignsAfterBrowserReload();
+  const resumeStep = new URLSearchParams(window.location.search).get("resume");
+  if (resumeStep) restoreCustomizationHandoff();
   bindEvents();
   render();
+  if (resumeStep === "confirmation") {
+    window.requestAnimationFrame(openConfirmModal);
+  }
+  if (resumeStep === "special-preview") {
+    window.requestAnimationFrame(() => void openSpecialDesignReviewModal());
+  }
+  if (resumeStep) {
+    window.history.replaceState({}, "", window.location.pathname || "./index.html");
+  }
+}
+
+function clearSpecialDesignsAfterBrowserReload() {
+  const navigationType = performance.getEntriesByType?.("navigation")?.[0]?.type
+    || (performance.navigation?.type === 1 ? "reload" : "navigate");
+  if (navigationType !== "reload") return;
+  state.specialDesigns = Object.fromEntries(Object.entries(state.specialDesigns).map(([slotId, document]) => [slotId, {
+    ...document,
+    objects: Array.isArray(document?.objects) ? document.objects.filter((object) => object.type !== "image") : []
+  }]));
+  state.specialDesignPreviews = {};
+  ["sessionStorage", "localStorage"].forEach((storageName) => {
+    try {
+      const storage = window[storageName];
+      const handoff = JSON.parse(storage.getItem(CUSTOMIZATION_HANDOFF_KEY) || "null");
+      if (!handoff || typeof handoff !== "object") return;
+      if (handoff.specialDesigns && typeof handoff.specialDesigns === "object") {
+        handoff.specialDesigns = Object.fromEntries(Object.entries(handoff.specialDesigns).map(([slotId, document]) => [slotId, {
+          ...document,
+          objects: Array.isArray(document?.objects) ? document.objects.filter((object) => object.type !== "image") : []
+        }]));
+      }
+      delete handoff.specialDesignPreviews;
+      storage.setItem(CUSTOMIZATION_HANDOFF_KEY, JSON.stringify(handoff));
+    } catch {
+      // 存储不可用时，当前页面仍按默认画板状态启动。
+    }
+  });
 }
 
 init();

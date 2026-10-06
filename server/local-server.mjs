@@ -1,5 +1,6 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,11 +60,30 @@ function readBody(request) {
   });
 }
 
-async function serveStatic(request, response) {
+function readRawBody(request, maxBytes = 8 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let receivedBytes = 0;
+    request.on("data", (chunk) => {
+      receivedBytes += chunk.length;
+      if (receivedBytes > maxBytes) {
+        reject(Object.assign(new Error("Payload too large"), { status: 413 }));
+        request.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    request.on("end", () => resolve(Buffer.concat(chunks)));
+    request.on("error", reject);
+  });
+}
+
+async function serveStatic(request, response, runtimeId) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const pathname = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
   const resolved = path.resolve(PROJECT_ROOT, `.${pathname}`);
-  if (!resolved.startsWith(PROJECT_ROOT)) {
+  const relativePath = path.relative(PROJECT_ROOT, resolved);
+  if (relativePath === ".." || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
     response.writeHead(403);
     response.end("Forbidden");
     return;
@@ -81,11 +101,18 @@ async function serveStatic(request, response) {
     "Content-Type": CONTENT_TYPES[path.extname(filePath)] || "application/octet-stream",
     "Cache-Control": pathname.startsWith("/assets/") ? "public, max-age=3600" : "no-store"
   });
+  if (path.extname(filePath) === ".html") {
+    const html = await readFile(filePath, "utf8");
+    const runtimeBootstrap = `<script>window.__SKATE_CIM_LOCAL_RUNTIME_ID__=${JSON.stringify(runtimeId)};</script>`;
+    response.end(html.replace("</head>", `${runtimeBootstrap}</head>`));
+    return;
+  }
   createReadStream(filePath).pipe(response);
 }
 
 export async function createLocalServer(options = {}) {
-  const backend = await createLocalBackend(options);
+  const runtimeId = randomUUID();
+  const backend = await createLocalBackend({ ...options, resetDesignCacheOnStart: options.resetDesignCacheOnStart ?? true });
 
   const server = http.createServer(async (request, response) => {
     try {
@@ -99,6 +126,48 @@ export async function createLocalServer(options = {}) {
       }
       if (request.method === "POST" && url.pathname === "/api/public/confirmation-email") {
         sendJson(response, 200, await backend.queueConfirmationEmail(await readBody(request)));
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/public/designs") {
+        sendJson(response, 200, { ok: true, documents: await backend.listDesignDocuments(url.searchParams.get("productId")) });
+        return;
+      }
+      if (request.method === "PUT" && url.pathname === "/api/public/designs") {
+        const result = await backend.saveDesignDocument(await readBody(request));
+        sendJson(response, result.ok ? 200 : result.status || 400, result);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/public/assets/upload-ticket") {
+        const result = await backend.createAssetUploadTicket(await readBody(request));
+        sendJson(response, result.ok ? 200 : result.status || 400, result);
+        return;
+      }
+      const assetContentMatch = url.pathname.match(/^\/api\/public\/assets\/([a-zA-Z0-9_-]+)\/content$/);
+      const assetCompleteMatch = url.pathname.match(/^\/api\/public\/assets\/([a-zA-Z0-9_-]+)\/complete$/);
+      if (assetCompleteMatch && request.method === "POST") {
+        const result = await backend.completeAssetUpload(assetCompleteMatch[1]);
+        sendJson(response, result.ok ? 200 : result.status || 400, result);
+        return;
+      }
+      if (assetContentMatch && request.method === "PUT") {
+        const bytes = await readRawBody(request);
+        const result = await backend.storeAssetContent(assetContentMatch[1], bytes);
+        sendJson(response, result.ok ? 200 : result.status || 400, result);
+        return;
+      }
+      if (assetContentMatch && request.method === "GET") {
+        const asset = await backend.getAsset(assetContentMatch[1]);
+        if (!asset) {
+          sendJson(response, 404, { ok: false, message: "素材不存在" });
+          return;
+        }
+        response.writeHead(200, {
+          "Content-Type": asset.mimeType,
+          "Content-Length": asset.sizeBytes,
+          "Cache-Control": "private, no-store",
+          "Content-Disposition": "inline"
+        });
+        createReadStream(asset.path).pipe(response);
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/admin/login") {
@@ -139,7 +208,7 @@ export async function createLocalServer(options = {}) {
         return;
       }
 
-      await serveStatic(request, response);
+      await serveStatic(request, response, runtimeId);
     } catch (error) {
       sendJson(response, error.status || 500, { ok: false, message: error.message || "Server error" });
     }
