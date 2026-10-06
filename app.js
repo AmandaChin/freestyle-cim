@@ -201,6 +201,7 @@ const state = {
     phone: "",
     email: "",
     date: new Date().toISOString().slice(0, 10),
+    country: "中国",
     size: ""
   },
   config: {}
@@ -1757,6 +1758,7 @@ function renderConfirmModal() {
             <label><span class="field-label-text">${t("phone")}<span class="field-optional">${t("optional")}</span></span><input data-customer="phone" type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
             <label>${t("email")}<input data-customer="email" required type="email" inputmode="email" value="${escapeHtml(state.customer.email)}" placeholder="email" /></label>
             <label>${t("date")}<input data-customer="date" type="date" value="${escapeHtml(state.customer.date)}" /></label>
+            <label><span class="field-label-text">${t("country")}<span class="field-optional">${t("optional")}</span></span><input data-customer="country" value="${escapeHtml(state.customer.country)}" placeholder="${escapeHtml(t("country"))}" /></label>
             <label class="size-selection-field">${t("sizeFootLength")}
               <select data-customer="size" required>
                 <option value="">${t("chooseSize")}</option>
@@ -2138,6 +2140,7 @@ function buildConfirmationSheetHtml(data) {
   const item = product();
   const locale = state.language === "en" ? "en-US" : "zh-CN";
   const generatedAt = new Date().toLocaleString(locale, { hour12: false });
+  const printFileName = confirmationSheetFileName(data);
   const baseHref = document.baseURI || window.location.href;
   const allAnglePreviews = data.effectSnapshots?.previews?.length
     ? data.effectSnapshots.previews
@@ -2148,6 +2151,7 @@ function buildConfirmationSheetHtml(data) {
     [t("phone"), data.customer.phone || "-"],
     [t("email"), data.customer.email || "-"],
     [t("date"), data.customer.date || "-"],
+    [t("country"), data.customer.country || "-"],
     [t("sizeFootLength"), shoeSizeLabel(data.customer.size)]
   ];
   const componentRows = data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]);
@@ -2165,7 +2169,7 @@ function buildConfirmationSheetHtml(data) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="skate-cim-document" content="confirmation-sheet" />
     <base href="${escapeHtml(baseHref)}" />
-    <title>${escapeHtml(data.product)} ${t("customConfirmationSheet")}</title>
+    <title>${escapeHtml(printFileName.replace(/\.pdf$/i, ""))}</title>
     <style>${confirmationSheetStyles()}</style>
   </head>
   <body>
@@ -2265,9 +2269,103 @@ function buildConfirmationSheetHtml(data) {
 </html>`;
 }
 
+function buildConfirmationEmailHtml(data) {
+  const locale = state.language === "en" ? "en-US" : "zh-CN";
+  const generatedAt = new Date().toLocaleString(locale, { hour12: false });
+  const baseHref = document.baseURI || window.location.href;
+  const customerRows = [
+    [t("name"), data.customer.name || "-"],
+    [t("phone"), data.customer.phone || "-"],
+    [t("email"), data.customer.email || "-"],
+    [t("date"), data.customer.date || "-"],
+    [t("country"), data.customer.country || "-"],
+    [t("sizeFootLength"), shoeSizeLabel(data.customer.size)]
+  ];
+  const componentRows = data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]);
+  const embroideryRows = data.embroidery.map((entry) => [
+    entry.code,
+    entry.name,
+    entry.text || "-",
+    entry.image ? `${entry.image.name} (${entry.image.size})` : "-"
+  ]);
+
+  // 邮件正文只保留三块结构化信息，效果图通过独立图片附件发送。
+  return `<!doctype html>
+<html lang="${state.language === "en" ? "en" : "zh-CN"}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="skate-cim-document" content="confirmation-sheet" />
+    <base href="${escapeHtml(baseHref)}" />
+    <title>${escapeHtml(data.product)} ${t("customConfirmationSheet")}</title>
+    <style>${confirmationSheetStyles()}</style>
+  </head>
+  <body>
+    <main class="sheet-shell">
+      <header class="sheet-header">
+        <div>
+          <p class="sheet-kicker">Skate Studio</p>
+          <h1>${t("customConfirmationSheet")}</h1>
+          <p>${escapeHtml(data.product)}</p>
+        </div>
+        <div class="sheet-meta">
+          <span>${t("generatedAt")}：${escapeHtml(generatedAt)}</span>
+          <span>${t("customer")}：${escapeHtml(data.customer.name || "-")}</span>
+        </div>
+      </header>
+
+      <section class="sheet-section">
+        <h2>${t("personalInfo")}</h2>
+        <div class="info-grid">
+          ${customerRows.map(([label, value]) => `<div class="info-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
+        </div>
+      </section>
+
+      <section class="sheet-section">
+        <h2>${t("colorSelection")}</h2>
+        <table aria-label="${t("colorSelection")}">
+          <thead>
+            <tr><th>${t("no")}</th><th>Component</th><th>${t("part")}</th><th>${t("color")}</th><th>${t("leather")}</th></tr>
+          </thead>
+          <tbody>${tableRows(componentRows)}</tbody>
+        </table>
+      </section>
+
+      <section class="sheet-section">
+        <h2>${t("specialCustom")}</h2>
+        <div class="info-grid">
+          ${data.padStyle ? `<div class="info-item"><span>L1</span><strong>${escapeHtml(data.padStyle)}</strong></div>` : ""}
+        </div>
+        <table aria-label="${t("embroideryFixed")}">
+          <thead>
+            <tr><th>${t("part")}</th><th>${t("name")}</th><th>${t("textLogoNote")}</th><th>${t("image")}</th></tr>
+          </thead>
+          <tbody>${tableRows(embroideryRows)}</tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+function confirmationSheetFileBaseName(data) {
+  const product = String(data.product || "Skate CIM").trim() || "Skate CIM";
+  const customer = String(data.customer?.name || "customer").trim() || "customer";
+  // 客户日期字段已统一为 YYYY-MM-DD，文件名中去掉连接符以保持跨系统兼容。
+  const date = String(data.customer?.date || new Date().toISOString().slice(0, 10))
+    .replace(/[^0-9]/g, "")
+    .slice(0, 8) || new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return [product, customer, date]
+    .map((value) => value.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim())
+    .join("_");
+}
+
 function confirmationSheetFileName(data) {
-  const customer = data.customer.name || "customer";
-  return `${data.product}-${customer}-confirmation.html`.replace(/[\\/:*?"<>|]/g, "-");
+  return `${confirmationSheetFileBaseName(data)}.pdf`;
+}
+
+function confirmationSheetHtmlFileName(data) {
+  return `${confirmationSheetFileBaseName(data)}.html`;
 }
 
 function downloadConfirmationSheetFallback(html, fileName) {
@@ -2280,6 +2378,294 @@ function downloadConfirmationSheetFallback(html, fileName) {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, Math.min(index + 0x8000, bytes.length)));
+  }
+  return btoa(binary);
+}
+
+function concatBytes(...parts) {
+  const totalLength = parts.reduce((total, part) => total + part.length, 0);
+  const output = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const part of parts) {
+    output.set(part, offset);
+    offset += part.length;
+  }
+  return output;
+}
+
+function littleEndian16(value) {
+  return new Uint8Array([value & 0xff, (value >>> 8) & 0xff]);
+}
+
+function littleEndian32(value) {
+  return new Uint8Array([value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff]);
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function buildStoredZip(entries) {
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let localOffset = 0;
+
+  for (const entry of entries) {
+    const nameBytes = encoder.encode(entry.name);
+    const data = entry.bytes;
+    const checksum = crc32(data);
+    const localHeader = concatBytes(
+      littleEndian32(0x04034b50),
+      littleEndian16(20),
+      littleEndian16(0x0800),
+      littleEndian16(0),
+      littleEndian16(0),
+      littleEndian16(0),
+      littleEndian32(checksum),
+      littleEndian32(data.length),
+      littleEndian32(data.length),
+      littleEndian16(nameBytes.length),
+      littleEndian16(0)
+    );
+    localParts.push(localHeader, nameBytes, data);
+
+    const centralHeader = concatBytes(
+      littleEndian32(0x02014b50),
+      littleEndian16(20),
+      littleEndian16(20),
+      littleEndian16(0x0800),
+      littleEndian16(0),
+      littleEndian16(0),
+      littleEndian16(0),
+      littleEndian32(checksum),
+      littleEndian32(data.length),
+      littleEndian32(data.length),
+      littleEndian16(nameBytes.length),
+      littleEndian16(0),
+      littleEndian16(0),
+      littleEndian16(0),
+      littleEndian16(0),
+      littleEndian32(0),
+      littleEndian32(localOffset)
+    );
+    centralParts.push(centralHeader, nameBytes);
+    localOffset += localHeader.length + nameBytes.length + data.length;
+  }
+
+  const localDirectory = concatBytes(...localParts);
+  const centralDirectory = concatBytes(...centralParts);
+  const endRecord = concatBytes(
+    littleEndian32(0x06054b50),
+    littleEndian16(0),
+    littleEndian16(0),
+    littleEndian16(entries.length),
+    littleEndian16(entries.length),
+    littleEndian32(centralDirectory.length),
+    littleEndian32(localDirectory.length),
+    littleEndian16(0)
+  );
+  return concatBytes(localDirectory, centralDirectory, endRecord);
+}
+
+function parseBase64DataUrl(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:([^;,]+)?(?:;[^,]*)?;base64,(.+)$/);
+  if (!match) return null;
+  return { contentType: match[1] || "application/octet-stream", bytes: base64ToBytes(match[2]) };
+}
+
+function asciiBytes(value) {
+  return new TextEncoder().encode(value);
+}
+
+function buildJpegPdf(pages) {
+  const pageObjectNumbers = pages.map((_, index) => 3 + index * 3);
+  const objects = [
+    asciiBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+    asciiBytes(`<< /Type /Pages /Kids [${pageObjectNumbers.map((number) => `${number} 0 R`).join(" ")}] /Count ${pages.length} >>`)
+  ];
+  pages.forEach((page, index) => {
+    const pageObjectNumber = pageObjectNumbers[index];
+    const contentObjectNumber = pageObjectNumber + 1;
+    const imageObjectNumber = pageObjectNumber + 2;
+    const content = asciiBytes(`q\n${page.width} 0 0 ${page.height} 0 0 cm\n/Im0 Do\nQ`);
+    objects.push(
+      asciiBytes(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /XObject << /Im0 ${imageObjectNumber} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`),
+      concatBytes(asciiBytes(`<< /Length ${content.length} >>\nstream\n`), content, asciiBytes("\nendstream")),
+      concatBytes(
+        asciiBytes(`<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.jpegBytes.length} >>\nstream\n`),
+        page.jpegBytes,
+        asciiBytes("\nendstream")
+      )
+    );
+  });
+  let output = concatBytes(asciiBytes("%PDF-1.4\n%\xff\xff\xff\xff\n"));
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(output.length);
+    output = concatBytes(output, asciiBytes(`${index + 1} 0 obj\n`), object, asciiBytes("\nendobj\n"));
+  });
+  const xrefOffset = output.length;
+  const xref = [`xref\n0 ${objects.length + 1}`, "0000000000 65535 f "];
+  for (let index = 1; index < offsets.length; index += 1) xref.push(`${String(offsets[index]).padStart(10, "0")} 00000 n `);
+  xref.push(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  return concatBytes(output, asciiBytes(`${xref.join("\n")}\n`));
+}
+
+function pdfTextLines(context, value, maxWidth) {
+  const text = String(value || "-");
+  return text.split("\n").flatMap((paragraph) => {
+    const lines = [];
+    let line = "";
+    for (const character of paragraph || "-") {
+      const candidate = line + character;
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line);
+        line = character;
+      } else {
+        line = candidate;
+      }
+    }
+    lines.push(line || "-");
+    return lines;
+  });
+}
+
+function createPdfPage(data, title) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1600;
+  canvas.height = 2200;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#15233b";
+  context.font = 'bold 54px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+  context.fillText(title, 100, 110);
+  context.font = '28px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+  context.fillStyle = "#52627d";
+  context.fillText(`${data.product} · Skate Studio`, 100, 165);
+  return { canvas, context };
+}
+
+function drawPdfTable(context, rows, columnWidths, top) {
+  const left = 100;
+  const lineHeight = 38;
+  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+  context.font = '30px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+  let currentTop = top;
+  rows.forEach((row, rowIndex) => {
+    const cellLines = row.map((value, columnIndex) => pdfTextLines(context, value, columnWidths[columnIndex] - 44));
+    const rowHeight = Math.max(92, Math.max(...cellLines.map((lines) => lines.length)) * lineHeight + 30);
+    const y = currentTop;
+    context.fillStyle = rowIndex === 0 ? "#e8eef8" : rowIndex % 2 === 0 ? "#f5f8fc" : "#ffffff";
+    context.fillRect(left, y, tableWidth, rowHeight);
+    context.strokeStyle = "#d7dfeb";
+    context.strokeRect(left, y, tableWidth, rowHeight);
+    let x = left;
+    row.forEach((_, columnIndex) => {
+      context.strokeRect(x, y, columnWidths[columnIndex], rowHeight);
+      context.fillStyle = rowIndex === 0 ? "#15233b" : columnIndex === 0 ? "#52627d" : "#15233b";
+      cellLines[columnIndex].forEach((line, lineIndex) => context.fillText(line, x + 22, y + 54 + lineIndex * lineHeight));
+      x += columnWidths[columnIndex];
+    });
+    currentTop += rowHeight;
+  });
+}
+
+async function buildEffectPdfPage(data, preview) {
+  const page = createPdfPage(data, t("effectImage", { angle: preview.label }));
+  const image = await loadSnapshotImage(preview.dataUrl);
+  const maxWidth = 1400;
+  const maxHeight = 1750;
+  if (image) {
+    const scale = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    const left = (1600 - width) / 2;
+    const top = 250 + (maxHeight - height) / 2;
+    page.context.fillStyle = "#f5f8fc";
+    page.context.fillRect(100, 250, maxWidth, maxHeight);
+    page.context.drawImage(image, left, top, width, height);
+    page.context.strokeStyle = "#d7dfeb";
+    page.context.strokeRect(100, 250, maxWidth, maxHeight);
+  }
+  return page.canvas;
+}
+
+async function buildCustomerInfoPdf(data) {
+  const pages = [];
+  // PDF 前三页复用确认单最终生成的三视角截图，后面再放结构化信息表。
+  for (const preview of data.effectSnapshots?.previews?.slice(0, 3) || []) {
+    pages.push(await buildEffectPdfPage(data, preview));
+  }
+  const personalPage = createPdfPage(data, t("personalInfo"));
+  drawPdfTable(personalPage.context, [
+    [t("name"), data.customer.name || "-"],
+    [t("phone"), data.customer.phone || "-"],
+    [t("email"), data.customer.email || "-"],
+    [t("country"), data.customer.country || "-"],
+    [t("date"), data.customer.date || "-"],
+    [t("sizeFootLength"), shoeSizeLabel(data.customer.size)]
+  ], [360, 1040], 250);
+  pages.push(personalPage.canvas);
+
+  const colorPage = createPdfPage(data, t("colorSelection"));
+  drawPdfTable(colorPage.context, [
+    [t("no"), "Component", t("part"), t("color"), t("leather")],
+    ...data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material])
+  ], [130, 300, 390, 350, 230], 250);
+  pages.push(colorPage.canvas);
+
+  const specialPage = createPdfPage(data, t("specialCustom"));
+  const specialRows = [
+    [t("part"), t("name"), t("textLogoNote"), t("image")],
+    ...data.embroidery.map((entry) => [entry.code, entry.name, entry.text || "-", entry.image ? `${entry.image.name} (${entry.image.size})` : "-"])
+  ];
+  if (data.padStyle) specialRows.push(["L1", t("specialCustom"), data.padStyle, "-"]);
+  if (data.note) specialRows.push(["Note", "Note", data.note, "-"]);
+  drawPdfTable(specialPage.context, specialRows, [180, 360, 650, 210], 250);
+  pages.push(specialPage.canvas);
+
+  return buildJpegPdf(pages.map((canvas) => {
+    const jpeg = parseBase64DataUrl(canvas.toDataURL("image/jpeg", 0.92));
+    return { jpegBytes: jpeg.bytes, width: canvas.width, height: canvas.height };
+  }));
+}
+
+async function buildConfirmationZip(data) {
+  const baseName = confirmationSheetFileBaseName(data);
+  const entries = [];
+  const previews = data.effectSnapshots?.previews?.slice(0, 3) || [];
+  previews.forEach((preview, index) => {
+    const parsed = parseBase64DataUrl(preview.dataUrl);
+    if (!parsed || !parsed.contentType.startsWith("image/")) return;
+    const extension = parsed.contentType === "image/jpeg" ? "jpg" : "png";
+    const angle = String(preview.label || preview.id || `view-${index + 1}`).replace(/[\\/:*?"<>|]/g, "-");
+    entries.push({ name: `${baseName}_${angle}.${extension}`, bytes: parsed.bytes });
+  });
+  entries.push({ name: `${baseName}_定制确认单.pdf`, bytes: await buildCustomerInfoPdf(data) });
+  return {
+    filename: `${baseName}.zip`,
+    content: bytesToBase64(buildStoredZip(entries))
+  };
 }
 
 function selectedEffectSnapshotData(item = product()) {
@@ -2335,6 +2721,7 @@ function renderQuickConfirmationCard(data, imageDataUrl) {
               <div><span>${t("name")}</span><strong>${escapeHtml(data.customer.name || "-")}</strong></div>
               <div><span>${t("phone")}</span><strong>${escapeHtml(data.customer.phone || "-")}</strong></div>
               <div><span>${t("email")}</span><strong>${escapeHtml(data.customer.email || "-")}</strong></div>
+              <div><span>${t("country")}</span><strong>${escapeHtml(data.customer.country || "-")}</strong></div>
               <div class="size-selection-field"><span>${t("sizeFootLength")}</span><strong>${escapeHtml(shoeSizeLabel(data.customer.size))}</strong></div>
             </div>
           </div>
@@ -2380,7 +2767,8 @@ async function buildConfirmationSheetDocument() {
   const data = buildExportData({ includeImageData: true, includeEffectSnapshots: true });
   return {
     data,
-    html: await buildConfirmationSheetHtml(data)
+    html: await buildConfirmationSheetHtml(data),
+    emailHtml: buildConfirmationEmailHtml(data)
   };
 }
 
@@ -2439,7 +2827,8 @@ async function openFullConfirmationSheet() {
     sheetWindow.focus();
     return;
   }
-  downloadConfirmationSheetFallback(html, confirmationSheetFileName(data));
+  // 弹窗被拦截时只能下载当前生成的 HTML；真实 PDF 仍通过确认单页面的打印/另存 PDF 生成。
+  downloadConfirmationSheetFallback(html, confirmationSheetHtmlFileName(data));
   toast(t("popupBlocked"));
 }
 
@@ -2457,7 +2846,8 @@ async function sendConfirmationEmail() {
   refreshQuickConfirmationCard();
   toast(t("sendingToast"));
   try {
-    const { data, html } = await buildConfirmationSheetDocument();
+    const { data, emailHtml } = await buildConfirmationSheetDocument();
+    const confirmationZip = await buildConfirmationZip(data);
     const payloadBody = JSON.stringify({
       documentType: CONFIRMATION_DOCUMENT_TYPE,
       documentVersion: CONFIRMATION_DOCUMENT_VERSION,
@@ -2465,7 +2855,9 @@ async function sendConfirmationEmail() {
       product: data.product,
       customer: data.customer,
       embroidery: data.embroidery,
-      html
+      // 邮件只发送一个 ZIP，内含三视角图片和客户信息 PDF。
+      confirmationZip,
+      html: emailHtml
     });
     if (new TextEncoder().encode(payloadBody).byteLength > MAX_CONFIRMATION_REQUEST_BYTES) {
       throw new Error(t("confirmationTooLarge"));

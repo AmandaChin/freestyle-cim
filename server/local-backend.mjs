@@ -29,10 +29,6 @@ function safeFileName(value) {
   return String(value || "customer").replace(/[\\/:*?"<>|]/g, "-");
 }
 
-function htmlToBase64(value) {
-  return Buffer.from(String(value), "utf8").toString("base64");
-}
-
 function dataUrlAttachmentContent(dataUrl = "") {
   const match = String(dataUrl).match(/^data:([^;,]+)?(?:;[^,]*)?;base64,(.+)$/);
   if (!match) return null;
@@ -63,6 +59,38 @@ function embroideryImageAttachments(embroidery = []) {
       content: parsed.content
     }];
   });
+}
+
+function confirmationAttachmentDate(customerDate) {
+  const fallback = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return String(customerDate || "")
+    .replace(/[^0-9]/g, "")
+    .slice(0, 8) || fallback;
+}
+
+function effectImageAttachments(effectSnapshots, productName, customerName, customerDate) {
+  const previews = Array.isArray(effectSnapshots?.previews) ? effectSnapshots.previews.slice(0, 3) : [];
+  const date = confirmationAttachmentDate(customerDate);
+  return previews.flatMap((preview, index) => {
+    const parsed = dataUrlAttachmentContent(preview?.dataUrl);
+    if (!parsed || !String(parsed.contentType).startsWith("image/")) return [];
+    const extension = parsed.contentType === "image/jpeg" ? "jpg" : "png";
+    const angle = safeFileName(preview.label || preview.id || `view-${index + 1}`);
+    return [{
+      filename: safeFileName(`${productName}_${customerName}_${date}_${angle}.${extension}`),
+      contentType: parsed.contentType,
+      content: parsed.content
+    }];
+  });
+}
+
+function confirmationZipAttachment(archive) {
+  if (!archive?.filename || !archive?.content) return null;
+  return {
+    filename: safeFileName(archive.filename),
+    contentType: "application/zip",
+    content: String(archive.content)
+  };
 }
 
 function passwordHash(password, salt = randomBytes(16).toString("hex")) {
@@ -320,12 +348,17 @@ export async function createLocalBackend(options = {}) {
       }
       const confirmationLabel = payload.language === "en" ? "Confirmation Sheet" : "定制确认单";
       const id = `confirmation-${Date.now()}-${randomBytes(4).toString("hex")}`;
-      const attachment = {
-        filename: `${safeFileName(productName)}-${safeFileName(customerName)}-confirmation.html`,
-        contentType: "text/html; charset=utf-8",
-        content: html
-      };
-      const imageAttachments = embroideryImageAttachments(payload.embroidery);
+      const zipAttachment = confirmationZipAttachment(payload.confirmationZip);
+      // 兼容旧客户端：新客户端发送 ZIP，旧客户端仍可发送三张独立效果图。
+      const effectAttachments = zipAttachment ? [] : effectImageAttachments(
+        payload.effectSnapshots,
+        productName,
+        customerName,
+        payload.customer?.date
+      );
+      const confirmationAttachments = zipAttachment
+        ? [zipAttachment]
+        : [...effectAttachments, ...embroideryImageAttachments(payload.embroidery)];
       const message = {
         id,
         transport: "local-outbox",
@@ -333,7 +366,7 @@ export async function createLocalBackend(options = {}) {
         subject: `${productName} ${confirmationLabel} - ${customerName}`,
         createdAt: nowString(),
         customer: payload.customer || {},
-        attachments: [attachment, ...imageAttachments]
+        attachments: confirmationAttachments
       };
       if (emailTransport === "resend") {
         if (!resendApiKey || !resendFrom) {
@@ -350,8 +383,7 @@ export async function createLocalBackend(options = {}) {
           subject: message.subject,
           html,
           attachments: [
-            { filename: attachment.filename, content: htmlToBase64(html) },
-            ...imageAttachments.map((item) => ({ filename: item.filename, content: item.content }))
+            ...confirmationAttachments.map((item) => ({ filename: item.filename, content: item.content }))
           ]
         };
         if (validCustomerEmail) resendBody.reply_to = [validCustomerEmail];

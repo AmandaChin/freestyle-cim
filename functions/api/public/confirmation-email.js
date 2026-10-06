@@ -18,15 +18,6 @@ function safeFileName(value) {
   return String(value || "customer").replace(/[\\/:*?"<>|]/g, "-");
 }
 
-function htmlToBase64(value) {
-  // Resend attachments require base64 content; TextEncoder keeps Chinese confirmation-sheet text intact.
-  const text = String(value || "");
-  const bytes = new TextEncoder().encode(text);
-  let binary = "";
-  for (let index = 0; index < bytes.length; index += 1) binary += String.fromCharCode(bytes[index]);
-  return btoa(binary);
-}
-
 function dataUrlAttachmentContent(dataUrl = "") {
   const match = String(dataUrl).match(/^data:([^;,]+)?(?:;[^,]*)?;base64,(.+)$/);
   if (!match) return null;
@@ -51,6 +42,38 @@ function embroideryImageAttachments(embroidery = []) {
       content: parsed.content
     }];
   });
+}
+
+function confirmationAttachmentDate(customerDate) {
+  const fallback = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return String(customerDate || "")
+    .replace(/[^0-9]/g, "")
+    .slice(0, 8) || fallback;
+}
+
+function effectImageAttachments(effectSnapshots, productName, customerName, customerDate) {
+  const previews = Array.isArray(effectSnapshots?.previews) ? effectSnapshots.previews.slice(0, 3) : [];
+  const date = confirmationAttachmentDate(customerDate);
+  return previews.flatMap((preview, index) => {
+    const parsed = dataUrlAttachmentContent(preview?.dataUrl);
+    if (!parsed || !String(parsed.contentType).startsWith("image/")) return [];
+    const extension = parsed.contentType === "image/jpeg" ? "jpg" : "png";
+    const angle = safeFileName(preview.label || preview.id || `view-${index + 1}`);
+    return [{
+      filename: safeFileName(`${productName}_${customerName}_${date}_${angle}.${extension}`),
+      contentType: parsed.contentType,
+      content: parsed.content
+    }];
+  });
+}
+
+function confirmationZipAttachment(archive) {
+  if (!archive?.filename || !archive?.content) return null;
+  return {
+    filename: safeFileName(archive.filename),
+    contentType: "application/zip",
+    content: String(archive.content)
+  };
 }
 
 function payloadProductName(product) {
@@ -110,18 +133,24 @@ export async function handleConfirmationEmail(request, env = {}) {
   const productName = String(payloadProductName(payload.product)).trim() || "Skate CIM";
   const confirmationLabel = payload.language === "en" ? "Confirmation Sheet" : "定制确认单";
   const subject = `${productName} ${confirmationLabel} - ${customerName}`;
-  const confirmationAttachment = {
-    filename: `${safeFileName(productName)}-${safeFileName(customerName)}-confirmation.html`,
-    content: htmlToBase64(html)
-  };
+  const zipAttachment = confirmationZipAttachment(payload.confirmationZip);
+  // 兼容旧客户端：新客户端发送 ZIP，旧客户端仍可发送三张独立效果图。
+  const effectAttachments = zipAttachment ? [] : effectImageAttachments(
+    payload.effectSnapshots,
+    productName,
+    customerName,
+    payload.customer?.date
+  );
+  const confirmationAttachments = zipAttachment
+    ? [zipAttachment]
+    : [...effectAttachments, ...embroideryImageAttachments(payload.embroidery)];
   const resendBody = {
     from: resendFrom,
     to: recipients,
     subject,
     html,
     attachments: [
-      confirmationAttachment,
-      ...embroideryImageAttachments(payload.embroidery).map((item) => ({ filename: item.filename, content: item.content }))
+      ...confirmationAttachments.map((item) => ({ filename: item.filename, content: item.content }))
     ]
   };
   if (validCustomerEmail) resendBody.reply_to = [validCustomerEmail];
