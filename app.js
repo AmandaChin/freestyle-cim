@@ -2266,6 +2266,84 @@ function buildConfirmationSheetHtml(data) {
 </html>`;
 }
 
+function buildConfirmationEmailHtml(data) {
+  const locale = state.language === "en" ? "en-US" : "zh-CN";
+  const generatedAt = new Date().toLocaleString(locale, { hour12: false });
+  const baseHref = document.baseURI || window.location.href;
+  const customerRows = [
+    [t("name"), data.customer.name || "-"],
+    [t("phone"), data.customer.phone || "-"],
+    [t("email"), data.customer.email || "-"],
+    [t("date"), data.customer.date || "-"],
+    [t("sizeFootLength"), shoeSizeLabel(data.customer.size)]
+  ];
+  const componentRows = data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]);
+  const embroideryRows = data.embroidery.map((entry) => [
+    entry.code,
+    entry.name,
+    entry.text || "-",
+    entry.image ? `${entry.image.name} (${entry.image.size})` : "-"
+  ]);
+
+  // 邮件正文只保留三块结构化信息，效果图通过独立图片附件发送。
+  return `<!doctype html>
+<html lang="${state.language === "en" ? "en" : "zh-CN"}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="skate-cim-document" content="confirmation-sheet" />
+    <base href="${escapeHtml(baseHref)}" />
+    <title>${escapeHtml(data.product)} ${t("customConfirmationSheet")}</title>
+    <style>${confirmationSheetStyles()}</style>
+  </head>
+  <body>
+    <main class="sheet-shell">
+      <header class="sheet-header">
+        <div>
+          <p class="sheet-kicker">Skate Studio</p>
+          <h1>${t("customConfirmationSheet")}</h1>
+          <p>${escapeHtml(data.product)}</p>
+        </div>
+        <div class="sheet-meta">
+          <span>${t("generatedAt")}：${escapeHtml(generatedAt)}</span>
+          <span>${t("customer")}：${escapeHtml(data.customer.name || "-")}</span>
+        </div>
+      </header>
+
+      <section class="sheet-section">
+        <h2>${t("personalInfo")}</h2>
+        <div class="info-grid">
+          ${customerRows.map(([label, value]) => `<div class="info-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
+        </div>
+      </section>
+
+      <section class="sheet-section">
+        <h2>${t("colorSelection")}</h2>
+        <table aria-label="${t("colorSelection")}">
+          <thead>
+            <tr><th>${t("no")}</th><th>Component</th><th>${t("part")}</th><th>${t("color")}</th><th>${t("leather")}</th></tr>
+          </thead>
+          <tbody>${tableRows(componentRows)}</tbody>
+        </table>
+      </section>
+
+      <section class="sheet-section">
+        <h2>${t("specialCustom")}</h2>
+        <div class="info-grid">
+          ${data.padStyle ? `<div class="info-item"><span>L1</span><strong>${escapeHtml(data.padStyle)}</strong></div>` : ""}
+        </div>
+        <table aria-label="${t("embroideryFixed")}">
+          <thead>
+            <tr><th>${t("part")}</th><th>${t("name")}</th><th>${t("textLogoNote")}</th><th>${t("image")}</th></tr>
+          </thead>
+          <tbody>${tableRows(embroideryRows)}</tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
 function confirmationSheetFileBaseName(data) {
   const product = String(data.product || "Skate CIM").trim() || "Skate CIM";
   const customer = String(data.customer?.name || "customer").trim() || "customer";
@@ -2396,7 +2474,8 @@ async function buildConfirmationSheetDocument() {
   const data = buildExportData({ includeImageData: true, includeEffectSnapshots: true });
   return {
     data,
-    html: await buildConfirmationSheetHtml(data)
+    html: await buildConfirmationSheetHtml(data),
+    emailHtml: buildConfirmationEmailHtml(data)
   };
 }
 
@@ -2474,7 +2553,7 @@ async function sendConfirmationEmail() {
   refreshQuickConfirmationCard();
   toast(t("sendingToast"));
   try {
-    const { data, html } = await buildConfirmationSheetDocument();
+    const { data, emailHtml } = await buildConfirmationSheetDocument();
     const payloadBody = JSON.stringify({
       documentType: CONFIRMATION_DOCUMENT_TYPE,
       documentVersion: CONFIRMATION_DOCUMENT_VERSION,
@@ -2484,7 +2563,7 @@ async function sendConfirmationEmail() {
       embroidery: data.embroidery,
       // 邮件附件改为三张最终效果图，避免重复发送 HTML 确认单附件。
       effectSnapshots: data.effectSnapshots,
-      html
+      html: emailHtml
     });
     if (new TextEncoder().encode(payloadBody).byteLength > MAX_CONFIRMATION_REQUEST_BYTES) {
       throw new Error(t("confirmationTooLarge"));
