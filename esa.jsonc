@@ -1,0 +1,8 @@
+{
+  "name": "skate-cim",
+  "entry": "./functions/esa-entry.js",
+  "buildCommand": "npm run build:esa",
+  "assets": {
+    "directory": "./dist"
+  }
+}
