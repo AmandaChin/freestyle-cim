@@ -34,8 +34,8 @@ async function main() {
     "shared/yjs-pro-cim-schema.js": "20260711-patch-assets-v1",
     "shared/schema-utils.js": "20260707-ui-polish-v7",
     "version.js": "20260707-ui-polish-v7",
-    "i18n/c-side-copy.js": "20260707-ui-polish-v7",
-    "app.js": "20260707-ui-polish-v7"
+    "i18n/c-side-copy.js": "20261006-special-three-view-v2",
+    "app.js": "20261006-embroidery-production-v1"
   };
 
   assert(!existsSync(prototypePath), "prototype redesign file should be rolled back; root index is the UI target");
@@ -71,7 +71,7 @@ async function main() {
       mobileHomeHeroCss.includes("filter: none"),
     "mobile home image should use top-centered cover framing with side cropping instead of overlay blending"
   );
-  assert(html.includes("styles.css?v=20260708-beian-v1") || html.includes("./styles.css?v=20260708-beian-v1"), "home CSS cache key should include the latest production update");
+  assert(html.includes("styles.css?v=20261006-special-three-view-v2") || html.includes("./styles.css?v=20261006-special-three-view-v2"), "home CSS cache key should match the latest C-side changes");
   assert(
     hasRule(css, ".home-view", ["min-height: calc(100dvh", "grid-template-rows"]),
     "home view should become a first-screen immersive layout"
