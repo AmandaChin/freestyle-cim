@@ -2482,6 +2482,8 @@ async function sendConfirmationEmail() {
       product: data.product,
       customer: data.customer,
       embroidery: data.embroidery,
+      // 邮件附件改为三张最终效果图，避免重复发送 HTML 确认单附件。
+      effectSnapshots: data.effectSnapshots,
       html
     });
     if (new TextEncoder().encode(payloadBody).byteLength > MAX_CONFIRMATION_REQUEST_BYTES) {

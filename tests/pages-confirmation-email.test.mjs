@@ -23,7 +23,14 @@ test("Pages function sends confirmation emails through Resend", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         product: "YJS Pro CIM",
-        customer: { name: "测试用户", email: "customer@example.com" },
+        customer: { name: "测试用户", email: "customer@example.com", date: "2026-10-06" },
+        effectSnapshots: {
+          previews: [
+            { id: "side", label: "侧面", dataUrl: "data:image/png;base64,U0lERQ==" },
+            { id: "three-quarter", label: "45度", dataUrl: "data:image/jpeg;base64,UVVF" },
+            { id: "front", label: "正面", dataUrl: "data:image/png;base64,RlJPTlQ=" }
+          ]
+        },
         embroidery: [
           {
             code: "C",
@@ -52,9 +59,11 @@ test("Pages function sends confirmation emails through Resend", async () => {
   assert.equal(resendRequests[0].body.from, "Skate CIM <orders@example.com>");
   assert.deepEqual(resendRequests[0].body.to, ["orders@example.com", "customer@example.com"]);
   assert.deepEqual(resendRequests[0].body.reply_to, ["customer@example.com"]);
-  assert.equal(resendRequests[0].body.attachments[0].filename, "YJS Pro CIM-测试用户-confirmation.html");
-  assert.equal(resendRequests[0].body.attachments[1].filename, "C-鞋舌电绣片-logo.png");
-  assert.equal(resendRequests[0].body.attachments[1].content, "QUJD");
+  assert.equal(resendRequests[0].body.attachments[0].filename, "YJS Pro CIM_测试用户_20261006_侧面.png");
+  assert.equal(resendRequests[0].body.attachments[1].filename, "YJS Pro CIM_测试用户_20261006_45度.jpg");
+  assert.equal(resendRequests[0].body.attachments[2].filename, "YJS Pro CIM_测试用户_20261006_正面.png");
+  assert.equal(resendRequests[0].body.attachments[3].filename, "C-鞋舌电绣片-logo.png");
+  assert.equal(resendRequests[0].body.attachments[3].content, "QUJD");
 });
 
 test("Pages function ignores invalid customer email while sending to the project recipient", async () => {

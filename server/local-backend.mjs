@@ -29,10 +29,6 @@ function safeFileName(value) {
   return String(value || "customer").replace(/[\\/:*?"<>|]/g, "-");
 }
 
-function htmlToBase64(value) {
-  return Buffer.from(String(value), "utf8").toString("base64");
-}
-
 function dataUrlAttachmentContent(dataUrl = "") {
   const match = String(dataUrl).match(/^data:([^;,]+)?(?:;[^,]*)?;base64,(.+)$/);
   if (!match) return null;
@@ -60,6 +56,29 @@ function embroideryImageAttachments(embroidery = []) {
     return [{
       filename: safeFileName(`${prefix}-${image.name || "attachment"}`),
       contentType: image.type || parsed.contentType,
+      content: parsed.content
+    }];
+  });
+}
+
+function confirmationAttachmentDate(customerDate) {
+  const fallback = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return String(customerDate || "")
+    .replace(/[^0-9]/g, "")
+    .slice(0, 8) || fallback;
+}
+
+function effectImageAttachments(effectSnapshots, productName, customerName, customerDate) {
+  const previews = Array.isArray(effectSnapshots?.previews) ? effectSnapshots.previews.slice(0, 3) : [];
+  const date = confirmationAttachmentDate(customerDate);
+  return previews.flatMap((preview, index) => {
+    const parsed = dataUrlAttachmentContent(preview?.dataUrl);
+    if (!parsed || !String(parsed.contentType).startsWith("image/")) return [];
+    const extension = parsed.contentType === "image/jpeg" ? "jpg" : "png";
+    const angle = safeFileName(preview.label || preview.id || `view-${index + 1}`);
+    return [{
+      filename: safeFileName(`${productName}_${customerName}_${date}_${angle}.${extension}`),
+      contentType: parsed.contentType,
       content: parsed.content
     }];
   });
@@ -320,11 +339,12 @@ export async function createLocalBackend(options = {}) {
       }
       const confirmationLabel = payload.language === "en" ? "Confirmation Sheet" : "定制确认单";
       const id = `confirmation-${Date.now()}-${randomBytes(4).toString("hex")}`;
-      const attachment = {
-        filename: `${safeFileName(productName)}-${safeFileName(customerName)}-confirmation.html`,
-        contentType: "text/html; charset=utf-8",
-        content: html
-      };
+      const effectAttachments = effectImageAttachments(
+        payload.effectSnapshots,
+        productName,
+        customerName,
+        payload.customer?.date
+      );
       const imageAttachments = embroideryImageAttachments(payload.embroidery);
       const message = {
         id,
@@ -333,7 +353,7 @@ export async function createLocalBackend(options = {}) {
         subject: `${productName} ${confirmationLabel} - ${customerName}`,
         createdAt: nowString(),
         customer: payload.customer || {},
-        attachments: [attachment, ...imageAttachments]
+        attachments: [...effectAttachments, ...imageAttachments]
       };
       if (emailTransport === "resend") {
         if (!resendApiKey || !resendFrom) {
@@ -350,7 +370,7 @@ export async function createLocalBackend(options = {}) {
           subject: message.subject,
           html,
           attachments: [
-            { filename: attachment.filename, content: htmlToBase64(html) },
+            ...effectAttachments.map((item) => ({ filename: item.filename, content: item.content })),
             ...imageAttachments.map((item) => ({ filename: item.filename, content: item.content }))
           ]
         };

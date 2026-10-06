@@ -65,8 +65,15 @@ test("local backend writes confirmation emails to local outbox", async () => {
   try {
     const backend = await createLocalBackend({ dataDir: workspace, confirmationEmailTo: "orders@example.com" });
     const result = await backend.queueConfirmationEmail({
-      customer: { name: "测试用户", phone: "13800138000" },
+      customer: { name: "测试用户", phone: "13800138000", date: "2026-10-06" },
       product: "YJS Pro CIM",
+      effectSnapshots: {
+        previews: [
+          { id: "side", label: "侧面", dataUrl: "data:image/png;base64,U0lERQ==" },
+          { id: "three-quarter", label: "45度", dataUrl: "data:image/jpeg;base64,UVVF" },
+          { id: "front", label: "正面", dataUrl: "data:image/png;base64,RlJPTlQ=" }
+        ]
+      },
       html: "<!doctype html><html><body><h1>定制确认单</h1></body></html>"
     });
 
@@ -77,8 +84,10 @@ test("local backend writes confirmation emails to local outbox", async () => {
     const message = JSON.parse(await readFile(path.join(workspace, "outbox", `${result.id}.json`), "utf8"));
     assert.deepEqual(message.to, ["orders@example.com"]);
     assert.equal(message.subject, "YJS Pro CIM 定制确认单 - 测试用户");
-    assert.equal(message.attachments[0].filename, "YJS Pro CIM-测试用户-confirmation.html");
-    assert.match(message.attachments[0].content, /定制确认单/);
+    assert.equal(message.attachments[0].filename, "YJS Pro CIM_测试用户_20261006_侧面.png");
+    assert.equal(message.attachments[1].filename, "YJS Pro CIM_测试用户_20261006_45度.jpg");
+    assert.equal(message.attachments[2].filename, "YJS Pro CIM_测试用户_20261006_正面.png");
+    assert.equal(message.attachments.length, 3);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
@@ -160,8 +169,15 @@ test("local backend sends confirmation emails through Resend transport", async (
       }
     });
     const result = await backend.queueConfirmationEmail({
-      customer: { name: "测试用户", email: "customer@example.com" },
+      customer: { name: "测试用户", email: "customer@example.com", date: "2026-10-06" },
       product: "YJS Pro CIM",
+      effectSnapshots: {
+        previews: [
+          { id: "side", label: "侧面", dataUrl: "data:image/png;base64,U0lERQ==" },
+          { id: "three-quarter", label: "45度", dataUrl: "data:image/jpeg;base64,UVVF" },
+          { id: "front", label: "正面", dataUrl: "data:image/png;base64,RlJPTlQ=" }
+        ]
+      },
       embroidery: [
         {
           code: "C",
@@ -187,9 +203,11 @@ test("local backend sends confirmation emails through Resend transport", async (
     assert.deepEqual(resendRequests[0].body.to, ["orders@example.com", "customer@example.com"]);
     assert.deepEqual(resendRequests[0].body.reply_to, ["customer@example.com"]);
     assert.match(resendRequests[0].body.html, /定制确认单/);
-    assert.equal(resendRequests[0].body.attachments[0].filename, "YJS Pro CIM-测试用户-confirmation.html");
-    assert.equal(resendRequests[0].body.attachments[1].filename, "C-鞋舌电绣片-logo.png");
-    assert.equal(resendRequests[0].body.attachments[1].content, "QUJD");
+    assert.equal(resendRequests[0].body.attachments[0].filename, "YJS Pro CIM_测试用户_20261006_侧面.png");
+    assert.equal(resendRequests[0].body.attachments[1].filename, "YJS Pro CIM_测试用户_20261006_45度.jpg");
+    assert.equal(resendRequests[0].body.attachments[2].filename, "YJS Pro CIM_测试用户_20261006_正面.png");
+    assert.equal(resendRequests[0].body.attachments[3].filename, "C-鞋舌电绣片-logo.png");
+    assert.equal(resendRequests[0].body.attachments[3].content, "QUJD");
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
