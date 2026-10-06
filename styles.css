@@ -174,7 +174,6 @@ h1 {
 .text-button:active,
 .home-model-card:active,
 .effect-option-card:active,
-.model-pill:active,
 .part-button:active,
 .swatch-button:active,
 .texture-button:active {
@@ -698,62 +697,6 @@ h1 {
     linear-gradient(180deg, rgba(255, 255, 255, 0.74) 0 48%, rgba(248, 245, 239, 0.94) 58%, #ede8de 100%);
 }
 
-.model-strip {
-  display: flex;
-  gap: 8px;
-  min-height: 70px;
-  padding: 18px 18px 10px;
-  overflow-x: auto;
-}
-
-.model-pill {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 192px;
-  padding: 8px 12px 8px 8px;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.58);
-  color: var(--text);
-  cursor: pointer;
-}
-
-.model-pill[aria-pressed="true"] {
-  border-color: rgba(17, 17, 17, 0.32);
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: none;
-}
-
-.model-thumb {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border-radius: 8px;
-  background: linear-gradient(145deg, #f2eee6, #d9d2c5);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0;
-}
-
-.model-pill strong,
-.model-pill span {
-  display: block;
-  white-space: nowrap;
-}
-
-.model-pill strong {
-  font-size: 14px;
-}
-
-.model-pill span {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .view-tools {
   z-index: 2;
   display: flex;
@@ -1260,6 +1203,7 @@ pre {
 }
 
 .field-grid input,
+.field-grid select,
 .embroidery-row input[type="text"],
 .embroidery-row input:not([type]) {
   min-width: 0;
@@ -1273,15 +1217,29 @@ pre {
 }
 
 .field-grid input:focus,
+.field-grid select:focus,
 .embroidery-row input[type="text"]:focus,
 .embroidery-row input:not([type]):focus {
   border-color: rgba(17, 17, 17, 0.58);
   box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
 }
 
-.field-grid input:required:placeholder-shown {
+.field-grid input:required:placeholder-shown,
+.field-grid select:required:invalid {
   border-color: rgba(210, 80, 64, 0.32);
   background: rgba(255, 246, 244, 0.9);
+}
+
+/* 尺码对照独占一行，确保手机端可读并保留原生单选操作。 */
+.size-selection-field {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.field-grid select {
+  width: 100%;
+  min-height: 44px;
+  font-size: 13px;
 }
 
 .confirm-required-hint {
@@ -1739,6 +1697,10 @@ pre {
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.quick-info-grid .size-selection-field strong {
+  white-space: normal;
 }
 
 .quick-confirm-section {
@@ -2270,15 +2232,6 @@ body.drawer-open {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
-.model-strip {
-  min-height: 0;
-  padding: clamp(8px, 1.4vh, 16px) 18px 8px;
-}
-
-.model-pill {
-  min-width: clamp(156px, 15vw, 192px);
-}
-
 .view-tools {
   min-height: 38px;
   padding: 0 18px 12px;
@@ -2473,20 +2426,6 @@ body.drawer-open {
 
   .topbar {
     margin-bottom: 10px;
-  }
-
-  .model-strip {
-    padding-top: 8px;
-    padding-bottom: 4px;
-  }
-
-  .model-thumb {
-    width: 36px;
-    height: 36px;
-  }
-
-  .model-pill {
-    padding: 6px 10px 6px 6px;
   }
 
   .part-rail-block {
@@ -2770,24 +2709,8 @@ body.drawer-open {
     grid-template-rows: minmax(0, 1fr) auto;
   }
 
-  .model-strip,
   .scene-footer {
     display: none;
-  }
-
-  .model-strip {
-    min-height: 45px;
-    padding: 7px 10px 4px;
-  }
-
-  .model-pill {
-    min-width: 142px;
-    padding: 7px 10px;
-  }
-
-  .model-thumb {
-    width: 32px;
-    height: 32px;
   }
 
   .view-tools {
@@ -3052,7 +2975,6 @@ body.drawer-open {
     font-size: 18px;
   }
 
-  .model-strip,
   .scene-footer {
     display: none;
   }
@@ -3118,7 +3040,6 @@ body.drawer-open {
     grid-template-rows: minmax(0, 1fr) auto;
   }
 
-  .model-strip,
   .scene-footer {
     display: none;
   }

@@ -27,6 +27,29 @@ const PRODUCT_COPY = window.SKATE_CIM_PRODUCT_COPY || { embroiderySlots: [], pro
 const CONFIRMATION_DOCUMENT_TYPE = "skate-cim-confirmation-sheet";
 const CONFIRMATION_DOCUMENT_VERSION = 1;
 
+// 按 YJSPRO 尺码图逐项录入；UK/US 的重复值保留原图，不使用通用换算公式。
+const SHOE_SIZE_OPTIONS = [
+  { eu: "35", mm: "223.3", uk: "3", us: "4" },
+  { eu: "36", mm: "227.5", uk: "3.5", us: "4.5" },
+  { eu: "36.5", mm: "231.8", uk: "3.5", us: "4.5" },
+  { eu: "37", mm: "236.0", uk: "4", us: "5" },
+  { eu: "38", mm: "240.2", uk: "5", us: "6" },
+  { eu: "38.5", mm: "244.5", uk: "5", us: "6" },
+  { eu: "39", mm: "248.7", uk: "6", us: "7" },
+  { eu: "39.5", mm: "252.9", uk: "6", us: "7" },
+  { eu: "40", mm: "257.2", uk: "6.5", us: "7.5" },
+  { eu: "41", mm: "261.4", uk: "7", us: "8" },
+  { eu: "42", mm: "269.9", uk: "8", us: "9" },
+  { eu: "43", mm: "274.1", uk: "9", us: "10" },
+  { eu: "44", mm: "282.5", uk: "10", us: "11" }
+];
+
+// 表单、预览和导出共用同一份对照文案，避免尺码与脚长各自变化。
+function shoeSizeLabel(size) {
+  const option = SHOE_SIZE_OPTIONS.find((entry) => entry.eu === size);
+  return option ? `EU ${option.eu} · ${option.mm} mm · UK ${option.uk} · US ${option.us}` : "-";
+}
+
 function i18nValue(value, language = "zh", fallback = "") {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value[language] || value.zh || value.cn || value.en || fallback;
@@ -178,7 +201,6 @@ const state = {
     phone: "",
     email: "",
     date: new Date().toISOString().slice(0, 10),
-    footLength: "",
     size: ""
   },
   config: {}
@@ -236,12 +258,10 @@ const els = {
   homeProductGrid: document.querySelector("#homeProductGrid"),
   languageToggleButton: document.querySelector("#languageToggleButton"),
   homeButton: document.querySelector("#homeButton"),
-  modelStrip: document.querySelector("#modelStrip"),
   angleTabs: document.querySelector("#angleTabs"),
   shoeScene: document.querySelector("#shoeScene"),
   shoeArt: document.querySelector("#shoeArt"),
   angleMeta: document.querySelector("#angleMeta"),
-  modelMeta: document.querySelector("#modelMeta"),
   modelName: document.querySelector("#modelName"),
   modelDescription: document.querySelector("#modelDescription"),
   customizerPanel: document.querySelector("#customizerPanel"),
@@ -1258,17 +1278,6 @@ function renderHome() {
   els.homeView.style.setProperty("--home-base-image", `url('${assets.base}')`);
 }
 
-function renderModelStrip() {
-  els.modelStrip.innerHTML = PRODUCT_CATALOG.map(
-    (item) => `
-      <button class="model-pill" type="button" data-product="${item.id}" aria-pressed="${item.id === state.productId}" style="--thumb-a:${item.accentA};--thumb-b:${item.accentB};">
-        <span>
-          <strong>${productName(item)}</strong>
-        </span>
-      </button>`
-  ).join("");
-}
-
 function renderAngleTabs() {
   const tabs = productAngles();
 
@@ -1376,7 +1385,8 @@ function buildExportData(options = {}) {
   return {
     version: APP_VERSION,
     product: productName(item),
-    customer: { ...state.customer },
+    // 保留导出数据的脚长字段，但始终从所选尺码推导，单位为 mm。
+    customer: { ...state.customer, footLength: SHOE_SIZE_OPTIONS.find((entry) => entry.eu === state.customer.size)?.mm || "" },
     effectPreview: {
       angle: angleLabel(selectedEffect),
       angleId: selectedEffect.id
@@ -1426,11 +1436,11 @@ function buildExportData(options = {}) {
   };
 }
 
-// 仅保留阻断订单下一步的字段；电话和脚长允许客户按实际情况选填。
+// 电话选填；尺码与脚长合并后必须选择一组有效对照。
 const REQUIRED_CUSTOMER_FIELDS = [
   ["name", "name"],
   ["email", "email"],
-  ["size", "size"]
+  ["size", "sizeFootLength"]
 ];
 
 function isValidEmail(value) {
@@ -1439,7 +1449,9 @@ function isValidEmail(value) {
 
 function missingCustomerFields() {
   const missing = REQUIRED_CUSTOMER_FIELDS
-    .filter(([key]) => !String(state.customer[key] || "").trim())
+    .filter(([key]) => key === "size"
+      ? !SHOE_SIZE_OPTIONS.some((entry) => entry.eu === state.customer.size)
+      : !String(state.customer[key] || "").trim())
     .map(([, labelKey]) => t(labelKey));
   return missing;
 }
@@ -1464,7 +1476,6 @@ function renderSummary() {
   els.modelName.textContent = state.language === "en" ? "Material Book" : "材料样本";
   els.modelDescription.textContent = productName(item);
   els.angleMeta.textContent = angleMeta(currentAngleConfig(item)) || t("effectImage", { angle: angleLabel(currentAngleConfig(item)) });
-  els.modelMeta.textContent = `${item.code} · ${t("partCount", { count: item.components.filter((part) => part.editable).length })}`;
   els.selectedPartLabel.textContent = isPartSelectionVisible() ? `${component.code} · ${componentName(component)}` : "";
   els.selectedPartTitle.textContent = t("editingPart", { part: componentName(component) });
   els.selectedColorName.textContent = componentColorName(component, config);
@@ -1500,7 +1511,6 @@ function render() {
   els.pageEyebrow.textContent = isHome ? "Skate Studio" : t("customizer");
   els.pageTitle.textContent = isHome ? "Freestyle CIM" : product().code || productName(product());
   renderHome();
-  renderModelStrip();
   renderAngleTabs();
   renderParts();
   renderSwatches();
@@ -1747,8 +1757,12 @@ function renderConfirmModal() {
             <label><span class="field-label-text">${t("phone")}<span class="field-optional">${t("optional")}</span></span><input data-customer="phone" type="tel" inputmode="tel" value="${escapeHtml(state.customer.phone)}" placeholder="phone" /></label>
             <label>${t("email")}<input data-customer="email" required type="email" inputmode="email" value="${escapeHtml(state.customer.email)}" placeholder="email" /></label>
             <label>${t("date")}<input data-customer="date" type="date" value="${escapeHtml(state.customer.date)}" /></label>
-            <label><span class="field-label-text">${t("footLength")}<span class="field-optional">${t("optional")}</span></span><input data-customer="footLength" value="${escapeHtml(state.customer.footLength)}" placeholder="foot length" /></label>
-            <label>${t("size")}<input data-customer="size" required value="${escapeHtml(state.customer.size)}" placeholder="size" /></label>
+            <label class="size-selection-field">${t("sizeFootLength")}
+              <select data-customer="size" required>
+                <option value="">${t("chooseSize")}</option>
+                ${SHOE_SIZE_OPTIONS.map((option) => `<option value="${option.eu}" ${state.customer.size === option.eu ? "selected" : ""}>${shoeSizeLabel(option.eu)}</option>`).join("")}
+              </select>
+            </label>
           </div>
         </section>
 
@@ -2134,8 +2148,7 @@ function buildConfirmationSheetHtml(data) {
     [t("phone"), data.customer.phone || "-"],
     [t("email"), data.customer.email || "-"],
     [t("date"), data.customer.date || "-"],
-    [t("footLength"), data.customer.footLength || "-"],
-    [t("size"), data.customer.size || "-"]
+    [t("sizeFootLength"), shoeSizeLabel(data.customer.size)]
   ];
   const componentRows = data.components.map((part) => [part.code, part.component, part.name, `${part.color} ${part.colorValue}`, part.material]);
   const embroideryRows = data.embroidery.map((entry) => [
@@ -2322,8 +2335,7 @@ function renderQuickConfirmationCard(data, imageDataUrl) {
               <div><span>${t("name")}</span><strong>${escapeHtml(data.customer.name || "-")}</strong></div>
               <div><span>${t("phone")}</span><strong>${escapeHtml(data.customer.phone || "-")}</strong></div>
               <div><span>${t("email")}</span><strong>${escapeHtml(data.customer.email || "-")}</strong></div>
-              <div><span>${t("size")}</span><strong>${escapeHtml(data.customer.size || "-")}</strong></div>
-              <div><span>${t("footLength")}</span><strong>${escapeHtml(data.customer.footLength || "-")}</strong></div>
+              <div class="size-selection-field"><span>${t("sizeFootLength")}</span><strong>${escapeHtml(shoeSizeLabel(data.customer.size))}</strong></div>
             </div>
           </div>
         </section>
@@ -2537,13 +2549,6 @@ function bindEvents() {
     showHome();
   });
 
-  els.modelStrip.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-product]");
-    if (!button) return;
-    invalidatePendingShoeHit();
-    setProduct(button.dataset.product);
-  });
-
   els.angleTabs.addEventListener("click", (event) => {
     const button = event.target.closest("[data-angle]");
     if (!button) return;
@@ -2716,6 +2721,13 @@ function bindEvents() {
   });
 
   document.addEventListener("change", (event) => {
+    // 原生单选框在移动端确认选择时通过 change 同步，兼容仅派发 change 的环境。
+    if (event.target.dataset.customer === "size") {
+      state.customer.size = event.target.value;
+      refreshConfirmCustomerValidation();
+      return;
+    }
+
     if (event.target.dataset.embroideryImage) {
       void handleEmbroideryImageInput(event.target);
       return;

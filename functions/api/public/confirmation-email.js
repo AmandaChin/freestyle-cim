@@ -78,8 +78,8 @@ async function readJson(request) {
   }
 }
 
-export async function onRequestPost({ request, env }) {
-  // Pages Functions do not run the local Node backend, so the production route sends via Resend directly.
+export async function handleConfirmationEmail(request, env = {}) {
+  // ESA/Cloudflare 边缘函数不运行本地 Node 后端，线上邮件由 Resend 直接发送。
   const confirmationEmailTo = String(env.CONFIRMATION_EMAIL_TO || "").trim();
   const resendApiKey = env.RESEND_API_KEY || "";
   const resendFrom = env.RESEND_FROM || "";
@@ -161,4 +161,9 @@ export async function onRequestPost({ request, env }) {
     transport: "resend",
     to: recipients.join(", ")
   });
+}
+
+// 保留 Cloudflare Pages 适配器，便于迁移期间沿用现有部署。
+export async function onRequestPost({ request, env }) {
+  return handleConfirmationEmail(request, env);
 }

@@ -1,6 +1,6 @@
 # Skate CIM
 
-轻量静态站，用于轮滑鞋 C 端定制预览和 B 端配置管理演示。根目录是 C 端页面，`b-side/` 是配置管理页，共用 `b-side/data/cim-config.js` 的发布态配置。
+轮滑鞋 C 端定制预览和 B 端配置管理演示。根目录是 C 端页面，`b-side/` 是本地演示用的配置管理页，其配置数据位于 `b-side/data/cim-config.js`。ESA Pages 生产包只发布 C 端页面和运行资源；B 端管理页依赖本地 Node 后端，不属于当前 ESA 部署能力。
 
 ## 当前版本
 
@@ -26,7 +26,7 @@ python3 -m http.server 8081
 
 本地默认使用 `EMAIL_TRANSPORT=outbox`，只会把确认单邮件写入 `.local-data/outbox`，不会真实发信。
 
-接入 Resend 后可切到真实发送：
+接入 Resend 后本地服务可切到真实发送：
 
 ```bash
 EMAIL_TRANSPORT=resend
@@ -35,19 +35,21 @@ RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 RESEND_FROM="Skate CIM <orders@your-domain.com>"
 ```
 
-`CONFIRMATION_EMAIL_TO` 是项目级收件邮箱，线上必须按实际订单接收邮箱配置；客户在确认单里填写的邮箱如果格式合法，会和项目邮箱一起收到确认单，如果格式不合法则只发项目邮箱，不阻断提交。`RESEND_FROM` 必须使用已在 Resend 完成验证的域名邮箱。`RESEND_API_KEY` 只能放在本地环境变量或 Cloudflare Worker secrets，不要提交到仓库。
+`CONFIRMATION_EMAIL_TO` 是项目级收件邮箱，线上必须按实际订单接收邮箱配置；客户在确认单里填写的邮箱如果格式合法，会和项目邮箱一起收到确认单，如果格式不合法则只发项目邮箱，不阻断提交。`RESEND_FROM` 必须使用已在 Resend 完成验证的域名邮箱。`RESEND_API_KEY` 只能放在本地环境变量或云端函数密钥，不要提交到仓库。
 
-Cloudflare 部署时建议这样配置：
+## 阿里云 ESA Pages 部署
 
-- Variables：`EMAIL_TRANSPORT=resend`、`CONFIRMATION_EMAIL_TO=orders@example.com`、`RESEND_FROM=Skate CIM <orders@your-domain.com>`
-- Secrets：`RESEND_API_KEY`
+仓库根目录的 `esa.jsonc` 是 ESA Pages 的构建配置。绑定 GitHub 仓库后，将生产分支设为 `main`；ESA 按配置执行 `npm run build:esa`，并发布生成的 `dist/`。构建脚本只收集 C 端页面和运行资源，不把本地 Node 服务、测试文件或 B 端管理界面上传为公开静态资源。
 
-线上发送入口由 `functions/api/public/confirmation-email.js` 提供，对应 Cloudflare Pages 的 `POST /api/public/confirmation-email`。如果发送失败，优先按下面顺序排查：
+`functions/esa-entry.js` 是 ESA 边缘函数入口。静态资源由 Pages 直接返回，未命中的 `/api/public/confirmation-email` 由边缘函数处理并调用 Resend。部署后在 ESA 函数环境变量中配置：
 
-1. 浏览器 DevTools → Network → `confirmation-email`，确认状态码和返回 JSON。
-2. Cloudflare Pages → 当前部署 → Functions 日志，搜索 `[confirmation-email]`，可看到请求参数是否齐全、Resend 返回状态和 provider message。
-3. 如果状态码是 `405`，说明 Pages Function 没有随当前部署生效，通常是 `functions/` 目录未提交或部署产物仍是旧版本。
-4. 如果状态码是 `400` / `500` 且返回 Resend 配置或邮箱错误，检查 `CONFIRMATION_EMAIL_TO`、`RESEND_FROM`、`RESEND_API_KEY`，其中 `RESEND_FROM` 必须来自 Resend 已验证域名。
+- `CONFIRMATION_EMAIL_TO`：项目订单收件邮箱
+- `RESEND_FROM`：Resend 已验证域名的发件邮箱，例如 `Skate CIM <orders@your-domain.com>`
+- `RESEND_API_KEY`：Resend API 密钥，作为加密变量或 Secret 保存
+
+当前 B 端 `/b-side/` 配置页依赖 `server/local-server.mjs` 和本地后端接口，ESA 包会有意排除该管理页。要在线启用 B 端登录、草稿保存和发布，还需要单独实现并部署带持久化存储的管理 API；不能把本地 Node/SQLite 后端直接部署为 ESA Pages 静态资源。
+
+邮件发送失败时，先在浏览器 Network 中检查 `/api/public/confirmation-email` 的状态码和响应 JSON，再查看 ESA 函数日志中的 `[confirmation-email]`。`400` 通常表示请求内容或邮箱格式有误；`405` 表示请求方法不是 POST；`500` 通常表示收件邮箱或 Resend 环境变量缺失；Resend 返回的错误状态和消息会回传给调用方。
 
 ## C 端多语言
 
@@ -58,22 +60,6 @@ C 端页面支持中文 / English 切换，入口是顶部 `EN` / `中` 按钮�
 - 页面通用文案维护在 `i18n/c-side-copy.js` 的 `window.SKATE_CIM_I18N`
 - C 端内置产品补充文案维护在 `i18n/c-side-copy.js` 的 `window.SKATE_CIM_PRODUCT_COPY`
 - B 端配置或 schema 后续可直接使用 `{ zh: "中文", en: "English" }` 结构，C 端会按当前语言读取，并兼容旧的纯字符串字段
-
-## 自动发布到阿里云 OSS
-
-仓库已配置 GitHub Actions：每次 push 到 `main` 分支，会把当前静态站文件同步到阿里云 OSS。同步使用 `ossutil sync --delete`，OSS 侧会删除本仓库静态站中已不存在的旧文件。
-
-需要在 GitHub 仓库 `Settings -> Secrets and variables -> Actions -> Repository secrets` 配置：
-
-| Secret | 说明 |
-| --- | --- |
-| `ALIYUN_ACCESS_KEY_ID` | 阿里云 RAM 用户 AccessKey ID |
-| `ALIYUN_ACCESS_KEY_SECRET` | 阿里云 RAM 用户 AccessKey Secret |
-| `ALIYUN_OSS_BUCKET` | OSS Bucket 名称，不带 `oss://` |
-| `ALIYUN_OSS_ENDPOINT` | Bucket 所在地域 Endpoint，例如 `https://oss-cn-hangzhou.aliyuncs.com` |
-| `ALIYUN_OSS_PREFIX` | 可选；发布到 Bucket 子目录时填写，例如 `skate-cim/` |
-
-RAM 用户最小权限建议只授予目标 Bucket 或目标 Prefix 的 `oss:ListObjects`、`oss:PutObject`、`oss:DeleteObject`。如果启用了 `ALIYUN_OSS_PREFIX`，请确认权限 Resource 也限制在相同前缀，避免误删 Bucket 其他目录。
 
 ## 版本迭代
 
