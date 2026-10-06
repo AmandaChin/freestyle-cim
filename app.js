@@ -2138,6 +2138,7 @@ function buildConfirmationSheetHtml(data) {
   const item = product();
   const locale = state.language === "en" ? "en-US" : "zh-CN";
   const generatedAt = new Date().toLocaleString(locale, { hour12: false });
+  const printFileName = confirmationSheetFileName(data);
   const baseHref = document.baseURI || window.location.href;
   const allAnglePreviews = data.effectSnapshots?.previews?.length
     ? data.effectSnapshots.previews
@@ -2165,7 +2166,7 @@ function buildConfirmationSheetHtml(data) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="skate-cim-document" content="confirmation-sheet" />
     <base href="${escapeHtml(baseHref)}" />
-    <title>${escapeHtml(data.product)} ${t("customConfirmationSheet")}</title>
+    <title>${escapeHtml(printFileName.replace(/\.pdf$/i, ""))}</title>
     <style>${confirmationSheetStyles()}</style>
   </head>
   <body>
@@ -2265,9 +2266,24 @@ function buildConfirmationSheetHtml(data) {
 </html>`;
 }
 
+function confirmationSheetFileBaseName(data) {
+  const product = String(data.product || "Skate CIM").trim() || "Skate CIM";
+  const customer = String(data.customer?.name || "customer").trim() || "customer";
+  // 客户日期字段已统一为 YYYY-MM-DD，文件名中去掉连接符以保持跨系统兼容。
+  const date = String(data.customer?.date || new Date().toISOString().slice(0, 10))
+    .replace(/[^0-9]/g, "")
+    .slice(0, 8) || new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return [product, customer, date]
+    .map((value) => value.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim())
+    .join("_");
+}
+
 function confirmationSheetFileName(data) {
-  const customer = data.customer.name || "customer";
-  return `${data.product}-${customer}-confirmation.html`.replace(/[\\/:*?"<>|]/g, "-");
+  return `${confirmationSheetFileBaseName(data)}.pdf`;
+}
+
+function confirmationSheetHtmlFileName(data) {
+  return `${confirmationSheetFileBaseName(data)}.html`;
 }
 
 function downloadConfirmationSheetFallback(html, fileName) {
@@ -2439,7 +2455,8 @@ async function openFullConfirmationSheet() {
     sheetWindow.focus();
     return;
   }
-  downloadConfirmationSheetFallback(html, confirmationSheetFileName(data));
+  // 弹窗被拦截时只能下载当前生成的 HTML；真实 PDF 仍通过确认单页面的打印/另存 PDF 生成。
+  downloadConfirmationSheetFallback(html, confirmationSheetHtmlFileName(data));
   toast(t("popupBlocked"));
 }
 
