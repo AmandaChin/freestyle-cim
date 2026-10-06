@@ -84,6 +84,15 @@ function effectImageAttachments(effectSnapshots, productName, customerName, cust
   });
 }
 
+function confirmationZipAttachment(archive) {
+  if (!archive?.filename || !archive?.content) return null;
+  return {
+    filename: safeFileName(archive.filename),
+    contentType: "application/zip",
+    content: String(archive.content)
+  };
+}
+
 function passwordHash(password, salt = randomBytes(16).toString("hex")) {
   const hash = scryptSync(password, salt, 32).toString("hex");
   return `${salt}:${hash}`;
@@ -339,13 +348,17 @@ export async function createLocalBackend(options = {}) {
       }
       const confirmationLabel = payload.language === "en" ? "Confirmation Sheet" : "定制确认单";
       const id = `confirmation-${Date.now()}-${randomBytes(4).toString("hex")}`;
-      const effectAttachments = effectImageAttachments(
+      const zipAttachment = confirmationZipAttachment(payload.confirmationZip);
+      // 兼容旧客户端：新客户端发送 ZIP，旧客户端仍可发送三张独立效果图。
+      const effectAttachments = zipAttachment ? [] : effectImageAttachments(
         payload.effectSnapshots,
         productName,
         customerName,
         payload.customer?.date
       );
-      const imageAttachments = embroideryImageAttachments(payload.embroidery);
+      const confirmationAttachments = zipAttachment
+        ? [zipAttachment]
+        : [...effectAttachments, ...embroideryImageAttachments(payload.embroidery)];
       const message = {
         id,
         transport: "local-outbox",
@@ -353,7 +366,7 @@ export async function createLocalBackend(options = {}) {
         subject: `${productName} ${confirmationLabel} - ${customerName}`,
         createdAt: nowString(),
         customer: payload.customer || {},
-        attachments: [...effectAttachments, ...imageAttachments]
+        attachments: confirmationAttachments
       };
       if (emailTransport === "resend") {
         if (!resendApiKey || !resendFrom) {
@@ -370,8 +383,7 @@ export async function createLocalBackend(options = {}) {
           subject: message.subject,
           html,
           attachments: [
-            ...effectAttachments.map((item) => ({ filename: item.filename, content: item.content })),
-            ...imageAttachments.map((item) => ({ filename: item.filename, content: item.content }))
+            ...confirmationAttachments.map((item) => ({ filename: item.filename, content: item.content }))
           ]
         };
         if (validCustomerEmail) resendBody.reply_to = [validCustomerEmail];

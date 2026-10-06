@@ -6,7 +6,7 @@
 
 - 当前版本：`0.1.3`
 - 版本入口：`version.js`
-- C 端缓存版本：`index.html` 中的 `styles.css?v=20260526-confirmation-email-v1`、`version.js?v=20260526-confirmation-email-v1` 和 `app.js?v=20260526-confirmation-email-v1`
+- C 端缓存版本：`index.html` 中的 `styles.css?v=20260708-beian-v1`、`version.js?v=20260707-ui-polish-v7` 和 `app.js?v=20261006-confirmation-zip-pdf-views-v2`
 
 升级版本时，需要同步更新：
 

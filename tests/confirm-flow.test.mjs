@@ -315,7 +315,7 @@ async function main() {
         assert(await page.evaluate("!document.querySelector('#confirmModal .fixed-list')"), `${viewport.name}: confirmation form should not show unreliable fixed accessory data`);
         assert(await page.evaluate("document.querySelector('[data-customer=\"phone\"]')?.required === false"), `${viewport.name}: phone should be optional`);
         assert(await page.evaluate("!document.querySelector('[data-customer=\"footLength\"]')"), `${viewport.name}: foot length should be merged into size selection`);
-        assert(await page.evaluate("document.querySelectorAll('#confirmModal .field-optional').length === 1"), `${viewport.name}: optional fields should show their optional labels`);
+        assert(await page.evaluate("document.querySelectorAll('#confirmModal .field-optional').length === 2"), `${viewport.name}: phone and country should show optional labels`);
         assert(await page.evaluate(`(() => {
           const select = document.querySelector('select[data-customer="size"]');
           return select?.required && !select.multiple && select.value === '' && select.options.length === 14;

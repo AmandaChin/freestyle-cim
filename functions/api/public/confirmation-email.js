@@ -67,6 +67,15 @@ function effectImageAttachments(effectSnapshots, productName, customerName, cust
   });
 }
 
+function confirmationZipAttachment(archive) {
+  if (!archive?.filename || !archive?.content) return null;
+  return {
+    filename: safeFileName(archive.filename),
+    contentType: "application/zip",
+    content: String(archive.content)
+  };
+}
+
 function payloadProductName(product) {
   if (typeof product === "string") return product;
   return product?.name || product?.title || product?.model || "Skate CIM";
@@ -124,20 +133,24 @@ export async function handleConfirmationEmail(request, env = {}) {
   const productName = String(payloadProductName(payload.product)).trim() || "Skate CIM";
   const confirmationLabel = payload.language === "en" ? "Confirmation Sheet" : "定制确认单";
   const subject = `${productName} ${confirmationLabel} - ${customerName}`;
-  const effectAttachments = effectImageAttachments(
+  const zipAttachment = confirmationZipAttachment(payload.confirmationZip);
+  // 兼容旧客户端：新客户端发送 ZIP，旧客户端仍可发送三张独立效果图。
+  const effectAttachments = zipAttachment ? [] : effectImageAttachments(
     payload.effectSnapshots,
     productName,
     customerName,
     payload.customer?.date
   );
+  const confirmationAttachments = zipAttachment
+    ? [zipAttachment]
+    : [...effectAttachments, ...embroideryImageAttachments(payload.embroidery)];
   const resendBody = {
     from: resendFrom,
     to: recipients,
     subject,
     html,
     attachments: [
-      ...effectAttachments.map((item) => ({ filename: item.filename, content: item.content })),
-      ...embroideryImageAttachments(payload.embroidery).map((item) => ({ filename: item.filename, content: item.content }))
+      ...confirmationAttachments.map((item) => ({ filename: item.filename, content: item.content }))
     ]
   };
   if (validCustomerEmail) resendBody.reply_to = [validCustomerEmail];
