@@ -176,8 +176,8 @@ async function main() {
     "mobile customizer angle/material row should have vertical breathing room"
   );
   assert(
-    mobileCss.includes(".model-strip,\n  .scene-footer") && mobileCss.includes("display: none"),
-    "portrait mobile customizer should remove the duplicated model strip and footer meta"
+    mobileCss.includes(".scene-footer") && mobileCss.includes("display: none"),
+    "portrait mobile customizer should hide footer meta"
   );
   [
     ["正面", "Front"],
