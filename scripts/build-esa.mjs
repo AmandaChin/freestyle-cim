@@ -6,7 +6,16 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const outputDir = path.join(projectRoot, "dist");
 
 // ESA Pages 只发布 C 端运行所需文件，避免把本地后端、测试和 B 端管理界面作为公开资源上传。
-const publicFiles = ["index.html", "customer-intro.html", "app.js", "styles.css", "version.js"];
+const publicFiles = [
+  "index.html",
+  "customer-intro.html",
+  "app.js",
+  "styles.css",
+  "version.js",
+  "special-custom-view.html",
+  "special-custom.css",
+  "special-custom.js"
+];
 const publicDirectories = ["assets", "shared", "i18n"];
 
 await rm(outputDir, { recursive: true, force: true });
