@@ -25,7 +25,7 @@ const I18N = window.SKATE_CIM_I18N || {};
 const PRODUCT_COPY = window.SKATE_CIM_PRODUCT_COPY || { embroiderySlots: [], productDefaults: {} };
 const CONFIRMATION_DOCUMENT_TYPE = "skate-cim-confirmation-sheet";
 const CONFIRMATION_DOCUMENT_VERSION = 1;
-const CONFIRMATION_ARTWORK_SLOTS = new Set(["B1", "tongue", "pad-upper", "toe-left"]);
+const CONFIRMATION_ARTWORK_SLOTS = new Set(["B1", "tongue", "pad-upper", "toe-left", "toe-right"]);
 const CUSTOMIZATION_HANDOFF_KEY = "SKATE_CIM_CUSTOMIZATION_HANDOFF_V1";
 const LOCAL_RUNTIME_CACHE_KEY = "SKATE_CIM_LOCAL_RUNTIME_ID";
 const localRuntimeId = window.__SKATE_CIM_LOCAL_RUNTIME_ID__;
@@ -3064,7 +3064,6 @@ function persistCustomizationHandoff() {
     language: state.language,
     customer: { ...state.customer },
     specialDesigns: state.specialDesigns,
-    specialDesignPreviews: state.specialDesignPreviews,
     config: state.config,
     updatedAt: new Date().toISOString()
   };
@@ -3077,15 +3076,18 @@ function persistCustomizationHandoff() {
   }
 }
 
-function restoreCustomizationHandoff() {
+function restoreCustomizationHandoff(inMemoryPayload = null) {
   try {
-    let serialized = null;
-    try {
-      serialized = sessionStorage.getItem(CUSTOMIZATION_HANDOFF_KEY);
-    } catch {
-      // file:// 直开时部分浏览器会限制 sessionStorage，回退到同源 localStorage。
+    let payload = inMemoryPayload;
+    if (!payload) {
+      let serialized = null;
+      try {
+        serialized = sessionStorage.getItem(CUSTOMIZATION_HANDOFF_KEY);
+      } catch {
+        // file:// 直开时部分浏览器会限制 sessionStorage，回退到同源 localStorage。
+      }
+      payload = JSON.parse(serialized || localStorage.getItem(CUSTOMIZATION_HANDOFF_KEY) || "null");
     }
-    const payload = JSON.parse(serialized || localStorage.getItem(CUSTOMIZATION_HANDOFF_KEY) || "null");
     if (!payload || payload.schemaVersion !== 1) return false;
     if (PRODUCT_CATALOG.some((item) => item.id === payload.productId)) state.productId = payload.productId;
     if (payload.config && typeof payload.config === "object") {
@@ -3211,7 +3213,7 @@ function bindEvents() {
   // 画板完成后接收结构化设计与预览，再回到当前页面继续效果确认流程。
   window.addEventListener("skate-cim:special-finish", (event) => {
     const resumeStep = event.detail?.resumeStep || "builder";
-    restoreCustomizationHandoff();
+    restoreCustomizationHandoff(event.detail?.handoff || null);
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (resumeStep === "special-preview") {

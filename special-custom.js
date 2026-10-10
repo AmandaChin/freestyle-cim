@@ -4,9 +4,6 @@
   const STORAGE_KEY = "SKATE_CIM_SPECIAL_CUSTOM_DEMO_V1";
   const CUSTOMIZATION_HANDOFF_KEY = "SKATE_CIM_CUSTOMIZATION_HANDOFF_V1";
   const LOCAL_RUNTIME_CACHE_KEY = "SKATE_CIM_LOCAL_RUNTIME_ID";
-  const navigationType = performance.getEntriesByType?.("navigation")?.[0]?.type
-    || (performance.navigation?.type === 1 ? "reload" : "navigate");
-  const SHOULD_RESET_DESIGNS_AFTER_RELOAD = navigationType === "reload";
   const localRuntimeId = window.__SKATE_CIM_LOCAL_RUNTIME_ID__;
   if (localRuntimeId) {
     try {
@@ -111,26 +108,12 @@
     redoStack: [],
     drag: null,
     objectUrls: new Map(),
-    syncTimer: 0,
-    syncPromise: Promise.resolve(),
     toastTimer: 0
   };
-
-  function apiRequest(url, options = {}) {
-    return fetch(url, { cache: "no-store", ...options }).then(async (response) => {
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false) throw new Error(result.message || `请求失败 (${response.status})`);
-      return result;
-    });
-  }
 
   function setSyncStatus(message, status = "idle") {
     els.syncStatus.textContent = message;
     els.syncStatus.dataset.state = status;
-  }
-
-  function assetPreviewUrl(assetId) {
-    return `/api/public/assets/${encodeURIComponent(assetId)}/content`;
   }
 
   function uid(prefix) {
@@ -187,7 +170,7 @@
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
       return SLOT_DEFINITIONS.reduce((documents, slot) => {
         documents[slot.id] = stored[slot.id]
-          ? normalizeDocument(SHOULD_RESET_DESIGNS_AFTER_RELOAD ? resetDocumentImages(stored[slot.id], slot.id) : stored[slot.id], slot.id)
+          ? resetDocumentImages(stored[slot.id], slot.id)
           : emptyDocument(slot.id);
         return documents;
       }, {});
@@ -230,7 +213,7 @@
         ...(isDefaultArtwork ? { defaultAssetPath, threadColor: object.threadColor || "#111111" } : {}),
         fontFamilyId: object.fontFamilyId === "source-han-serif" ? "system-serif" : object.fontFamilyId === "inter" || object.fontFamilyId === "noto-sans-sc" ? "system-sans" : object.fontFamilyId || "system-sans",
         cropRect: object.type === "image" ? normalizeCropRect(object.cropRect) : object.cropRect,
-        previewUrl: isDefaultArtwork ? defaultAssetPath : object.previewUrl || object.defaultAssetPath || (object.sourceAssetId && !String(object.sourceAssetId).startsWith("asset_local") ? assetPreviewUrl(object.sourceAssetId) : ""),
+        previewUrl: isDefaultArtwork ? defaultAssetPath : object.previewUrl || object.defaultAssetPath || "",
         transform: {
           x: clamp(Number(object.transform?.x) || 0.5, 0.06, 0.94),
           y: clamp(Number(object.transform?.y) || 0.5, 0.06, 0.94),
@@ -311,15 +294,7 @@
     currentDocument().revision += 1;
     currentDocument().updatedAt = new Date().toISOString();
     saveDocuments();
-    window.clearTimeout(state.syncTimer);
-    state.syncTimer = window.setTimeout(() => {
-      const documentData = buildDesignDocumentForSlot(state.slotId);
-      state.syncPromise = state.syncPromise
-        .then(() => apiRequest("/api/public/designs", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(documentData) }))
-        .then(() => setSyncStatus("已同步到本地服务", "saved"))
-        .catch((error) => setSyncStatus(`本地保存失败：${error.message}`, "error"));
-      setSyncStatus("正在同步设计…", "saving");
-    }, 700);
+    setSyncStatus("设计已保存在当前浏览器", "saved");
   }
 
   function buildDesignDocumentForSlot(slotId) {
@@ -884,7 +859,7 @@
             { x: -width / 2, y: -height / 2, width, height },
             object.threadColor);
         } catch {
-          // 图片预览加载失败时保留其他对象，原素材仍由后续云端资产链路处理。
+          // 图片预览加载失败时保留其他对象，避免单张素材阻断整份确认单。
         }
       }
       context.restore();
@@ -945,7 +920,7 @@
       }
       handoff = { ...handoff, ...(JSON.parse(serialized || localStorage.getItem(CUSTOMIZATION_HANDOFF_KEY) || "null") || {}) };
     } catch {
-      // 直接打开本页时允许从默认鞋款继续，不阻断本地设计保存。
+      // 直接打开本页时允许从默认鞋款继续，不阻断当前页面内的设计。
     }
     handoff.schemaVersion = 1;
     handoff.specialDesigns = designs;
@@ -965,92 +940,21 @@
         slotConfig.text = [textSummary, colorNote].filter(Boolean).join(" / ");
       });
     }
-    const serialized = JSON.stringify(handoff);
-    try {
-      sessionStorage.setItem(CUSTOMIZATION_HANDOFF_KEY, serialized);
-    } catch {
-      // 本地持久化只保留结构化设计，预览 Data URL 仅用于当前跳转会话。
-      localStorage.setItem(CUSTOMIZATION_HANDOFF_KEY, JSON.stringify({ ...handoff, specialDesignPreviews: {} }));
-    }
+    // 主页面和画板处于同一 SPA，直接通过事件交接快照，避免大 Data URL 撑满浏览器存储。
+    return handoff;
   }
 
   async function navigateToMainFlow(resumeStep) {
     saveDocuments();
-    window.clearTimeout(state.syncTimer);
-    const documents = SLOT_DEFINITIONS.map((slot) => buildDesignDocumentForSlot(slot.id));
-    state.syncPromise = state.syncPromise.then(async () => {
-      for (const documentData of documents) {
-        await apiRequest("/api/public/designs", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(documentData)
-        });
-      }
-    });
-    setSyncStatus("正在保存所有裁片…", "saving");
     try {
-      await state.syncPromise;
-      setSyncStatus("已同步到本地服务", "saved");
+      setSyncStatus("正在生成邮件用的画板截图…", "saving");
+      const designPreviews = await buildDesignPreviews();
+      const handoff = syncCustomizationHandoff(designPreviews);
+      setSyncStatus("截图已就绪，发送确认单时会随邮件提交", "saved");
+      window.dispatchEvent(new CustomEvent("skate-cim:special-finish", { detail: { resumeStep, handoff } }));
     } catch (error) {
-      setSyncStatus(`本地保存失败：${error.message}`, "error");
-      showToast("保存失败，请确认本地服务正常后重试");
-      return;
-    }
-    const designPreviews = await buildDesignPreviews();
-    syncCustomizationHandoff(designPreviews);
-    window.dispatchEvent(new CustomEvent("skate-cim:special-finish", { detail: { resumeStep } }));
-  }
-
-  async function loadDesignDocumentsFromLocalService() {
-    try {
-      const result = await apiRequest("/api/public/designs?productId=yjs-pro-cim");
-      const remoteDocuments = new Map((result.documents || []).map((documentData) => [documentData.slotId, documentData]));
-      if (SHOULD_RESET_DESIGNS_AFTER_RELOAD) {
-        // 用更高 revision 把本地服务中的旧图片替换成默认贴图，避免刷新后旧图复活。
-        for (const slot of SLOT_DEFINITIONS) {
-          const remoteDocument = remoteDocuments.get(slot.id);
-          const localDocument = state.documents[slot.id];
-          const sourceDocument = remoteDocument && Number(remoteDocument.revision) > Number(localDocument.revision)
-            ? remoteDocument
-            : localDocument;
-          const freshDocument = resetDocumentImages(sourceDocument, slot.id);
-          freshDocument.id = sourceDocument.id;
-          freshDocument.revision = Math.max(Number(remoteDocument?.revision) || 0, Number(localDocument.revision) || 0) + (remoteDocument ? 1 : 0);
-          freshDocument.updatedAt = new Date().toISOString();
-          state.documents[slot.id] = freshDocument;
-          await apiRequest("/api/public/designs", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildDesignDocumentForSlot(slot.id))
-          });
-        }
-        saveDocuments();
-        render();
-        setSyncStatus("已重置画板图片，默认贴图已载入", "saved");
-        return;
-      }
-      const localDocuments = state.documents;
-      for (const slot of SLOT_DEFINITIONS) {
-        const remoteDocument = remoteDocuments.get(slot.id);
-        if (!remoteDocument) continue;
-        const localDocument = localDocuments[slot.id];
-        const normalizedRemote = normalizeDocument(remoteDocument, slot.id);
-        if ((Number(localDocument?.revision) || 0) <= (Number(normalizedRemote.revision) || 0)) {
-          state.documents[slot.id] = normalizedRemote;
-        } else {
-          state.documents[slot.id] = localDocument;
-          await apiRequest("/api/public/designs", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildDesignDocumentForSlot(slot.id))
-          });
-        }
-      }
-      saveDocuments();
-      render();
-      setSyncStatus("已连接本地服务，设计会自动保存", "saved");
-    } catch (error) {
-      setSyncStatus(`本地服务不可用：${error.message}`, "error");
+      setSyncStatus(`画板截图生成失败：${error.message}`, "error");
+      showToast("截图生成失败，请检查画板图片后重试");
     }
   }
 
@@ -1098,34 +1002,19 @@
     if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { showToast("请选择 PNG、JPEG 或 WebP 图片"); return; }
     if (file.size > 8 * 1024 * 1024) { showToast("图片请控制在 8MB 内"); return; }
     if (currentDocument().objects.filter((object) => object.type !== "image").length >= MAX_OBJECTS) { showToast("一个裁片最多放置 6 个对象"); return; }
-    setSyncStatus("正在上传图片素材…", "saving");
+    const previewUrl = URL.createObjectURL(file);
     try {
-      const ticket = await apiRequest("/api/public/assets/upload-ticket", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, mimeType: file.type, sizeBytes: file.size })
-      });
-      const uploadResponse = await fetch(ticket.uploadUrl, {
-        method: ticket.uploadMethod || "PUT",
-        headers: ticket.uploadHeaders || { "Content-Type": file.type },
-        body: file
-      });
-      if (!uploadResponse.ok) throw new Error(`图片上传失败 (${uploadResponse.status})`);
-      const completed = await apiRequest(`/api/public/assets/${encodeURIComponent(ticket.asset.assetId)}/complete`, { method: "POST" });
-      const previewUrl = URL.createObjectURL(file);
       const object = createImageObject(file, previewUrl);
       const imageDimensions = await loadPreviewImage(previewUrl);
       object.sourceWidth = imageDimensions.naturalWidth;
       object.sourceHeight = imageDimensions.naturalHeight;
-      object.sourceAssetId = completed.asset?.assetId || ticket.asset.assetId;
-      object.fileName = completed.asset?.fileName || ticket.asset.fileName || file.name;
-      object.mimeType = completed.asset?.mimeType || ticket.asset.mimeType || file.type;
       state.objectUrls.set(object.id, previewUrl);
       replaceImageObject(object);
-      setSyncStatus("图片素材已保存到本地服务", "saved");
+      setSyncStatus("图片仅在当前页面使用，完成后会随确认单截图发邮件", "saved");
     } catch (error) {
-      setSyncStatus(`图片上传失败：${error.message}`, "error");
-      showToast("图片上传失败，请重试");
+      URL.revokeObjectURL(previewUrl);
+      setSyncStatus(`图片读取失败：${error.message}`, "error");
+      showToast("图片读取失败，请换一张图片重试");
     }
   });
   document.querySelector("#undoButton").addEventListener("click", undo);
@@ -1171,5 +1060,5 @@
   window.SKATE_CIM_SPECIAL_CUSTOMIZER_READY = true;
 
   render();
-  void loadDesignDocumentsFromLocalService();
+  setSyncStatus("图片和文字在当前页面内处理，提交确认单时再随邮件发送", "idle");
 }());
