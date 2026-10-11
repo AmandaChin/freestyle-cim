@@ -902,8 +902,40 @@ async function renderShoeSnapshot(item = product(), angleId = currentAngleConfig
   return canvas.toDataURL("image/png");
 }
 
+function snapshotAssetSources(item) {
+  const sources = new Set();
+  for (const angleConfig of productAngles(item)) {
+    const angle = angleAssets(angleConfig.id);
+    sources.add(angle.base);
+    sources.add(angle.stitch);
+    for (const component of renderableComponents(item)) {
+      const config = componentConfigFor(item, component.id);
+      const fixedImage = fixedImageForAngle(component, config, angle);
+      if (fixedImage) {
+        sources.add(fixedImage);
+      } else if (!(angle.parts && !angle.parts[component.id])) {
+        const masks = angle.parts?.[component.id] ? [angle.parts[component.id]] : (component.masks || []);
+        masks.forEach((src) => sources.add(src));
+        const texture = officialTextureById(config.material);
+        if (texture?.file) sources.add(materialAsset(texture.file));
+      }
+
+      const preview = embroideryPreviewForComponent(component.id, angleConfig.id);
+      const overlayMask = angle.parts?.[component.id];
+      if (preview?.dataUrl && preview.mapping && overlayMask) {
+        sources.add(preview.dataUrl);
+        sources.add(overlayMask);
+      }
+    }
+  }
+  sources.delete("");
+  return [...sources].filter((src) => typeof src === "string" && src.length > 0);
+}
+
 async function buildEffectSnapshotRecord(item = product()) {
   window.__shoeSnapshotBuildCount = (window.__shoeSnapshotBuildCount || 0) + 1;
+  // 先并行启动所有角度会用到的图片请求，避免逐个裁片绘制时串行等待网络加载。
+  await Promise.all(snapshotAssetSources(item).map((src) => loadSnapshotImage(src)));
   const previews = await Promise.all(
     productAngles(item).map(async (angle) => {
       try {
@@ -1813,10 +1845,10 @@ async function openEffectPickerModal() {
   modal.innerHTML = renderEffectPickerModal();
 }
 
-function closeEffectPickerModal() {
+function closeEffectPickerModal({ preserveSnapshots = false } = {}) {
   document.querySelector("#effectPickerModal")?.classList.remove("is-visible");
   cancelConfirmationSheetGeneration();
-  clearEffectSnapshots();
+  if (!preserveSnapshots) clearEffectSnapshots();
 }
 
 function renderSpecialDesignReviewModal() {
@@ -2960,7 +2992,7 @@ async function downloadSheet() {
     modal.classList.add("is-visible");
 
     closeConfirmModal();
-    closeEffectPickerModal();
+    closeEffectPickerModal({ preserveSnapshots: true });
     toast(t("generatedQuickCard"));
   } catch (error) {
     console.error("Sheet generation failed:", error);
