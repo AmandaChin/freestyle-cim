@@ -416,22 +416,11 @@ async function main() {
         );
         await assertEffectModalLayout(page, viewport);
         await page.evaluate(`(() => {
-          window.__confirmationSheetWrites = [];
-          window.__confirmationOpenCount = 0;
-          const fakeDocument = {
-            open() {},
-            write(html) {
-              window.__confirmationSheetWrites.push(html);
-            },
-            close() {}
-          };
-          window.open = () => {
-            window.__confirmationOpenCount += 1;
-            return {
-              document: fakeDocument,
-              closed: false,
-              focus() {}
-            };
+          window.__confirmationDownloads = [];
+          const originalCreateObjectURL = URL.createObjectURL.bind(URL);
+          URL.createObjectURL = (blob) => {
+            window.__confirmationDownloads.push({ type: blob.type, size: blob.size });
+            return originalCreateObjectURL(blob);
           };
           window.__fullConfirmationBuildCount = 0;
           window.__confirmationEmailRequests = [];
@@ -457,7 +446,7 @@ async function main() {
         })()`);
         await page.click("[data-download-sheet]");
         await page.waitFor("document.querySelector('#confirmationPreviewModal.is-visible .quick-confirm-card')");
-        assert(await page.evaluate("window.__confirmationOpenCount === 0"), `${viewport.name}: quick confirmation should not open a blank tab`);
+        assert(await page.evaluate("window.__confirmationDownloads.length === 0"), `${viewport.name}: quick confirmation should not export before an explicit action`);
         assert(await page.evaluate("window.__fullConfirmationBuildCount === 0"), `${viewport.name}: quick confirmation should not build the full production sheet`);
         assert(await page.evaluate("document.querySelector('#confirmationPreviewModal .quick-confirm-image')?.src.startsWith('data:image/png')"), `${viewport.name}: quick confirmation should reuse the selected static preview`);
         assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('测试用户')"), `${viewport.name}: quick confirmation should include customer data`);
@@ -472,7 +461,7 @@ async function main() {
         })()`), `${viewport.name}: quick confirmation card should stay compact on mobile`);
         await page.click("#confirmationPreviewModal [data-back-confirm]");
         await page.waitFor("document.querySelector('#confirmModal.is-visible #confirmTitle')?.textContent === '填写定制信息'");
-        assert(await page.evaluate("window.__confirmationOpenCount === 0"), `${viewport.name}: returning from quick confirmation should not open a sheet`);
+        assert(await page.evaluate("window.__confirmationDownloads.length === 0"), `${viewport.name}: returning from quick confirmation should not export a sheet`);
 
         await page.tap("[data-review-effect]");
         await page.waitFor("document.querySelector('#effectPickerModal.is-visible #effectPickerTitle')?.textContent === '确认鞋子效果'");
@@ -523,11 +512,11 @@ async function main() {
         await page.waitFor("document.querySelector('#confirmationPreviewModal [data-send-confirmation]')?.textContent.includes('已发送')");
         assert(await page.evaluate("document.querySelector('#confirmationPreviewModal')?.textContent.includes('发送完成')"), `${viewport.name}: Resend transport should show real sent completion copy`);
         assert(await page.evaluate("document.querySelector('#toast')?.textContent.includes('确认单已发送至 orders@example.com')"), `${viewport.name}: Resend transport should push a real sent toast`);
-        await page.click("#confirmationPreviewModal [data-view-full-sheet]");
-        await page.waitFor("window.__confirmationSheetWrites?.some((html) => html.includes('最终效果图'))");
-        assert(await page.evaluate("window.__confirmationOpenCount === 1"), `${viewport.name}: final action should open the confirmation page after HTML is ready`);
-        assert(await page.evaluate("window.__fullConfirmationBuildCount === 3"), `${viewport.name}: full production sheet should also build for both send transports and the secondary full-sheet action`);
-        assert(await page.evaluate("window.__confirmationSheetWrites.at(-1).includes('data:image/png')"), `${viewport.name}: final action should open the HTML confirmation sheet with static PNG previews`);
+        await page.click("#confirmationPreviewModal [data-export-pdf]");
+        await page.waitFor("window.__confirmationDownloads?.some((item) => item.type === 'application/pdf')");
+        assert(await page.evaluate("window.__fullConfirmationBuildCount === 2"), `${viewport.name}: full production sheet HTML should only be built for the two email actions`);
+        assert(await page.evaluate("!document.querySelector('#confirmationLongImageModal.is-visible')"), `${viewport.name}: PDF export should not open an extra page or modal`);
+        assert(await page.evaluate("document.querySelector('#confirmationPreviewModal [data-export-long-image]')?.hidden === true"), `${viewport.name}: long image action should stay hidden for now`);
         assert(await page.evaluate("document.body.dataset.view === 'builder'"), `${viewport.name}: generating the confirmation sheet should keep the customization page state`);
 
         await page.evaluate(`(() => {

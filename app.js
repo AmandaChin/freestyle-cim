@@ -199,6 +199,7 @@ let effectSnapshotRecord = null;
 let effectSnapshotRequestId = 0;
 let confirmationSheetRequestId = 0;
 let isConfirmationSheetGenerating = false;
+let confirmationFileExporting = false;
 let confirmationEmailState = "idle";
 let confirmationEmailTransport = "outbox";
 let confirmationEmailMessage = "";
@@ -2549,12 +2550,8 @@ function confirmationSheetFileName(data) {
   return `${confirmationSheetFileBaseName(data)}.pdf`;
 }
 
-function confirmationSheetHtmlFileName(data) {
-  return `${confirmationSheetFileBaseName(data)}.html`;
-}
-
-function downloadConfirmationSheetFallback(html, fileName) {
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+function downloadBinaryFile(bytes, fileName, contentType) {
+  const blob = bytes instanceof Blob ? bytes : new Blob([bytes], { type: contentType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -2795,7 +2792,7 @@ async function buildEffectPdfPage(data, preview) {
   return page.canvas;
 }
 
-async function buildCustomerInfoPdf(data) {
+async function buildCustomerInfoPdfPages(data) {
   const pages = [];
   // PDF 前三页复用确认单最终生成的三视角截图，后面再放结构化信息表。
   for (const preview of data.effectSnapshots?.previews?.slice(0, 3) || []) {
@@ -2831,11 +2828,11 @@ async function buildCustomerInfoPdf(data) {
     pages.push(specialPage.canvas);
   }
 
-  // 每个电绣裁片独立成页，确保完整生产单内能直接查看画板生成的贴片图。
-  for (const entry of data.embroidery.filter((item) => item.designPreviewDataUrl)) {
+  // 每个特殊定制图片独立成页，确保 PDF 和长图都保留画板贴片及用户上传的参考图。
+  for (const entry of data.embroidery.filter((item) => item.designPreviewDataUrl || item.image?.dataUrl)) {
     const artworkPage = createPdfPage(data, `${entry.code} · ${entry.name}`);
     // 复用主应用的快照图片加载器；special-custom.js 的加载器位于闭包内，不能跨脚本调用。
-    const image = await requireSnapshotImage(entry.designPreviewDataUrl);
+    const image = await requireSnapshotImage(entry.designPreviewDataUrl || entry.image.dataUrl);
     const maxWidth = 1360;
     const maxHeight = 1780;
     const scale = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
@@ -2845,10 +2842,43 @@ async function buildCustomerInfoPdf(data) {
     pages.push(artworkPage.canvas);
   }
 
+  return pages;
+}
+
+async function buildCustomerInfoPdf(data) {
+  const pages = await buildCustomerInfoPdfPages(data);
   return buildJpegPdf(pages.map((canvas) => {
     const jpeg = parseBase64DataUrl(canvas.toDataURL("image/jpeg", 0.92));
     return { jpegBytes: jpeg.bytes, width: canvas.width, height: canvas.height };
   }));
+}
+
+async function buildCustomerInfoLongImage(data) {
+  const pages = await buildCustomerInfoPdfPages(data);
+  if (!pages.length) throw new Error(t("exportFailed"));
+
+  // 长图宽度控制在 1000px，并限制总高度，避免微信 WebView 因超长 Canvas 直接失败。
+  const scale = Math.min(1000 / pages[0].width, 15000 / pages.reduce((height, page) => height + page.height, 0));
+  const gap = Math.round(32 * scale);
+  const width = Math.round(pages[0].width * scale);
+  const height = pages.reduce((total, page) => total + Math.round(page.height * scale), 0) + gap * (pages.length - 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  let top = 0;
+  pages.forEach((page, index) => {
+    const pageHeight = Math.round(page.height * scale);
+    context.drawImage(page, 0, top, width, pageHeight);
+    top += pageHeight;
+    if (index < pages.length - 1) top += gap;
+  });
+  return {
+    blob: await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error(t("exportFailed"))), "image/jpeg", 0.9)),
+    dataUrl: canvas.toDataURL("image/jpeg", 0.9)
+  };
 }
 
 async function buildConfirmationZip(data) {
@@ -2942,24 +2972,87 @@ function renderQuickConfirmationCard(data, imageDataUrl) {
 
       <footer class="confirm-actions quick-confirm-actions">
         <button class="glass-button" type="button" data-back-confirm>${t("backEdit")}</button>
-        <button class="glass-button" type="button" data-view-full-sheet>${t("viewFullSheet")}</button>
+        <button class="glass-button" type="button" data-view-full-sheet data-export-pdf ${confirmationFileExporting ? "disabled" : ""}>${t("exportPdf")}</button>
+        <!-- 长图功能暂时保留实现，但不作为当前用户出口；后续需要时移除 hidden 即可恢复。 -->
+        <button class="glass-button" type="button" data-export-long-image hidden ${confirmationFileExporting ? "disabled" : ""}>${t("exportLongImage")}</button>
         <button class="primary-button" type="button" data-send-confirmation ${confirmationEmailState !== "idle" ? "disabled" : ""} ${confirmationEmailState === "sending" ? "aria-busy=\"true\"" : ""}>${sendLabel}</button>
       </footer>
     </div>
   `;
 }
 
-async function buildConfirmationSheetDocument() {
+function renderLongImageModal(dataUrl) {
+  let modal = document.querySelector("#confirmationLongImageModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "confirmationLongImageModal";
+    modal.className = "confirm-modal";
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = [
+    '<div class="confirm-backdrop" data-close-long-image></div>',
+    '<section class="confirm-dialog long-image-dialog" role="dialog" aria-modal="true" aria-labelledby="longImageTitle">',
+    '<header class="confirm-header"><div><p class="eyebrow">', t("fullProductionSheet"), '</p><h2 id="longImageTitle">', t("exportLongImage"), '</h2></div>',
+    '<button class="icon-button" type="button" data-close-long-image title="', t("close"), '">×</button></header>',
+    '<div class="long-image-body"><p class="long-image-hint">', t("longImageHint"), '</p><img class="long-image-preview" src="', escapeHtml(dataUrl), '" alt="', escapeHtml(t("fullProductionSheet")), '" /></div>',
+    '<footer class="confirm-actions"><button class="glass-button" type="button" data-close-long-image>', t("closeLongImage"), '</button></footer>',
+    '</section>'
+  ].join("");
+  modal.classList.add("is-visible");
+}
+
+async function buildConfirmationExportData() {
   if (!effectSnapshotsReady(product())) {
     effectSnapshotRecord = await buildEffectSnapshotRecord(product());
   }
   if (!effectSnapshotsReady(product())) throw new Error(t("effectFailed"));
-  const data = buildExportData({ includeImageData: true, includeEffectSnapshots: true });
+  return buildExportData({ includeImageData: true, includeEffectSnapshots: true });
+}
+
+async function buildConfirmationSheetDocument() {
+  const data = await buildConfirmationExportData();
   return {
     data,
     html: await buildConfirmationSheetHtml(data),
     emailHtml: buildConfirmationEmailHtml(data)
   };
+}
+
+async function exportConfirmationPdf() {
+  if (confirmationFileExporting) return;
+  confirmationFileExporting = true;
+  refreshQuickConfirmationCard();
+  try {
+    const data = await buildConfirmationExportData();
+    const pdf = await buildCustomerInfoPdf(data);
+    downloadBinaryFile(pdf, confirmationSheetFileName(data), "application/pdf");
+    toast(t("pdfExported"));
+  } catch (error) {
+    console.error("Confirmation PDF export failed:", error);
+    toast(t("exportFailed"));
+  } finally {
+    confirmationFileExporting = false;
+    refreshQuickConfirmationCard();
+  }
+}
+
+async function exportConfirmationLongImage() {
+  if (confirmationFileExporting) return;
+  confirmationFileExporting = true;
+  refreshQuickConfirmationCard();
+  try {
+    const data = await buildConfirmationExportData();
+    const image = await buildCustomerInfoLongImage(data);
+    downloadBinaryFile(image.blob, `${confirmationSheetFileBaseName(data)}.jpg`, "image/jpeg");
+    renderLongImageModal(image.dataUrl);
+    toast(t("longImageReady"));
+  } catch (error) {
+    console.error("Confirmation long image export failed:", error);
+    toast(t("exportFailed"));
+  } finally {
+    confirmationFileExporting = false;
+    refreshQuickConfirmationCard();
+  }
 }
 
 async function downloadSheet() {
@@ -3005,21 +3098,6 @@ async function downloadSheet() {
       refreshEffectPickerModal();
     }
   }
-}
-
-async function openFullConfirmationSheet() {
-  const { data, html } = await buildConfirmationSheetDocument();
-  const sheetWindow = window.open("", "_blank");
-  if (sheetWindow && !sheetWindow.closed) {
-    sheetWindow.document.open();
-    sheetWindow.document.write(html);
-    sheetWindow.document.close();
-    sheetWindow.focus();
-    return;
-  }
-  // 弹窗被拦截时只能下载当前生成的 HTML；真实 PDF 仍通过确认单页面的打印/另存 PDF 生成。
-  downloadConfirmationSheetFallback(html, confirmationSheetHtmlFileName(data));
-  toast(t("popupBlocked"));
 }
 
 function refreshQuickConfirmationCard() {
@@ -3385,8 +3463,13 @@ function bindEvents() {
       return;
     }
 
-    if (event.target.closest("[data-view-full-sheet]")) {
-      void openFullConfirmationSheet();
+    if (event.target.closest("[data-export-pdf], [data-view-full-sheet]")) {
+      void exportConfirmationPdf();
+      return;
+    }
+
+    if (event.target.closest("[data-export-long-image]")) {
+      void exportConfirmationLongImage();
       return;
     }
 
@@ -3397,6 +3480,11 @@ function bindEvents() {
 
     if (event.target.closest("[data-close-preview]")) {
       document.querySelector("#confirmationPreviewModal")?.classList.remove("is-visible");
+      return;
+    }
+
+    if (event.target.closest("[data-close-long-image]")) {
+      document.querySelector("#confirmationLongImageModal")?.classList.remove("is-visible");
       return;
     }
 
