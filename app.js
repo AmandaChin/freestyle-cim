@@ -5,7 +5,7 @@ const FULL_ANGLE_ASSET_DIR = "./assets/skates/yjs-pro-cim/";
 const FULL_ANGLE_ASSET_VERSION = "20260523-annotated-v1";
 const REAL_PRODUCT_ASSET_DIR = "./assets/skates/yjs-pro-cim/real-products/";
 const MATERIAL_ASSET_DIR = "./assets/skates/yjs-pro-cim/materials/";
-const MATERIAL_ASSET_VERSION = "20260627-official-materials-v2";
+const MATERIAL_ASSET_VERSION = "20261024-cim-base-v3";
 const HIT_ALPHA_THRESHOLD = 18;
 const SELECTION_RING_RADIUS = 14;
 const SELECTION_RING_STEP = 3;
@@ -95,8 +95,13 @@ function officialTextureById(id, schema = activeShoeSchema()) {
   return (schema.materialTextures || []).find((item) => item.id === String(id)) || null;
 }
 
-function officialTexturesForCategory(component, category, schema = activeShoeSchema()) {
-  const availableIds = new Set(schema.materialAvailability?.[component.id] || []);
+function officialTexturesForCategory(component, category, schema = activeShoeSchema(), angleKey = currentAngleConfig(product()).id) {
+  // 当前视角的裁片关系优先，避免把其他视角或旧全局关系带进 C 端选择器。
+  const availableIds = new Set(
+    schema.materialAvailabilityByAngle?.[angleKey]?.[component.id]
+      || schema.materialAvailability?.[component.id]
+      || []
+  );
   return (schema.materialTextures || []).filter((texture) => texture.categoryId === category.id && availableIds.has(texture.id));
 }
 
@@ -136,7 +141,9 @@ function buildComponentsFromSchema(schema) {
     fixedColorOptions: part.fixedStyleSet?.colorOptions || null,
     fixedStyleSet: part.fixedStyleSet || null,
     color: part.defaultStyle?.color || "#f6f3ec",
-    material: part.defaultStyle?.material || part.materialIds?.[0] || SHOE_SCHEMA.materialTextures?.[0]?.id || "",
+    material: Object.prototype.hasOwnProperty.call(part.defaultStyle || {}, "material")
+      ? part.defaultStyle.material
+      : (part.materialIds?.[0] || SHOE_SCHEMA.materialTextures?.[0]?.id || ""),
     defaultVariant: part.defaultStyle?.variant || part.defaultStyle?.material || part.fixedStyleSet?.defaultVariant || part.fixedVariants?.[0]?.id || ""
   }));
 }
@@ -336,6 +343,71 @@ function normalizeAngleForProduct(item = product()) {
   }
 }
 
+function normalizeConfiguredMaterials(item = product()) {
+  const productConfig = state.config[item?.id];
+  if (!productConfig?.components) return;
+  const schema = activeShoeSchema();
+  const angleKey = currentAngleConfig(item).id;
+
+  item.components.forEach((component) => {
+    if (component.renderMode !== "mask_tint") return;
+    const config = productConfig.components[component.id];
+    const availableIds = schema.materialAvailabilityByAngle?.[angleKey]?.[component.id]
+      || schema.materialAvailability?.[component.id]
+      || [];
+    const renderableIds = (schema.materialTextures || [])
+      .filter((texture) => availableIds.includes(texture.id))
+      .map((texture) => texture.id);
+    if (!config || !renderableIds.length || !config.material || renderableIds.includes(String(config.material))) return;
+
+    // 关系更新后清理交接数据中的旧皮料编号，避免旧配置绕过当前 Base 关系继续渲染。
+    const defaultMaterial = renderableIds.includes(String(component.material)) ? String(component.material) : "";
+    config.material = defaultMaterial;
+    config.variant = defaultMaterial;
+  });
+}
+
+function applyAngleDefaults(previousAngleKey, nextAngleKey, item = product()) {
+  if (!item || previousAngleKey === nextAngleKey) return;
+  const productConfig = state.config[item.id];
+  const schema = activeShoeSchema();
+  const previousDefaults = schema.defaultMaterialsByAngle?.[previousAngleKey] || {};
+  const nextDefaults = schema.defaultMaterialsByAngle?.[nextAngleKey] || {};
+  if (!productConfig?.components) return;
+
+  item.components.forEach((component) => {
+    const config = productConfig.components[component.id];
+    const isFixedColor = Boolean(component.fixedColorOptions?.length);
+    const previousDefault = isFixedColor
+      ? schema.defaultFixedColorsByAngle?.[previousAngleKey]?.[component.id]
+      : previousDefaults[component.id];
+    const nextDefault = isFixedColor
+      ? schema.defaultFixedColorsByAngle?.[nextAngleKey]?.[component.id]
+      : nextDefaults[component.id];
+    if (!isFixedColor && component.renderMode !== "mask_tint") return;
+    if (previousDefault === undefined || nextDefault === undefined) return;
+    if (!config || previousDefault === undefined || nextDefault === undefined) return;
+
+    // 只有仍保持上一个视角默认值的裁片才跟随视角切换，避免覆盖用户已经做过的选择。
+    if (isFixedColor) {
+      if (String(config.color || "").toLowerCase() !== String(previousDefault).toLowerCase()) return;
+      config.color = String(nextDefault);
+      config.variant = config.color;
+      return;
+    }
+    if (String(config.material || "") !== String(previousDefault || "")) return;
+    config.material = String(nextDefault || "");
+    config.variant = config.material;
+  });
+}
+
+function setAngle(nextAngleKey) {
+  if (!nextAngleKey || nextAngleKey === state.angle) return;
+  const previousAngleKey = state.angle;
+  applyAngleDefaults(previousAngleKey, nextAngleKey);
+  state.angle = nextAngleKey;
+}
+
 function cloneProductConfig(item) {
   return {
     components: Object.fromEntries(
@@ -391,11 +463,12 @@ function isColorControlVisible(component = selectedComponent(), config = compone
 }
 
 function materialsFor(component) {
-  return SCHEMA_UTILS.materialsForPart(activeShoeSchema(), component.id);
+  return SCHEMA_UTILS.materialsForPart(activeShoeSchema(), component.id, currentAngleConfig().id);
 }
 
 function materialById(id) {
-  return officialTextureById(id) || activeShoeSchema().materials.find((item) => item.id === id) || activeShoeSchema().materials[0];
+  if (!id) return null;
+  return officialTextureById(id) || activeShoeSchema().materials.find((item) => item.id === id) || null;
 }
 
 function colorName(value, component = selectedComponent()) {
@@ -461,6 +534,7 @@ function componentColorValue(component, config = componentConfig(component.id)) 
 
 function materialName(id, component = selectedComponent()) {
   if (component?.fixedColorOptions && component.fixedOptions) return localizedItemName(fixedOption(component, { material: id, variant: id }), id);
+  if (!id) return t("color");
   return localizedItemName(materialById(id), id);
 }
 
@@ -1739,6 +1813,7 @@ function renderSummary() {
 
 function render() {
   normalizeAngleForProduct();
+  normalizeConfiguredMaterials();
   normalizeSelectedPartForAngle();
   const isHome = state.view === "home";
   const isSpecial = state.view === "special";
@@ -3222,6 +3297,7 @@ function restoreCustomizationHandoff(inMemoryPayload = null) {
     state.selectedPartId = payload.selectedPartId || activePartId(product());
     state.angle = payload.angle || product().defaultAngle || "side";
     state.selectedEffectAngle = payload.selectedEffectAngle || state.angle;
+    normalizeConfiguredMaterials(product());
     state.view = "builder";
     state.isCustomizerOpen = defaultCustomizerOpen();
     return true;
@@ -3350,7 +3426,7 @@ function bindEvents() {
     const button = event.target.closest("[data-angle]");
     if (!button) return;
     invalidatePendingShoeHit();
-    state.angle = button.dataset.angle;
+    setAngle(button.dataset.angle);
     render();
   });
 
@@ -3610,7 +3686,7 @@ function bindEvents() {
       const angles = productAngles();
       const index = angles.findIndex((angle) => angle.id === state.angle);
       const step = distance > 0 ? -1 : 1;
-      state.angle = angles[(index + step + angles.length) % angles.length]?.id || state.angle;
+      setAngle(angles[(index + step + angles.length) % angles.length]?.id || state.angle);
       render();
     }
     window.setTimeout(() => {

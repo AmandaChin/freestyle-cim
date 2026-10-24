@@ -113,7 +113,7 @@ test("C-side upload and confirmation request sizes stay within production bounda
 test("production artwork PDF uses the main app image loader", async () => {
   const appSource = await readFile(path.join(ROOT_DIR, "app.js"), "utf8");
   assert(
-    appSource.includes("await requireSnapshotImage(entry.designPreviewDataUrl)"),
+    appSource.includes("await requireSnapshotImage(entry.designPreviewDataUrl || entry.image.dataUrl)"),
     "production PDF artwork must load through the main app's shared image loader"
   );
   assert(

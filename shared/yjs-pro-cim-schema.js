@@ -1,19 +1,20 @@
 (function () {
   const ASSET_ROOT = "./assets/skates/yjs-pro-cim/";
-  const ASSET_VERSION = "20260711-patch-assets-v1";
+  // 资源快照来自 2026-10-24 的 CIM Base；每次同步表格资源时递增版本，避免缓存继续命中旧图片。
+  const ASSET_VERSION = "20261024-cim-base-v3";
 
+  // 资源分类、皮料编号和图片文件以 Base「皮料图片」表为准。
   const categorySeed = [
-    ["scale", "鳞片", "Scale texture", ["43", "44", "45", "46", "47", "48"]],
-    ["bear", "小熊", "Bear", ["7", "8"]],
-    ["others", "OTHERS", "Others", ["6", "12", "14", "15", "49", "50", "51", "52", "53"]],
-    ["reflective-marble", "反光大理石", "Reflective marble", ["11", "13"]],
-    ["straw", "草席", "Straw texture", ["18", "31", "32", "35", "36", "37", "39", "41"]],
-    ["twill-dot", "斜纹点子布", "Twill dot fabric", ["16", "33"]],
     ["pu", "PU", "PU", ["1", "2", "3", "5", "9"]],
-    ["silk-texture", "丝状肌理", "Silk texture", ["22", "24", "38"]],
+    ["others", "OTHERS", "Others", ["6", "12", "14", "15", "49", "50", "51", "52", "53", "60", "61", "62", "63", "64", "65", "66", "67"]],
+    ["bear", "小熊", "Bear", ["7", "8"]],
+    ["twill-dot", "斜纹点子布", "Twill dot fabric", ["16", "33"]],
     ["chinoiserie", "中国风", "Chinoiserie", ["17", "34"]],
+    ["straw", "草席", "Straw texture", ["18", "31", "32", "35", "36", "37", "39", "41"]],
     ["leather", "皮革", "Leather", ["19", "20", "27", "28", "30", "42"]],
-    ["tpu", "TPU", "TPU", ["23", "25", "26", "29", "40"]]
+    ["silk-texture", "丝状肌理", "Silk texture", ["22", "24", "38"]],
+    ["tpu", "TPU", "TPU", ["23", "25", "26", "29", "40"]],
+    ["scale", "鳞片", "Scale texture", ["43", "44", "45", "46", "47", "48"]]
   ];
 
   const materialCategories = categorySeed.map(([id, name, en]) => ({
@@ -35,12 +36,51 @@
     file: `${categoryName}/${id}.jpg`
   })));
 
-  const allTextureIds = materialTextures.map((item) => item.id);
-  const toeExcludedTextureIds = new Set(["1", "2", "3", "5", "9", "23", "25", "26", "29", "40"]);
+  // 主表当前普通皮料配置的原始顺序，包含 4、10、11、13 这类已建关系但尚无图片的编号。
+  const fullMaterialIds = [
+    "13", "11", "43", "46", "48", "47", "44", "45", "39", "31", "32", "36", "37", "18", "35", "41",
+    "8", "7", "16", "33", "3", "9", "4", "1", "5", "2", "23", "29", "40", "25", "26", "42", "28",
+    "20", "30", "27", "14", "15", "6", "10", "12", "38", "24", "22", "34", "17", "49", "50", "51", "52", "53",
+    "60", "61", "62", "63", "64", "65", "66", "67"
+  ];
+  // Base 侧面 F/F1 的关系顺序与其他普通裁片不同，必须保留表格原始顺序。
+  const sideLowerBodyMaterialIds = [
+    ...fullMaterialIds.slice(0, -8),
+    "60", "63", "61", "62", "64", "65", "66", "67"
+  ];
+  // H 裁片是 Base 中单独收窄过的关系，不能继续沿用旧的“排除 PU/TPU”推导规则。
+  const toeMaterialIds = [
+    "11", "32", "36", "37", "18", "35", "41", "16", "33", "42", "28", "20", "30", "27", "14", "15",
+    "6", "10", "38", "24", "22", "34", "17", "49", "50", "52", "53"
+  ];
+
+  // k 是 Base 中保留大小写的业务 key，C 端历史组件 ID 为 K；通过显式映射保持两边语义一致。
+  const materialKeyAliases = { k: "K" };
+  const materialAvailabilityByAngle = {
+    side: {
+      A: fullMaterialIds, B: fullMaterialIds, C: fullMaterialIds, C1: fullMaterialIds, C2: fullMaterialIds, C3: fullMaterialIds,
+      F: sideLowerBodyMaterialIds, F1: sideLowerBodyMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, J: fullMaterialIds, K: fullMaterialIds
+    },
+    forty_five: {
+      A: fullMaterialIds, C: fullMaterialIds, C1: fullMaterialIds, C2: fullMaterialIds, C3: fullMaterialIds,
+      F: fullMaterialIds, F1: fullMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, J: fullMaterialIds, K: fullMaterialIds
+    },
+    front: {
+      C: fullMaterialIds, C1: fullMaterialIds, C2: fullMaterialIds, C3: fullMaterialIds,
+      F1: fullMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, J: fullMaterialIds, K: fullMaterialIds
+    }
+  };
   const materialAvailability = Object.fromEntries(
-    ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "K"].map((key) => [key, allTextureIds])
+    ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "K"].map((key) => [key, fullMaterialIds])
   );
-  materialAvailability.H = allTextureIds.filter((id) => !toeExcludedTextureIds.has(id));
+  materialAvailability.H = toeMaterialIds;
+
+  // 主表「默认皮料」按视角拆开保存；未列出的固定裁片不参与皮料默认值。
+  const defaultMaterialsByAngle = {
+    side: { A: "51", B: "50", C: "50", C1: "49", C2: "50", C3: "50", F: "50", F1: "50", G: "49", H: "50", I: "50", K: "50" },
+    forty_five: { A: "51", C: "50", C1: "49", C2: "50", C3: "50", F: "50", F1: "50", G: "49", H: "50", I: "50", K: "50" },
+    front: { C: "50", C1: "49", C2: "50", C3: "50", F1: "50", G: "50", H: "50", I: "50", K: "50" }
+  };
 
   const materials = [
     ...materialCategories,
@@ -121,26 +161,32 @@
     ]
   };
 
-  // 白粉实物图的默认方案：主体用白色皮革，原粉色视觉区域直接使用中国风 34 号皮料。
-  const defaultMaterial = "19";
-  const defaultChinoiserieMaterial = "34";
+  // 固定色值默认项来自 CIM 主表备注；J 的默认值按视角区分，O 为主绣线默认黑色。
+  const defaultFixedColorsByAngle = {
+    side: { J: "#380059", O: "#111111" },
+    forty_five: { J: "#380059", O: "#111111" },
+    front: { J: "#000000", O: "#111111" }
+  };
+
+  // C 端初始显示使用侧面视角的 Base 默认皮料；切换视角时可通过 defaultMaterialsByAngle 查对应默认值。
+  const defaultMaterial = defaultMaterialsByAngle.side;
   const defaultWhite = "#f7f7f8";
   const parts = [
-    { key: "A", name: "鞋帮", en: "Shoe collar", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 30, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
-    { key: "B", name: "后提带", en: "Back handle strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 34, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
-    { key: "C", name: "鞋舌", en: "Tongue", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 55, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
-    { key: "C1", name: "鞋舌三角片", en: "Tongue triangle", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 56, defaultStyle: { color: defaultWhite, material: defaultChinoiserieMaterial } },
-    { key: "C2", name: "皮垫套下片", en: "Pad sleeve lower", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 57, defaultStyle: { color: defaultWhite, material: defaultChinoiserieMaterial } },
-    { key: "C3", name: "皮垫套上片", en: "Pad sleeve upper", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 58, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
-    { key: "E", name: "碳纤鞋壳", en: "Carbon shell", group: "sole", selectable: true, renderMode: "fixed_variant", renderOrder: 20, defaultStyle: { material: "fixed-image", variant: "sole-silver" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.E },
-    { key: "F", name: "下鞋身片", en: "Lower body", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 35, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
-    { key: "F1", name: "下鞋身片2", en: "Lower body 2", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 40, defaultStyle: { color: defaultWhite, material: defaultChinoiserieMaterial } },
+    { key: "A", name: "鞋帮", en: "Shoe collar", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 30, defaultStyle: { color: defaultWhite, material: defaultMaterial.A } },
+    { key: "B", name: "后提带", en: "Back handle strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 34, defaultStyle: { color: defaultWhite, material: defaultMaterial.B } },
+    { key: "C", name: "鞋舌", en: "Tongue", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 55, defaultStyle: { color: defaultWhite, material: defaultMaterial.C } },
+    { key: "C1", name: "鞋舌三角片", en: "Tongue triangle", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 56, defaultStyle: { color: defaultWhite, material: defaultMaterial.C1 } },
+    { key: "C2", name: "皮垫套下片", en: "Pad sleeve lower", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 57, defaultStyle: { color: defaultWhite, material: defaultMaterial.C2 } },
+    { key: "C3", name: "皮垫套上片", en: "Pad sleeve upper", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 58, defaultStyle: { color: defaultWhite, material: defaultMaterial.C3 } },
+    { key: "E", name: "碳纤鞋壳", en: "Carbon shell", group: "sole", selectable: true, renderMode: "fixed_variant", renderOrder: 20, defaultStyle: { material: "fixed-image", variant: "sole-black-purple" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.E },
+    { key: "F", name: "下鞋身片", en: "Lower body", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 35, defaultStyle: { color: defaultWhite, material: defaultMaterial.F } },
+    { key: "F1", name: "下鞋身片2", en: "Lower body 2", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 40, defaultStyle: { color: defaultWhite, material: defaultMaterial.F1 } },
     // CUFF 和蘑菇钉是外露五金，必须压在下鞋身片之上，同时仍保留在上鞋身片 G 之前。
-    { key: "D", name: "CUFF", en: "Cuff", group: "hardware", selectable: true, renderMode: "fixed_variant", renderOrder: 42, defaultStyle: { material: "fixed-image", variant: "cuff-silver" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.D },
-    { key: "D1", name: "蘑菇钉", en: "Mushroom nail", group: "hardware", selectable: true, renderMode: "fixed_variant", renderOrder: 43, defaultStyle: { material: "fixed-image", variant: "mushroom-nail-white" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.D1 },
-    { key: "G", name: "上鞋身片", en: "Main upper", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 45, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
-    { key: "H", name: "鞋头下片", en: "Toe lower panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 50, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
-    { key: "I", name: "鞋眼片", en: "Eyelet panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 65, defaultStyle: { color: defaultWhite, material: defaultChinoiserieMaterial } },
+    { key: "D", name: "CUFF", en: "Cuff", group: "hardware", selectable: true, renderMode: "fixed_variant", renderOrder: 42, defaultStyle: { material: "fixed-image", variant: "cuff-black-purple" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.D },
+    { key: "D1", name: "蘑菇钉", en: "Mushroom nail", group: "hardware", selectable: true, renderMode: "fixed_variant", renderOrder: 43, defaultStyle: { material: "fixed-image", variant: "mushroom-nail-black" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.D1 },
+    { key: "G", name: "上鞋身片", en: "Main upper", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 45, defaultStyle: { color: defaultWhite, material: defaultMaterial.G } },
+    { key: "H", name: "鞋头下片", en: "Toe lower panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 50, defaultStyle: { color: defaultWhite, material: defaultMaterial.H } },
+    { key: "I", name: "鞋眼片", en: "Eyelet panel", group: "upper", selectable: true, renderMode: "mask_tint", renderOrder: 65, defaultStyle: { color: defaultWhite, material: defaultMaterial.I } },
     {
       key: "J",
       name: "鞋带",
@@ -149,12 +195,12 @@
       selectable: true,
       renderMode: "mask_tint",
       renderOrder: 80,
-      defaultStyle: { color: "#ffffff", material: "fixed-image" },
+      defaultStyle: { color: defaultFixedColorsByAngle.side.J, material: "fixed-image" },
       materialIds: ["fixed-image"],
       materialRule: "仅支持黑色、白色、红色、土黄色、紫色固定色值",
       fixedStyleSet: fixedStyleSets.lace
     },
-    { key: "K", name: "前魔术贴绑带", en: "Front velcro strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 90, defaultStyle: { color: defaultWhite, material: defaultMaterial } },
+    { key: "K", name: "前魔术贴绑带", en: "Front velcro strap", group: "strap", selectable: true, renderMode: "mask_tint", renderOrder: 90, defaultStyle: { color: defaultWhite, material: defaultMaterial.K } },
     {
       key: "L",
       name: "防磨片",
@@ -163,13 +209,13 @@
       selectable: true,
       renderMode: "fixed_variant",
       renderOrder: 95,
-      defaultStyle: { material: "fixed-image", variant: "pad-new-white" },
+      defaultStyle: { material: "fixed-image", variant: "pad-new-black" },
       materialIds: ["fixed-image"],
       materialRule: "黑色/白色，样式：新/旧",
       fixedVariants: fixedVariants.L
     },
-    { key: "M", name: "上能量带", en: "Upper energy strap", group: "strap", selectable: true, renderMode: "fixed_variant", renderOrder: 100, defaultStyle: { material: "fixed-image", variant: "upper-strap-white" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.M },
-    { key: "N", name: "下能量带", en: "Lower energy strap", group: "strap", selectable: true, renderMode: "fixed_variant", renderOrder: 105, defaultStyle: { material: "fixed-image", variant: "lower-strap-white" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.N }
+    { key: "M", name: "上能量带", en: "Upper energy strap", group: "strap", selectable: true, renderMode: "fixed_variant", renderOrder: 100, defaultStyle: { material: "fixed-image", variant: "upper-strap-black" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.M },
+    { key: "N", name: "下能量带", en: "Lower energy strap", group: "strap", selectable: true, renderMode: "fixed_variant", renderOrder: 105, defaultStyle: { material: "fixed-image", variant: "lower-strap-black" }, materialIds: ["fixed-image"], fixedVariants: fixedVariants.N }
   ];
 
   const angles = [
@@ -209,6 +255,19 @@
     materialCategories,
     materialTextures,
     materialAvailability,
+    materialAvailabilityByAngle,
+    defaultMaterialsByAngle,
+    defaultFixedColorsByAngle,
+    materialKeyAliases,
+    materialSource: {
+      baseToken: "YH27bJJSJafbd3s2ff6cFlGLnQh",
+      configTableId: "tblzPpnAxit5RrsD",
+      mappingTableId: "tblgXTpDXMylMi2X",
+      configRevision: 199,
+      mappingRevision: 123,
+      missingAssetIds: ["4", "10", "11", "13", "21", "54", "55", "56", "57", "58", "59"],
+      fixedColorPartKeys: ["D", "D1", "E", "L", "M", "N", "O"]
+    },
     fixedStyleSets,
     fixedVariants,
     parts,

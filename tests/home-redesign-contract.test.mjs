@@ -31,11 +31,11 @@ async function main() {
   const prototypePath = path.join(ROOT_DIR, "prototypes/home-immersive-prototype.html");
   const activeCarouselImage = html.match(/<img class="carousel-slide active" src="([^"]+)"/)?.[1] || "";
   const pageAssetVersions = {
-    "shared/yjs-pro-cim-schema.js": "20260711-patch-assets-v1",
+    "shared/yjs-pro-cim-schema.js": "20261024-cim-base-v3",
     "shared/schema-utils.js": "20260707-ui-polish-v7",
     "version.js": "20260707-ui-polish-v7",
-    "i18n/c-side-copy.js": "20261006-special-three-view-v2",
-    "app.js": "20261006-embroidery-production-v1"
+    "i18n/c-side-copy.js": "20261012-confirmation-file-export-v1",
+    "app.js": "20261024-cim-base-v3"
   };
 
   assert(!existsSync(prototypePath), "prototype redesign file should be rolled back; root index is the UI target");

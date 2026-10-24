@@ -72,7 +72,7 @@
     return angle?.layerPartKeys || Object.keys(angle?.layerAssets || {});
   }
 
-  function materialsForPart(schema, partKey) {
+  function materialsForPart(schema, partKey, angleKey = "") {
     const part = (schema.parts || []).find((item) => item.key === partKey);
     if (!part) return [];
     // 固定色值部件只返回固定样式入口，避免被材质可用性列表重新暴露为官方皮料。
@@ -80,8 +80,11 @@
       const materials = materialMap(schema);
       return (part.materialIds || []).map((id) => materials.get(id)).filter(Boolean);
     }
-    if (part.renderMode === "mask_tint" && schema.materialAvailability?.[partKey]?.length) {
-      const availableIds = new Set(schema.materialAvailability[partKey]);
+    if (part.renderMode === "mask_tint") {
+      // 视角级关系优先于旧的全局关系，确保每个裁片按 Base 对应视图取可用皮料。
+      const angleAvailability = schema.materialAvailabilityByAngle?.[angleKey]?.[partKey];
+      const availableIds = new Set(angleAvailability || schema.materialAvailability?.[partKey] || []);
+      if (!availableIds.size) return [];
       return (schema.materialCategories || []).filter((category) => {
         return (schema.materialTextures || []).some((texture) => texture.categoryId === category.id && availableIds.has(texture.id));
       });
@@ -114,6 +117,12 @@
       materialCategories: publishedShoe.materialCategories?.length ? mergeById(schema.materialCategories || [], publishedShoe.materialCategories) : clone(schema.materialCategories || []),
       materialTextures: publishedShoe.materialTextures?.length ? mergeById(schema.materialTextures || [], publishedShoe.materialTextures) : clone(schema.materialTextures || []),
       materialAvailability: publishedShoe.materialAvailability ? clone(publishedShoe.materialAvailability) : clone(schema.materialAvailability || {}),
+      materialAvailabilityByAngle: publishedShoe.materialAvailabilityByAngle
+        ? clone(publishedShoe.materialAvailabilityByAngle)
+        : clone(schema.materialAvailabilityByAngle || {}),
+      materialKeyAliases: publishedShoe.materialKeyAliases
+        ? clone(publishedShoe.materialKeyAliases)
+        : clone(schema.materialKeyAliases || {}),
       fixedStyleSets: publishedShoe.fixedStyleSets ? clone(publishedShoe.fixedStyleSets) : clone(schema.fixedStyleSets || {}),
       fixedVariants: publishedShoe.fixedVariants ? clone(publishedShoe.fixedVariants) : clone(schema.fixedVariants || {}),
       parts: publishedShoe.parts?.length ? mergeParts(schema.parts || [], publishedShoe.parts) : clone(schema.parts || []),
