@@ -1,15 +1,15 @@
 (function () {
   const ASSET_ROOT = "./assets/skates/yjs-pro-cim/";
-  // 资源快照来自 2026-10-24 的 CIM Base；每次同步表格资源时递增版本，避免缓存继续命中旧图片。
-  const ASSET_VERSION = "20261024-cim-base-v3";
+  // 资源快照来自 2026-11-12 的 CIM Base；每次同步表格资源时递增版本，避免缓存继续命中旧图片。
+  const ASSET_VERSION = "20261112-cim-base-v1";
 
   // 资源分类、皮料编号和图片文件以 Base「皮料图片」表为准。
   const categorySeed = [
     ["pu", "PU", "PU", ["1", "2", "3", "5", "9"]],
-    ["others", "OTHERS", "Others", ["6", "12", "14", "15", "49", "50", "51", "52", "53", "60", "61", "62", "63", "64", "65", "66", "67"]],
+    ["others", "OTHERS", "Others", ["6", "12", "14", "15", "49", "50", "51", "60", "61", "62", "63", "64", "65", "66", "67"]],
     ["bear", "小熊", "Bear", ["7", "8"]],
     ["twill-dot", "斜纹点子布", "Twill dot fabric", ["16", "33"]],
-    ["chinoiserie", "中国风", "Chinoiserie", ["17", "34"]],
+    ["chinoiserie", "中国风", "Chinoiserie", ["17", "34", "52", "53"]],
     ["straw", "草席", "Straw texture", ["18", "31", "32", "35", "36", "37", "39", "41"]],
     ["leather", "皮革", "Leather", ["19", "20", "27", "28", "30", "42"]],
     ["silk-texture", "丝状肌理", "Silk texture", ["22", "24", "38"]],
@@ -36,22 +36,17 @@
     file: `${categoryName}/${id}.jpg`
   })));
 
-  // 主表当前普通皮料配置的原始顺序，包含 4、10、11、13 这类已建关系但尚无图片的编号。
+  // 主表当前普通皮料配置的原始顺序，包含已建关系但尚无图片的编号。
   const fullMaterialIds = [
-    "13", "11", "43", "46", "48", "47", "44", "45", "39", "31", "32", "36", "37", "18", "35", "41",
-    "8", "7", "16", "33", "3", "9", "4", "1", "5", "2", "23", "29", "40", "25", "26", "42", "28",
-    "20", "30", "27", "14", "15", "6", "10", "12", "38", "24", "22", "34", "17", "49", "50", "51", "52", "53",
-    "60", "61", "62", "63", "64", "65", "66", "67"
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "17", "18", "22", "23",
+    "24", "25", "26", "29", "31", "32", "34", "35", "36", "37", "38", "39", "40", "41", "43", "44",
+    "45", "46", "47", "48", "49", "50", "51", "52", "53", "60", "61", "62", "63", "64", "65", "66",
+    "67", "55", "57", "54", "56", "58", "59"
   ];
-  // Base 侧面 F/F1 的关系顺序与其他普通裁片不同，必须保留表格原始顺序。
-  const sideLowerBodyMaterialIds = [
-    ...fullMaterialIds.slice(0, -8),
-    "60", "63", "61", "62", "64", "65", "66", "67"
-  ];
-  // H 裁片是 Base 中单独收窄过的关系，不能继续沿用旧的“排除 PU/TPU”推导规则。
+  // H 裁片按 Base 当前关系单独配置，不能从普通裁片关系推导。
   const toeMaterialIds = [
-    "11", "32", "36", "37", "18", "35", "41", "16", "33", "42", "28", "20", "30", "27", "14", "15",
-    "6", "10", "38", "24", "22", "34", "17", "49", "50", "52", "53"
+    "32", "36", "37", "18", "35", "41", "38", "24", "22", "15", "59", "53", "34", "52", "17", "16",
+    "14", "49", "50", "11", "10", "61", "62", "63", "64", "65", "66", "67", "6"
   ];
 
   // k 是 Base 中保留大小写的业务 key，C 端历史组件 ID 为 K；通过显式映射保持两边语义一致。
@@ -59,15 +54,15 @@
   const materialAvailabilityByAngle = {
     side: {
       A: fullMaterialIds, B: fullMaterialIds, C: fullMaterialIds, C1: fullMaterialIds, C2: fullMaterialIds, C3: fullMaterialIds,
-      F: sideLowerBodyMaterialIds, F1: sideLowerBodyMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, J: fullMaterialIds, K: fullMaterialIds
+      F: fullMaterialIds, F1: fullMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, K: fullMaterialIds
     },
     forty_five: {
       A: fullMaterialIds, C: fullMaterialIds, C1: fullMaterialIds, C2: fullMaterialIds, C3: fullMaterialIds,
-      F: fullMaterialIds, F1: fullMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, J: fullMaterialIds, K: fullMaterialIds
+      F: fullMaterialIds, F1: fullMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, K: fullMaterialIds
     },
     front: {
       C: fullMaterialIds, C1: fullMaterialIds, C2: fullMaterialIds, C3: fullMaterialIds,
-      F1: fullMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, J: fullMaterialIds, K: fullMaterialIds
+      F1: fullMaterialIds, G: fullMaterialIds, H: toeMaterialIds, I: fullMaterialIds, K: fullMaterialIds
     }
   };
   const materialAvailability = Object.fromEntries(

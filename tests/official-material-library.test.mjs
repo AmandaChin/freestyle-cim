@@ -11,22 +11,23 @@ const MAPPED_RESOURCE_IDS = [
   "13", "11", "43", "46", "48", "47", "44", "45", "39", "31", "32", "36", "37", "18", "35", "41",
   "8", "7", "16", "33", "3", "9", "4", "1", "5", "2", "23", "29", "40", "25", "26", "19",
   "42", "28", "21", "20", "30", "27", "14", "15", "6", "10", "12", "38", "24", "22", "34",
-  "17", "49", "50", "51", "52", "53", "60", "61", "62", "63", "64", "65", "66", "67"
+  "17", "49", "50", "51", "52", "53", "60", "61", "62", "63", "64", "65", "66", "67",
+  "54", "55", "56", "57", "58", "59"
 ];
 const SOURCE_RELATION_IDS = [
-  "13", "11", "43", "46", "48", "47", "44", "45", "39", "31", "32", "36", "37", "18", "35", "41",
-  "8", "7", "16", "33", "3", "9", "4", "1", "5", "2", "23", "29", "40", "25", "26", "42", "28",
-  "20", "30", "27", "14", "15", "6", "10", "12", "38", "24", "22", "34", "17", "49", "50", "51", "52", "53",
-  "60", "61", "62", "63", "64", "65", "66", "67"
+  "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "17", "18", "22", "23",
+  "24", "25", "26", "29", "31", "32", "34", "35", "36", "37", "38", "39", "40", "41", "43", "44",
+  "45", "46", "47", "48", "49", "50", "51", "52", "53", "60", "61", "62", "63", "64", "65", "66",
+  "67", "55", "57", "54", "56", "58", "59"
 ];
 // 映射表保留无图记录；C 端不生成虚假资源，只把这些编号从可渲染 texture 列表中排除。
 const MISSING_SOURCE_ASSET_IDS = ["4", "10", "11", "13", "21", "54", "55", "56", "57", "58", "59"];
 const EXPECTED_CATEGORIES = {
   PU: ["1", "2", "3", "5", "9"],
-  OTHERS: ["6", "12", "14", "15", "49", "50", "51", "52", "53", "60", "61", "62", "63", "64", "65", "66", "67"],
+  OTHERS: ["6", "12", "14", "15", "49", "50", "51", "60", "61", "62", "63", "64", "65", "66", "67"],
   "小熊": ["7", "8"],
   "斜纹点子布": ["16", "33"],
-  "中国风": ["17", "34"],
+  "中国风": ["17", "34", "52", "53"],
   "草席": ["18", "31", "32", "35", "36", "37", "39", "41"],
   "皮革": ["19", "20", "27", "28", "30", "42"],
   "丝状肌理": ["22", "24", "38"],
@@ -34,7 +35,7 @@ const EXPECTED_CATEGORIES = {
   "鳞片": ["43", "44", "45", "46", "47", "48"]
 };
 const ALL_TEXTURE_IDS = Object.values(EXPECTED_CATEGORIES).flat().sort((a, b) => Number(a) - Number(b));
-const EXPECTED_TOE_IDS = ["11", "32", "36", "37", "18", "35", "41", "16", "33", "42", "28", "20", "30", "27", "14", "15", "6", "10", "38", "24", "22", "34", "17", "49", "50", "52", "53"];
+const EXPECTED_TOE_IDS = ["32", "36", "37", "18", "35", "41", "38", "24", "22", "15", "59", "53", "34", "52", "17", "16", "14", "49", "50", "11", "10", "61", "62", "63", "64", "65", "66", "67", "6"];
 const EXPECTED_REAL_PRODUCT_ORDER = [
   "white-pink-1.jpg",
   "brown-1.jpg",
@@ -149,6 +150,7 @@ const lace = partsByKey.J;
 assert(JSON.stringify(lace?.fixedStyleSet?.colorOptions?.map(({ name, value }) => ({ name, value }))) === JSON.stringify(EXPECTED_LACE_COLORS), "J should expose only the five approved fixed lace colors in order");
 assert(lace?.defaultStyle?.color === "#380059", "J should use purple as the side-view default fixed lace color");
 assert(lace?.materialIds?.length === 1 && lace.materialIds[0] === "fixed-image", "J should use the fixed-image material entry");
+assert(!schema.materialAvailabilityByAngle.side.J && !schema.materialAvailabilityByAngle.forty_five.J && !schema.materialAvailabilityByAngle.front.J, "fixed-color J should not carry official leather relations");
 assert(JSON.stringify(schemaUtils.materialsForPart(schema, "J").map((material) => material.id)) === JSON.stringify(["fixed-image"]), "J should expose only the fixed-image material entry");
 for (const [partKey, expectedColor] of Object.entries(EXPECTED_DEFAULT_COLORS)) {
   assert(partsByKey[partKey]?.defaultStyle?.color === expectedColor, `${partKey} should default to the white-pink color palette`);
@@ -172,7 +174,7 @@ assert(
   JSON.stringify(MAPPED_RESOURCE_IDS.filter((id) => !MISSING_SOURCE_ASSET_IDS.includes(id)).sort((a, b) => Number(a) - Number(b))) === JSON.stringify(ALL_TEXTURE_IDS),
   "texture assets should follow the current Base mapping, excluding only missing attachments"
 );
-assert(JSON.stringify(sorted(schema.materialAvailability.A)) === JSON.stringify(sorted(SOURCE_RELATION_IDS)), "A should follow the current CIM material relation");
+assert(JSON.stringify(schema.materialAvailability.A) === JSON.stringify(SOURCE_RELATION_IDS), "A should follow the current CIM material relation order");
 assert(JSON.stringify(sorted(schema.materialTextures.map((item) => item.id))) === JSON.stringify(ALL_TEXTURE_IDS), "all available official texture ids should be present exactly once");
 
 for (const [categoryName, ids] of Object.entries(EXPECTED_CATEGORIES)) {
@@ -190,7 +192,7 @@ for (const [categoryName, ids] of Object.entries(EXPECTED_CATEGORIES)) {
 }
 
 for (const part of ["A", "B", "C", "C1", "C2", "C3", "F", "F1", "G", "I", "K"]) {
-  assert(JSON.stringify(sorted(schema.materialAvailability[part])) === JSON.stringify(sorted(SOURCE_RELATION_IDS)), `${part} should follow the current CIM material relation`);
+  assert(JSON.stringify(schema.materialAvailability[part]) === JSON.stringify(SOURCE_RELATION_IDS), `${part} should follow the current CIM material relation order`);
 }
 
 assert(JSON.stringify(schema.materialAvailability.H) === JSON.stringify(EXPECTED_TOE_IDS), "H toe part should follow the narrowed Base relation");
@@ -199,7 +201,7 @@ assert(schema.defaultMaterialsByAngle.side.G === "49", "side G should use the la
 assert(schema.defaultMaterialsByAngle.front.G === "50", "front G should use the latest Base default material");
 assert(schema.defaultFixedColorsByAngle.side.J === "#380059", "side J should use purple as the latest Base default fixed color");
 assert(schema.defaultFixedColorsByAngle.front.J === "#000000", "front J should use black as the latest Base default fixed color");
-assert(JSON.stringify(schema.materialAvailabilityByAngle.side.F.slice(-8)) === JSON.stringify(["60", "63", "61", "62", "64", "65", "66", "67"]), "side F should preserve the latest Base relation order");
+assert(JSON.stringify(schema.materialAvailabilityByAngle.side.F) === JSON.stringify(SOURCE_RELATION_IDS), "side F should preserve the latest Base relation order");
 assert(JSON.stringify(schema.materialAvailabilityByAngle.side.H) === JSON.stringify(EXPECTED_TOE_IDS), "side H should follow the narrowed Base relation");
 assert(JSON.stringify(schema.materialAvailabilityByAngle.forty_five.H) === JSON.stringify(EXPECTED_TOE_IDS), "45-degree H should follow the narrowed Base relation");
 assert(JSON.stringify(schema.materialAvailabilityByAngle.front.H) === JSON.stringify(EXPECTED_TOE_IDS), "front H should follow the narrowed Base relation");
